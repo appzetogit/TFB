@@ -50,9 +50,9 @@ class SMSIndiaHubService {
         await import("../../admin/models/BusinessSettings.js")
       ).default;
       const settings = await BusinessSettings.getSettings();
-      return settings?.companyName || "Tastizo";
+      return settings?.companyName || "Tifunbox";
     } catch (error) {
-      return "Tastizo";
+      return "Tifunbox";
     }
   }
 

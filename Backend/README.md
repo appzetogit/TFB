@@ -1,6 +1,6 @@
-# Tastizo Food Backend API
+# Tifunbox Food Backend API
 
-Backend API for Tastizo Food Delivery Platform built with Node.js, Express, and MongoDB.
+Backend API for Tifunbox Food Delivery Platform built with Node.js, Express, and MongoDB.
 
 ## Features
 

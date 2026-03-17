@@ -24,8 +24,8 @@ const createAdmin = async () => {
   try {
     // Admin details
     const adminData = {
-      name: "Tastizo Admin",
-      email: process.env.ADMIN_EMAIL || "tastizoteam@gmail.com",
+      name: "Tifunbox Admin",
+      email: process.env.ADMIN_EMAIL || "tifunboxteam@gmail.com",
       phone: "7610416911",
       password: process.env.ADMIN_PASSWORD || "Abhi@4321",
       role: "admin",

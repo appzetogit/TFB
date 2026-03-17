@@ -65,8 +65,8 @@ const outletTimingsSchema = new mongoose.Schema(
     },
     outletType: {
       type: String,
-      enum: ["Tastizo delivery", "Dining", "Takeaway", "All"],
-      default: "Tastizo delivery",
+      enum: ["Tifunbox delivery", "Dining", "Takeaway", "All"],
+      default: "Tifunbox delivery",
     },
     timings: {
       type: [dayTimingSchema],

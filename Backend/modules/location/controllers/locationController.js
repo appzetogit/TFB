@@ -72,7 +72,7 @@ export const reverseGeocode = async (req, res) => {
             zoom: 18,
           },
           headers: {
-            "User-Agent": "Tastizo-App/1.0",
+            "User-Agent": "Tifunbox-App/1.0",
           },
           timeout: 10000,
         },
@@ -246,7 +246,7 @@ export const getNearbyLocations = async (req, res) => {
             "accept-language": "en",
           },
           headers: {
-            "User-Agent": "Tastizo-App/1.0",
+            "User-Agent": "Tifunbox-App/1.0",
           },
           timeout: 8000,
         },

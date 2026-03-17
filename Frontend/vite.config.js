@@ -51,10 +51,7 @@ export default defineConfig({
     include: [
       "@emotion/react",
       "@emotion/styled",
-      "@mui/material",
       "@mui/x-date-pickers",
-      "mapbox-gl",
-      "react-map-gl",
     ],
   },
   server: {

@@ -5,10 +5,10 @@ import { motion } from "framer-motion"
 import AnimatedPage from "../../components/AnimatedPage"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { DEFAULT_LOGO_PLACEHOLDER } from "@/lib/constants/defaultLogo"
 import api from "@/lib/api"
 import { API_ENDPOINTS } from "@/lib/api/config"
 import { useCompanyName } from "@/lib/hooks/useCompanyName"
+import { loadBusinessSettings, getCachedSettings } from "@/lib/utils/businessSettings"
 
 // Icon mapping
 const iconMap = {
@@ -23,6 +23,7 @@ const iconMap = {
 export default function About() {
   const companyName = useCompanyName()
   const [loading, setLoading] = useState(true)
+  const [businessLogo, setBusinessLogo] = useState("")
   const [aboutData, setAboutData] = useState({
     appName: 'Tifunbox',
     version: '1.0.0',
@@ -34,6 +35,7 @@ export default function About() {
 
   useEffect(() => {
     fetchAboutData()
+     fetchBusinessLogo()
   }, [])
 
   const fetchAboutData = async () => {
@@ -48,6 +50,25 @@ export default function About() {
       // Use default data on error
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchBusinessLogo = async () => {
+    try {
+      // Use cached settings first if available
+      const cached = getCachedSettings()
+      if (cached?.logo?.url) {
+        setBusinessLogo(cached.logo.url)
+        return
+      }
+
+      // Otherwise load from backend
+      const settings = await loadBusinessSettings()
+      if (settings?.logo?.url) {
+        setBusinessLogo(settings.logo.url)
+      }
+    } catch (error) {
+      console.warn("Failed to load business logo:", error)
     }
   }
 
@@ -85,25 +106,20 @@ export default function About() {
         >
           <Card className="bg-white dark:bg-[#1a1a1a] rounded-2xl shadow-lg border-0 dark:border-gray-800 mb-6 overflow-hidden">
             <div className="bg-gradient-to-br from-red-50 to-red-50 dark:from-red-900/20 dark:to-red-900/20 p-8 md:p-10 text-center">
-              <motion.div
-                initial={{ scale: 0.8, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ delay: 0.2, duration: 0.5 }}
-                className="flex justify-center mb-6"
-              >
-                <div className="relative">
-                  <div className="absolute inset-0 bg-red-400 rounded-full blur-2xl opacity-30 animate-pulse" />
-                  <div className="relative bg-white dark:bg-gray-800 rounded-full p-4 md:p-6 shadow-xl">
-                    {aboutData.logo && aboutData.logo.trim() ? (
-                      <img
-                        src={aboutData.logo}
-                        alt={`${aboutData.appName} Logo`}
-                        className="h-16 w-16 md:h-20 md:w-20 object-contain rounded-full"
-                      />
-                    ) : null}
-                  </div>
-                </div>
-              </motion.div>
+              {businessLogo && businessLogo.trim() && (
+                <motion.div
+                  initial={{ scale: 0.9, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ delay: 0.2, duration: 0.5 }}
+                  className="flex justify-center mb-6"
+                >
+                  <img
+                    src={businessLogo}
+                    alt={`${companyName} Logo`}
+                    className="h-16 w-16 md:h-20 md:w-20 object-contain rounded-xl shadow-lg bg-white"
+                  />
+                </motion.div>
+              )}
 
               <motion.h2
                 initial={{ opacity: 0, y: 10 }}
