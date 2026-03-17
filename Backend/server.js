@@ -124,12 +124,9 @@ const httpServer = createServer(app);
 // Initialize Socket.IO with proper CORS configuration
 const allowedSocketOrigins = [
   process.env.CORS_ORIGIN,
-  "https://tastizo.com",
-  "http://tastizo.com",
-  "https://www.tastizo.com",
-  "http://www.tastizo.com",
-  "https://foozeto.tastizo.com",
-  "http://foozeto.tastizo.com",
+ 
+  "https://app.tifunbox.com",
+  "http://app.tifunbox.com",
   "http://localhost:5173",
   "http://localhost:3000",
   "http://127.0.0.1:5173",
@@ -310,14 +307,7 @@ app.use(helmet());
 // CORS configuration - allow multiple origins
 const allowedOrigins = [
   process.env.CORS_ORIGIN,
-  "https://tastizo.com",
-  "http://tastizo.com",
-  "https://www.tastizo.com",
-  "http://www.tastizo.com",
-  "https://foods.tastizo.com",
-  "http://foods.tastizo.com",
-  "https://foozeto.tastizo.com",
-  "http://foozeto.tastizo.com",
+  "https://app.tifunbox.com",
   "http://localhost:3000",
   "http://localhost:5173",
   "http://localhost:5174",
