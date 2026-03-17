@@ -1,20 +1,20 @@
 import { initializeApp, getApps } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
 
-// Firebase configuration - will be populated from backend
+// Firebase configuration - primary source is backend env API; falls back to VITE_ only if needed.
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "",
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "",
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "",
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || "",
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "",
-  vapidKey: import.meta.env.VITE_FIREBASE_VAPID_KEY || import.meta.env.VITE_FCM_VAPID_KEY || "",
-  databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL || "", // Realtime DB for live tracking
+  apiKey: "",
+  authDomain: "",
+  projectId: "",
+  storageBucket: "",
+  messagingSenderId: "",
+  appId: "",
+  measurementId: "",
+  vapidKey: "",
+  databaseURL: "", // Realtime DB for live tracking
 };
 
-// Fetch config from backend
+// Fetch config from backend and inject DB env values
 const fetchFirebaseConfig = async () => {
   try {
     const { adminAPI } = await import("./api/index.js");
@@ -22,25 +22,18 @@ const fetchFirebaseConfig = async () => {
 
     if (response.data.success && response.data.data) {
       const config = response.data.data;
-      // Only override if backend provides values
-      if (config.FIREBASE_API_KEY)
-        firebaseConfig.apiKey = config.FIREBASE_API_KEY;
-      if (config.FIREBASE_AUTH_DOMAIN)
-        firebaseConfig.authDomain = config.FIREBASE_AUTH_DOMAIN;
-      if (config.FIREBASE_PROJECT_ID)
-        firebaseConfig.projectId = config.FIREBASE_PROJECT_ID;
-      if (config.FIREBASE_STORAGE_BUCKET)
-        firebaseConfig.storageBucket = config.FIREBASE_STORAGE_BUCKET;
-      if (config.FIREBASE_MESSAGING_SENDER_ID)
-        firebaseConfig.messagingSenderId = config.FIREBASE_MESSAGING_SENDER_ID;
+      // Backend/DB is the source of truth
+      if (config.FIREBASE_API_KEY) firebaseConfig.apiKey = config.FIREBASE_API_KEY;
+      if (config.FIREBASE_AUTH_DOMAIN) firebaseConfig.authDomain = config.FIREBASE_AUTH_DOMAIN;
+      if (config.FIREBASE_PROJECT_ID) firebaseConfig.projectId = config.FIREBASE_PROJECT_ID;
+      if (config.FIREBASE_STORAGE_BUCKET) firebaseConfig.storageBucket = config.FIREBASE_STORAGE_BUCKET;
+      if (config.FIREBASE_MESSAGING_SENDER_ID) firebaseConfig.messagingSenderId = config.FIREBASE_MESSAGING_SENDER_ID;
       if (config.FIREBASE_APP_ID) firebaseConfig.appId = config.FIREBASE_APP_ID;
       if (config.FIREBASE_VAPID_KEY) firebaseConfig.vapidKey = config.FIREBASE_VAPID_KEY;
-      if (config.MEASUREMENT_ID)
-        firebaseConfig.measurementId = config.MEASUREMENT_ID;
-      if (config.FIREBASE_DATABASE_URL)
-        firebaseConfig.databaseURL = config.FIREBASE_DATABASE_URL;
+      if (config.MEASUREMENT_ID) firebaseConfig.measurementId = config.MEASUREMENT_ID;
+      if (config.FIREBASE_DATABASE_URL) firebaseConfig.databaseURL = config.FIREBASE_DATABASE_URL;
 
-      console.log("✅ Firebase config loaded from database");
+      console.log("✅ Firebase config loaded from backend env");
       return true;
     }
     return false;
@@ -60,7 +53,32 @@ let googleProvider;
 
 // Function to ensure Firebase is initialized
 async function ensureFirebaseInitialized() {
-  await fetchFirebaseConfig(); // Try to load from backend first
+  const loadedFromBackend = await fetchFirebaseConfig(); // Try to load from backend/DB first
+
+  // If backend didn't provide full config, fall back to VITE_ env for missing fields only
+  if (!loadedFromBackend) {
+    firebaseConfig.apiKey =
+      firebaseConfig.apiKey || import.meta.env.VITE_FIREBASE_API_KEY || "";
+    firebaseConfig.authDomain =
+      firebaseConfig.authDomain || import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "";
+    firebaseConfig.projectId =
+      firebaseConfig.projectId || import.meta.env.VITE_FIREBASE_PROJECT_ID || "";
+    firebaseConfig.storageBucket =
+      firebaseConfig.storageBucket || import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "";
+    firebaseConfig.messagingSenderId =
+      firebaseConfig.messagingSenderId || import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "";
+    firebaseConfig.appId =
+      firebaseConfig.appId || import.meta.env.VITE_FIREBASE_APP_ID || "";
+    firebaseConfig.measurementId =
+      firebaseConfig.measurementId || import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "";
+    firebaseConfig.vapidKey =
+      firebaseConfig.vapidKey ||
+      import.meta.env.VITE_FIREBASE_VAPID_KEY ||
+      import.meta.env.VITE_FCM_VAPID_KEY ||
+      "";
+    firebaseConfig.databaseURL =
+      firebaseConfig.databaseURL || import.meta.env.VITE_FIREBASE_DATABASE_URL || "";
+  }
 
   // Validate Firebase configuration
   const requiredFields = [

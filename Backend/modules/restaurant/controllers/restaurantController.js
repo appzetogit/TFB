@@ -80,6 +80,73 @@ function isRestaurantInAnyZone(restaurantLat, restaurantLng, activeZones) {
 }
 
 /**
+ * Get nearby restaurants within a radius using MongoDB geospatial query.
+ * Uses GeoJSON Point stored in location.coordinates [lng, lat].
+ * GET /api/restaurant/nearby?lat=..&lng=..&radiusKm=5
+ */
+export const getNearbyRestaurants = async (req, res) => {
+  try {
+    const { lat, lng, radiusKm = 5, limit = 50, offset = 0 } = req.query;
+
+    if (!lat || !lng) {
+      return errorResponse(
+        res,
+        400,
+        "Latitude (lat) and longitude (lng) are required for nearby search",
+      );
+    }
+
+    const latNum = parseFloat(lat);
+    const lngNum = parseFloat(lng);
+    const radiusMeters = parseFloat(radiusKm) * 1000 || 5000;
+
+    if (
+      Number.isNaN(latNum) ||
+      Number.isNaN(lngNum) ||
+      Number.isNaN(radiusMeters)
+    ) {
+      return errorResponse(
+        res,
+        400,
+        "Invalid lat/lng or radiusKm for nearby search",
+      );
+    }
+
+    const nearby = await Restaurant.find({
+      isActive: true,
+      "location.coordinates": {
+        $nearSphere: {
+          $geometry: {
+            type: "Point",
+            coordinates: [lngNum, latNum],
+          },
+          $maxDistance: radiusMeters,
+        },
+      },
+    })
+      .select("-owner -createdAt -updatedAt -password")
+      .limit(parseInt(limit))
+      .skip(parseInt(offset))
+      .lean();
+
+    return successResponse(
+      res,
+      200,
+      "Nearby restaurants retrieved successfully",
+      {
+        restaurants: nearby,
+        total: nearby.length,
+        center: { lat: latNum, lng: lngNum },
+        radiusKm: radiusMeters / 1000,
+      },
+    );
+  } catch (error) {
+    console.error("Error fetching nearby restaurants:", error);
+    return errorResponse(res, 500, "Failed to fetch nearby restaurants");
+  }
+};
+
+/**
  * Get restaurant's zoneId based on location
  * @param {number} restaurantLat - Restaurant latitude
  * @param {number} restaurantLng - Restaurant longitude

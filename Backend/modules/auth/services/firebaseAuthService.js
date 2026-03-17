@@ -27,6 +27,14 @@ class FirebaseAuthService {
     if (this.initialized) return;
 
     try {
+      // If an admin app is already initialized elsewhere (e.g. firebaseRealtime),
+      // just reuse it and mark this service as initialized.
+      if (admin.apps && admin.apps.length > 0) {
+        this.initialized = true;
+        logger.info("Firebase Admin already initialized, reusing existing instance (auth service)");
+        return;
+      }
+
       const dbCredentials = await getFirebaseCredentials();
       let projectId =
         dbCredentials.projectId || process.env.FIREBASE_PROJECT_ID;
@@ -78,24 +86,31 @@ class FirebaseAuthService {
       }
 
       try {
-        admin.initializeApp({
-          credential: admin.credential.cert({
-            projectId,
-            clientEmail,
-            privateKey,
-          }),
-        });
+        // Initialize only if no apps exist (guarded above); otherwise this path won't run.
+        if (!admin.apps.length) {
+          admin.initializeApp({
+            credential: admin.credential.cert({
+              projectId,
+              clientEmail,
+              privateKey,
+            }),
+          });
+        }
 
         this.initialized = true;
         logger.info("Firebase Admin initialized for auth verification");
       } catch (error) {
-        // If already initialized, ignore the "app exists" error
-        if (error?.code === "app/duplicate-app") {
-          this.initialized = true;
-          logger.warn(
-            "Firebase Admin already initialized, reusing existing instance",
-          );
-          return;
+        // If already initialized by another module, treat as success and reuse.
+        try {
+          if (admin.apps && admin.apps.length > 0) {
+            this.initialized = true;
+            logger.warn(
+              "Firebase Admin already initialized, reusing existing instance (auth service catch)",
+            );
+            return;
+          }
+        } catch (_) {
+          // fall through to error log
         }
 
         logger.error(`Failed to initialize Firebase Admin: ${error.message}`);

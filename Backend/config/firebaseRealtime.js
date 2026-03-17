@@ -15,7 +15,8 @@ import fs from "fs";
 import path from "path";
 
 const DEFAULT_DATABASE_URL =
-  "https://tastizoo-default-rtdb.asia-southeast1.firebasedatabase.app";
+  process.env.FIREBASE_DATABASE_URL ||
+  "https://ziggybites-79bfc-default-rtdb.asia-southeast1.firebasedatabase.app";
 
 let db = null;
 let initialized = false;
@@ -96,6 +97,7 @@ export function initializeFirebaseRealtime() {
   }
 
   try {
+    // If no app exists yet, initialize with credentials
     if (!admin.apps.length) {
       admin.initializeApp({
         credential: admin.credential.cert({
@@ -106,20 +108,26 @@ export function initializeFirebaseRealtime() {
         databaseURL,
       });
     }
-    // If app already exists (e.g. from firebaseAuthService), use database with URL
+
+    // Reuse existing default app (whether created here or elsewhere)
     const app = admin.app();
     db = databaseURL ? app.database(databaseURL) : app.database();
     initialized = true;
     return db;
   } catch (error) {
-    if (error?.code === "app/duplicate-app") {
+    // If an app already exists and we hit duplicate-app style issues, just reuse it
+    try {
       const app = admin.app();
       db = databaseURL ? app.database(databaseURL) : app.database();
       initialized = true;
       return db;
+    } catch (innerErr) {
+      console.error(
+        "❌ Firebase Realtime Database init failed:",
+        error.message || innerErr.message,
+      );
+      return null;
     }
-    console.error("❌ Firebase Realtime Database init failed:", error.message);
-    return null;
   }
 }
 
