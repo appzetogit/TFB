@@ -9,7 +9,8 @@ import Restaurant from "../models/Restaurant.js";
  */
 export const registerRestaurantFcmToken = asyncHandler(async (req, res) => {
   const restaurantId = req.restaurant?._id;
-  const { platform, fcmToken } = req.body;
+  const platform = typeof req.body.platform === 'string' ? req.body.platform.toLowerCase().trim() : req.body.platform;
+  const { fcmToken } = req.body;
 
   if (!platform || !fcmToken) {
     return errorResponse(res, 400, "platform and fcmToken are required");
@@ -52,7 +53,7 @@ export const registerRestaurantFcmToken = asyncHandler(async (req, res) => {
  */
 export const removeRestaurantFcmToken = asyncHandler(async (req, res) => {
   const restaurantId = req.restaurant?._id;
-  const { platform } = req.body;
+  const platform = typeof req.body.platform === 'string' ? req.body.platform.toLowerCase().trim() : req.body.platform;
 
   if (!platform) {
     return errorResponse(res, 400, "platform is required");

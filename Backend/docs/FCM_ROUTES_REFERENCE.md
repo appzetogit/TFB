@@ -60,7 +60,7 @@ Authorization: Bearer <user_access_token>
 Content-Type: application/json
 
 {
-  "platform": "web",
+  "platform": "app",
   "fcmToken": "fcm_token_value_here"
 }
 ```
@@ -72,7 +72,7 @@ Authorization: Bearer <restaurant_access_token>
 Content-Type: application/json
 
 {
-  "platform": "web",
+  "platform": "app",
   "fcmToken": "fcm_token_value_here"
 }
 ```
@@ -84,12 +84,12 @@ Authorization: Bearer <delivery_access_token>
 Content-Type: application/json
 
 {
-  "platform": "web",
+  "platform": "app",
   "fcmToken": "fcm_token_value_here"
 }
 ```
 
-For mobile, use `"platform": "app"`, `"platform": "android"`, or `"platform": "ios"` in the same body.
+For web use `"platform": "web"`. For mobile use `"platform": "app"`, `"platform": "android"`, or `"platform": "ios"`.
 
 ---
 
@@ -102,7 +102,7 @@ Authorization: Bearer <user_access_token>
 Content-Type: application/json
 
 {
-  "platform": "web"
+  "platform": "app"
 }
 ```
 
@@ -113,7 +113,7 @@ Authorization: Bearer <restaurant_access_token>
 Content-Type: application/json
 
 {
-  "platform": "web"
+  "platform": "app"
 }
 ```
 
@@ -124,11 +124,11 @@ Authorization: Bearer <delivery_access_token>
 Content-Type: application/json
 
 {
-  "platform": "web"
+  "platform": "app"
 }
 ```
 
-Use `"platform": "app"`, `"platform": "android"`, or `"platform": "ios"` for mobile.
+Use `"platform": "web"` for web, or `"platform": "app"`, `"platform": "android"`, or `"platform": "ios"` for mobile.
 
 ---
 
@@ -140,8 +140,10 @@ Use `"platform": "app"`, `"platform": "android"`, or `"platform": "ios"` for mob
 | Restaurant| POST /api/restaurant/auth/login    | POST /api/restaurant/auth/fcm-token  | DELETE /api/restaurant/auth/fcm-token | web / app / android / ios |
 | Delivery  | POST /api/delivery/auth/login      | POST /api/delivery/auth/fcm-token     | DELETE /api/delivery/auth/fcm-token   | web / app / android / ios |
 
-**Platform values:**
+**Platform values:** (case-insensitive: `"app"`, `"App"`, `"APP"` all work)
 - `web` – Web browser
 - `app` – Mobile app (Android, preferred)
 - `android` – Mobile app (Android, alias for app)
 - `ios` – Mobile app (iOS)
+
+**Flutter web:** When registering from Flutter web, send `"platform": "app"` (or `"web"`) explicitly in the request body. Ensure the value is a string, not an enum or number.

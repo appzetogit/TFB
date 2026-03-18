@@ -405,7 +405,8 @@ export const getCurrentDelivery = asyncHandler(async (req, res) => {
  */
 export const registerFcmToken = asyncHandler(async (req, res) => {
   const deliveryId = req.delivery?._id;
-  const { platform, fcmToken } = req.body;
+  const platform = typeof req.body.platform === 'string' ? req.body.platform.toLowerCase().trim() : req.body.platform;
+  const { fcmToken } = req.body;
 
   if (!platform || !fcmToken) {
     return errorResponse(res, 400, "platform and fcmToken are required");
@@ -449,7 +450,7 @@ export const registerFcmToken = asyncHandler(async (req, res) => {
  */
 export const removeFcmToken = asyncHandler(async (req, res) => {
   const deliveryId = req.delivery?._id;
-  const { platform } = req.body;
+  const platform = typeof req.body.platform === 'string' ? req.body.platform.toLowerCase().trim() : req.body.platform;
 
   if (!platform) {
     return errorResponse(res, 400, "platform is required");
