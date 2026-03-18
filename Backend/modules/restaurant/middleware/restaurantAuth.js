@@ -68,18 +68,22 @@ export const authenticate = async (req, res, next) => {
     
     // Check for inventory routes - restaurants need to manage inventory even when inactive
     // Routes: /api/restaurant/inventory
-    const isInventoryRoute = requestPath.includes('/inventory') || 
+    const isInventoryRoute = requestPath.includes('/inventory') ||
                             reqPath === '/inventory' ||
                             reqPath.startsWith('/inventory/');
+    
+    // Check for FCM token routes - allow token registration even when inactive
+    // Restaurants need to register for push notifications (e.g. approval alerts) before admin approves
+    const isFcmRoute = requestPath.includes('/fcm-token') || reqPath === '/fcm-token' || reqPath.startsWith('/fcm-token');
     
     // Debug logging for inactive restaurants
     if (!restaurant.isActive) {
     }
     
-    // Allow access to onboarding, profile, menu, and inventory routes even if inactive
+    // Allow access to onboarding, profile, menu, inventory, and FCM routes even if inactive
     // These are essential for restaurant setup and management
-    // Also allow access to getCurrentRestaurant endpoint (used to check status)
-    if (!restaurant.isActive && !isOnboardingRoute && !isProfileRoute && !isMenuRoute && !isInventoryRoute) {
+    // FCM: restaurants need to register tokens to receive approval notifications
+    if (!restaurant.isActive && !isOnboardingRoute && !isProfileRoute && !isMenuRoute && !isInventoryRoute && !isFcmRoute) {
       console.error('❌ Restaurant account is inactive - access denied:', {
         restaurantId: restaurant._id,
         restaurantName: restaurant.name,
@@ -93,7 +97,8 @@ export const authenticate = async (req, res, next) => {
           isOnboardingRoute,
           isProfileRoute,
           isMenuRoute,
-          isInventoryRoute
+          isInventoryRoute,
+          isFcmRoute
         }
       });
       return errorResponse(res, 401, 'Restaurant account is inactive. Please wait for admin approval.');
