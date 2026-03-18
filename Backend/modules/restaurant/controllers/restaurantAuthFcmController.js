@@ -5,7 +5,7 @@ import Restaurant from "../models/Restaurant.js";
 /**
  * Register or refresh FCM device token for the currently authenticated restaurant
  * POST /api/restaurant/auth/fcm-token
- * Body: { platform: 'web' | 'android' | 'ios', fcmToken }
+ * Body: { platform: 'web' | 'app' | 'ios', fcmToken }
  */
 export const registerRestaurantFcmToken = asyncHandler(async (req, res) => {
   const restaurantId = req.restaurant?._id;
@@ -15,12 +15,12 @@ export const registerRestaurantFcmToken = asyncHandler(async (req, res) => {
     return errorResponse(res, 400, "platform and fcmToken are required");
   }
 
-  const validPlatforms = ["web", "android", "ios"];
+  const validPlatforms = ["web", "app", "ios"];
   if (!validPlatforms.includes(platform)) {
     return errorResponse(
       res,
       400,
-      "Invalid platform. Allowed values: web, android, ios",
+      "Invalid platform. Allowed values: web, app, ios",
     );
   }
 
@@ -31,7 +31,7 @@ export const registerRestaurantFcmToken = asyncHandler(async (req, res) => {
 
   if (platform === "web") {
     restaurant.fcmTokenWeb = fcmToken;
-  } else if (platform === "android") {
+  } else if (platform === "app") {
     restaurant.fcmTokenAndroid = fcmToken;
   } else if (platform === "ios") {
     restaurant.fcmTokenIos = fcmToken;
@@ -48,7 +48,7 @@ export const registerRestaurantFcmToken = asyncHandler(async (req, res) => {
 /**
  * Remove FCM token for the current restaurant device on logout
  * DELETE /api/restaurant/auth/fcm-token
- * Body: { platform: 'web' | 'android' | 'ios' }
+ * Body: { platform: 'web' | 'app' | 'ios' }
  */
 export const removeRestaurantFcmToken = asyncHandler(async (req, res) => {
   const restaurantId = req.restaurant?._id;
@@ -58,12 +58,12 @@ export const removeRestaurantFcmToken = asyncHandler(async (req, res) => {
     return errorResponse(res, 400, "platform is required");
   }
 
-  const validPlatforms = ["web", "android", "ios"];
+  const validPlatforms = ["web", "app", "ios"];
   if (!validPlatforms.includes(platform)) {
     return errorResponse(
       res,
       400,
-      "Invalid platform. Allowed values: web, android, ios",
+      "Invalid platform. Allowed values: web, app, ios",
     );
   }
 
@@ -74,7 +74,7 @@ export const removeRestaurantFcmToken = asyncHandler(async (req, res) => {
 
   if (platform === "web") {
     restaurant.fcmTokenWeb = null;
-  } else if (platform === "android") {
+  } else if (platform === "app") {
     restaurant.fcmTokenAndroid = null;
   } else if (platform === "ios") {
     restaurant.fcmTokenIos = null;
