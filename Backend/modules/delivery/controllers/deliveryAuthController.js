@@ -405,8 +405,12 @@ export const getCurrentDelivery = asyncHandler(async (req, res) => {
  */
 export const registerFcmToken = asyncHandler(async (req, res) => {
   const deliveryId = req.delivery?._id;
-  const platform = typeof req.body.platform === 'string' ? req.body.platform.toLowerCase().trim() : req.body.platform;
-  const { fcmToken } = req.body;
+  const PLATFORM_MAP = { 0: 'web', 1: 'app', 2: 'android', 3: 'ios' };
+  const platformRaw = req.body?.platform ?? req.query?.platform;
+  let platform = typeof platformRaw === 'number' && platformRaw >= 0 && platformRaw <= 3
+    ? PLATFORM_MAP[platformRaw]
+    : (typeof platformRaw === 'string' ? platformRaw.toLowerCase().trim() : String(platformRaw || '').toLowerCase().trim());
+  const fcmToken = req.body?.fcmToken ?? req.query?.fcmToken;
 
   if (!platform || !fcmToken) {
     return errorResponse(res, 400, "platform and fcmToken are required");
@@ -417,7 +421,7 @@ export const registerFcmToken = asyncHandler(async (req, res) => {
     return errorResponse(
       res,
       400,
-      "Invalid platform. Allowed values: web, app, android, ios",
+      `Invalid platform. Allowed: web, app, android, ios. Received: "${platform}"`,
     );
   }
 
@@ -450,10 +454,14 @@ export const registerFcmToken = asyncHandler(async (req, res) => {
  */
 export const removeFcmToken = asyncHandler(async (req, res) => {
   const deliveryId = req.delivery?._id;
-  const platform = typeof req.body.platform === 'string' ? req.body.platform.toLowerCase().trim() : req.body.platform;
+  const PLATFORM_MAP = { 0: 'web', 1: 'app', 2: 'android', 3: 'ios' };
+  const platformRaw = req.body?.platform ?? req.query?.platform;
+  let platform = typeof platformRaw === 'number' && platformRaw >= 0 && platformRaw <= 3
+    ? PLATFORM_MAP[platformRaw]
+    : (typeof platformRaw === 'string' ? platformRaw.toLowerCase().trim() : String(platformRaw || '').toLowerCase().trim());
 
   if (!platform) {
-    return errorResponse(res, 400, "platform is required");
+    return errorResponse(res, 400, "platform is required (body or ?platform=app)");
   }
 
   const validPlatforms = ["web", "app", "android", "ios"];
@@ -461,7 +469,7 @@ export const removeFcmToken = asyncHandler(async (req, res) => {
     return errorResponse(
       res,
       400,
-      "Invalid platform. Allowed values: web, app, android, ios",
+      `Invalid platform. Allowed: web, app, android, ios. Received: "${platform}"`,
     );
   }
 

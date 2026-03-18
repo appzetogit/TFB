@@ -146,4 +146,8 @@ Use `"platform": "web"` for web, or `"platform": "app"`, `"platform": "android"`
 - `android` – Mobile app (Android, alias for app)
 - `ios` – Mobile app (iOS)
 
-**Flutter web:** When registering from Flutter web, send `"platform": "app"` (or `"web"`) explicitly in the request body. Ensure the value is a string, not an enum or number.
+**Flutter:** Backend accepts platform as string OR number (0=web, 1=app, 2=android, 3=ios). If body doesn't work, use query params:
+- Register: `POST /api/auth/fcm-token?platform=app&fcmToken=YOUR_TOKEN` (body can be empty)
+- Remove: `DELETE /api/auth/fcm-token?platform=app`
+
+Ensure `platform` is a lowercase string: `"app"`, `"web"`, `"android"`, `"ios"`.

@@ -9,8 +9,12 @@ import Restaurant from "../models/Restaurant.js";
  */
 export const registerRestaurantFcmToken = asyncHandler(async (req, res) => {
   const restaurantId = req.restaurant?._id;
-  const platform = typeof req.body.platform === 'string' ? req.body.platform.toLowerCase().trim() : req.body.platform;
-  const { fcmToken } = req.body;
+  const PLATFORM_MAP = { 0: 'web', 1: 'app', 2: 'android', 3: 'ios' };
+  const platformRaw = req.body?.platform ?? req.query?.platform;
+  let platform = typeof platformRaw === 'number' && platformRaw >= 0 && platformRaw <= 3
+    ? PLATFORM_MAP[platformRaw]
+    : (typeof platformRaw === 'string' ? platformRaw.toLowerCase().trim() : String(platformRaw || '').toLowerCase().trim());
+  const fcmToken = req.body?.fcmToken ?? req.query?.fcmToken;
 
   if (!platform || !fcmToken) {
     return errorResponse(res, 400, "platform and fcmToken are required");
@@ -21,7 +25,7 @@ export const registerRestaurantFcmToken = asyncHandler(async (req, res) => {
     return errorResponse(
       res,
       400,
-      "Invalid platform. Allowed values: web, app, android, ios",
+      `Invalid platform. Allowed: web, app, android, ios. Received: "${platform}"`,
     );
   }
 
@@ -53,7 +57,11 @@ export const registerRestaurantFcmToken = asyncHandler(async (req, res) => {
  */
 export const removeRestaurantFcmToken = asyncHandler(async (req, res) => {
   const restaurantId = req.restaurant?._id;
-  const platform = typeof req.body.platform === 'string' ? req.body.platform.toLowerCase().trim() : req.body.platform;
+  const PLATFORM_MAP = { 0: 'web', 1: 'app', 2: 'android', 3: 'ios' };
+  const platformRaw = req.body?.platform ?? req.query?.platform;
+  let platform = typeof platformRaw === 'number' && platformRaw >= 0 && platformRaw <= 3
+    ? PLATFORM_MAP[platformRaw]
+    : (typeof platformRaw === 'string' ? platformRaw.toLowerCase().trim() : String(platformRaw || '').toLowerCase().trim());
 
   if (!platform) {
     return errorResponse(res, 400, "platform is required");
@@ -64,7 +72,7 @@ export const removeRestaurantFcmToken = asyncHandler(async (req, res) => {
     return errorResponse(
       res,
       400,
-      "Invalid platform. Allowed values: web, app, android, ios",
+      `Invalid platform. Allowed: web, app, android, ios. Received: "${platform}"`,
     );
   }
 

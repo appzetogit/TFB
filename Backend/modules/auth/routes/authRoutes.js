@@ -71,14 +71,37 @@ const resetPasswordSchema = Joi.object({
   role: Joi.string().valid('user', 'restaurant', 'delivery', 'admin').optional()
 });
 
+// Map numeric platform (Flutter enum index) to string: 0=web, 1=app, 2=android, 3=ios
+const PLATFORM_MAP = { 0: 'web', 1: 'app', 2: 'android', 3: 'ios' };
+
 const fcmRegisterSchema = Joi.object({
-  platform: Joi.string().lowercase().valid('web', 'app', 'android', 'ios').required(),
+  platform: Joi.alternatives()
+    .try(
+      Joi.string().lowercase().valid('web', 'app', 'android', 'ios'),
+      Joi.number().integer().min(0).max(3)
+    )
+    .required()
+    .custom((v) => (typeof v === 'number' ? PLATFORM_MAP[v] : v), 'platform map'),
   fcmToken: Joi.string().required(),
 });
 
 const fcmDeleteSchema = Joi.object({
-  platform: Joi.string().lowercase().valid('web', 'app', 'android', 'ios').required(),
+  platform: Joi.alternatives()
+    .try(
+      Joi.string().lowercase().valid('web', 'app', 'android', 'ios'),
+      Joi.number().integer().min(0).max(3)
+    )
+    .required()
+    .custom((v) => (typeof v === 'number' ? PLATFORM_MAP[v] : v), 'platform map'),
 });
+
+// Merge query params into body for FCM (Flutter/web clients may send platform in query)
+const mergeFcmQueryForBody = (req, res, next) => {
+  if (!req.body) req.body = {};
+  if (!req.body.platform && req.query.platform) req.body.platform = req.query.platform;
+  if (!req.body.fcmToken && req.query.fcmToken) req.body.fcmToken = req.query.fcmToken;
+  next();
+};
 
 // Public routes
 // OTP-based authentication
@@ -95,8 +118,8 @@ router.post('/refresh-token', refreshToken);
 router.post('/logout', logout);
 
 // FCM device token registration (authenticated)
-router.post('/fcm-token', authenticate, validate(fcmRegisterSchema), registerFcmToken);
-router.delete('/fcm-token', authenticate, validate(fcmDeleteSchema), removeFcmToken);
+router.post('/fcm-token', authenticate, mergeFcmQueryForBody, validate(fcmRegisterSchema), registerFcmToken);
+router.delete('/fcm-token', authenticate, mergeFcmQueryForBody, validate(fcmDeleteSchema), removeFcmToken);
 
 // Firebase Google login (using Firebase Auth ID token)
 router.post('/firebase/google-login', firebaseGoogleLogin);
