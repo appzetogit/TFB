@@ -1,7 +1,7 @@
 import { initializeApp, getApps } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
 
-// Firebase configuration - primary source is backend env API; falls back to VITE_ only if needed.
+// Firebase configuration - strict DB-only source (no frontend .env fallback).
 const firebaseConfig = {
   apiKey: "",
   authDomain: "",
@@ -38,12 +38,30 @@ const fetchFirebaseConfig = async () => {
       const measurementId = safeStr(config.MEASUREMENT_ID);
       const databaseURL = safeStr(config.FIREBASE_DATABASE_URL);
 
-      if (apiKey && looksLikeWebApiKey(apiKey)) firebaseConfig.apiKey = apiKey;
+      // Always use DB values if present. Regex checks are warning-only so
+      // production does not silently skip config and leave Firebase uninitialized.
+      if (apiKey) {
+        firebaseConfig.apiKey = apiKey;
+        if (!looksLikeWebApiKey(apiKey)) {
+          console.warn("⚠️ FIREBASE_API_KEY format looks unusual:", apiKey);
+        }
+      }
       if (authDomain) firebaseConfig.authDomain = authDomain;
-      if (projectId && looksLikeProjectId(projectId)) firebaseConfig.projectId = projectId;
+      if (projectId) {
+        firebaseConfig.projectId = projectId;
+        if (!looksLikeProjectId(projectId)) {
+          console.warn("⚠️ FIREBASE_PROJECT_ID format looks unusual:", projectId);
+        }
+      }
       if (storageBucket) firebaseConfig.storageBucket = storageBucket;
-      if (messagingSenderId && looksLikeSenderId(messagingSenderId)) {
+      if (messagingSenderId) {
         firebaseConfig.messagingSenderId = messagingSenderId;
+        if (!looksLikeSenderId(messagingSenderId)) {
+          console.warn(
+            "⚠️ FIREBASE_MESSAGING_SENDER_ID format looks unusual:",
+            messagingSenderId,
+          );
+        }
       }
       if (appId) firebaseConfig.appId = appId;
       if (vapidKey) firebaseConfig.vapidKey = vapidKey;
@@ -70,61 +88,13 @@ let googleProvider;
 
 // Function to ensure Firebase is initialized
 async function ensureFirebaseInitialized() {
-  const loadedFromBackend = await fetchFirebaseConfig(); // Try to load from backend/DB first
-
-  // If backend didn't provide full config, fall back to VITE_ env for missing fields only
+  const loadedFromBackend = await fetchFirebaseConfig();
   if (!loadedFromBackend) {
-    firebaseConfig.apiKey =
-      firebaseConfig.apiKey || import.meta.env.VITE_FIREBASE_API_KEY || "";
-    firebaseConfig.authDomain =
-      firebaseConfig.authDomain || import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "";
-    firebaseConfig.projectId =
-      firebaseConfig.projectId || import.meta.env.VITE_FIREBASE_PROJECT_ID || "";
-    firebaseConfig.storageBucket =
-      firebaseConfig.storageBucket || import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "";
-    firebaseConfig.messagingSenderId =
-      firebaseConfig.messagingSenderId || import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "";
-    firebaseConfig.appId =
-      firebaseConfig.appId || import.meta.env.VITE_FIREBASE_APP_ID || "";
-    firebaseConfig.measurementId =
-      firebaseConfig.measurementId || import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "";
-    firebaseConfig.vapidKey =
-      firebaseConfig.vapidKey ||
-      import.meta.env.VITE_FIREBASE_VAPID_KEY ||
-      import.meta.env.VITE_FCM_VAPID_KEY ||
-      "";
-    firebaseConfig.databaseURL =
-      firebaseConfig.databaseURL || import.meta.env.VITE_FIREBASE_DATABASE_URL || "";
+    console.error(
+      "❌ Firebase configuration could not be loaded from backend (/api/env/public).",
+    );
+    return;
   }
-  // If DB returned a bad/placeholder config, allow VITE_ env to fill missing fields too
-  // (e.g. FIREBASE_API_KEY stored in DB but not a valid web API key)
-  firebaseConfig.apiKey =
-    firebaseConfig.apiKey || import.meta.env.VITE_FIREBASE_API_KEY || "";
-  firebaseConfig.authDomain =
-    firebaseConfig.authDomain || import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "";
-  firebaseConfig.projectId =
-    firebaseConfig.projectId || import.meta.env.VITE_FIREBASE_PROJECT_ID || "";
-  firebaseConfig.storageBucket =
-    firebaseConfig.storageBucket ||
-    import.meta.env.VITE_FIREBASE_STORAGE_BUCKET ||
-    "";
-  firebaseConfig.messagingSenderId =
-    firebaseConfig.messagingSenderId ||
-    import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID ||
-    "";
-  firebaseConfig.appId =
-    firebaseConfig.appId || import.meta.env.VITE_FIREBASE_APP_ID || "";
-  firebaseConfig.measurementId =
-    firebaseConfig.measurementId ||
-    import.meta.env.VITE_FIREBASE_MEASUREMENT_ID ||
-    "";
-  firebaseConfig.vapidKey =
-    firebaseConfig.vapidKey ||
-    import.meta.env.VITE_FIREBASE_VAPID_KEY ||
-    import.meta.env.VITE_FCM_VAPID_KEY ||
-    "";
-  firebaseConfig.databaseURL =
-    firebaseConfig.databaseURL || import.meta.env.VITE_FIREBASE_DATABASE_URL || "";
 
   // Validate Firebase configuration
   const requiredFields = [
@@ -144,7 +114,7 @@ async function ensureFirebaseInitialized() {
       missingFields,
     );
     console.warn(
-      "💡 Authentication features may not work until configured in Admin Panel.",
+      "💡 Firebase is running in DB-only strict mode. Configure all fields in Admin Panel.",
     );
     return;
   }
@@ -179,12 +149,12 @@ async function ensureFirebaseInitialized() {
 }
 
 export function getFirebaseVapidKey() {
-  return firebaseConfig.vapidKey || import.meta.env.VITE_FIREBASE_VAPID_KEY || import.meta.env.VITE_FCM_VAPID_KEY || "";
+  return firebaseConfig.vapidKey || "";
 }
 
 /** Realtime Database URL for live tracking (must match backend). Use with getDatabase(app, url). */
 export function getFirebaseDatabaseURL() {
-  return firebaseConfig.databaseURL || import.meta.env.VITE_FIREBASE_DATABASE_URL || "";
+  return firebaseConfig.databaseURL || "";
 }
 
 export { firebaseAuth, googleProvider, ensureFirebaseInitialized };
