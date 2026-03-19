@@ -814,14 +814,9 @@ export const login = asyncHandler(async (req, res) => {
     return errorResponse(res, 401, "Invalid email or password");
   }
 
-  // Allow login if active OR in development mode
-  if (!restaurant.isActive && process.env.NODE_ENV !== "development") {
-    return errorResponse(
-      res,
-      401,
-      "Restaurant account is inactive. Please contact support.",
-    );
-  }
+  // Allow inactive restaurants to login as well.
+  // Access to restricted routes is handled by restaurantAuth middleware,
+  // while onboarding/reverify/profile remain accessible.
 
   // Check if restaurant has a password set
   if (!restaurant.password) {
@@ -1230,18 +1225,8 @@ export const firebaseGoogleLogin = asyncHandler(async (req, res) => {
       }
     }
 
-    // Ensure restaurant is active (allow in development)
-    if (!restaurant.isActive && process.env.NODE_ENV !== "development") {
-      logger.warn("Inactive restaurant attempted login", {
-        restaurantId: restaurant._id,
-        email,
-      });
-      return errorResponse(
-        res,
-        403,
-        "Your restaurant account has been deactivated. Please contact support.",
-      );
-    }
+    // Allow inactive restaurants to login and continue onboarding/reverify.
+    // Middleware will block only restricted endpoints.
 
     // Generate JWT tokens for our app (email may be null for phone signups)
     const tokens = jwtService.generateTokens({

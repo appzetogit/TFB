@@ -20,6 +20,21 @@ const logger = winston.createLogger({
   ],
 });
 
+const MASKED_SECRET_PLACEHOLDER = "********";
+const PROTECTED_SECRET_FIELDS = new Set([
+  "RAZORPAY_API_KEY",
+  "RAZORPAY_SECRET_KEY",
+  "CLOUDINARY_API_KEY",
+  "CLOUDINARY_API_SECRET",
+  "FIREBASE_API_KEY",
+  "FIREBASE_CLIENT_EMAIL",
+  "FIREBASE_PRIVATE_KEY",
+  "SMTP_USER",
+  "SMTP_PASS",
+  "SMSINDIAHUB_API_KEY",
+  "VITE_GOOGLE_MAPS_API_KEY",
+]);
+
 /**
  * Get Environment Variables
  * GET /api/admin/env-variables
@@ -30,6 +45,21 @@ export const getEnvVariables = asyncHandler(async (req, res) => {
 
     // Return all variables (excluding sensitive data in response, but include in database)
     const envData = envVars.toEnvObject();
+    const rawData = envVars.toObject();
+
+    // If secret exists in DB but cannot be decrypted on this instance,
+    // show masked placeholder in admin UI instead of blank.
+    // This avoids "looks erased" confusion and prevents accidental blank overwrite.
+    for (const key of PROTECTED_SECRET_FIELDS) {
+      const visibleValue = envData[key];
+      const rawValue = rawData[key];
+      const visibleBlank =
+        typeof visibleValue !== "string" || visibleValue.trim() === "";
+      const rawHasValue = typeof rawValue === "string" && rawValue.trim() !== "";
+      if (visibleBlank && rawHasValue) {
+        envData[key] = MASKED_SECRET_PLACEHOLDER;
+      }
+    }
 
     logger.info("Environment variables retrieved successfully");
 
@@ -142,20 +172,6 @@ export const saveEnvVariables = asyncHandler(async (req, res) => {
 
     // Sensitive fields should never be accidentally erased by blank payloads.
     // This protects against cases where decryption/key mismatch makes values appear empty in UI.
-    const protectedSecretFields = new Set([
-      "RAZORPAY_API_KEY",
-      "RAZORPAY_SECRET_KEY",
-      "CLOUDINARY_API_KEY",
-      "CLOUDINARY_API_SECRET",
-      "FIREBASE_API_KEY",
-      "FIREBASE_CLIENT_EMAIL",
-      "FIREBASE_PRIVATE_KEY",
-      "SMTP_USER",
-      "SMTP_PASS",
-      "SMSINDIAHUB_API_KEY",
-      "VITE_GOOGLE_MAPS_API_KEY",
-    ]);
-
     // Update all fields (encryption will happen in pre-save hook)
     const updatedFields = [];
     const skippedProtectedFields = [];
@@ -171,6 +187,15 @@ export const saveEnvVariables = asyncHandler(async (req, res) => {
           value = "";
         }
 
+        // Keep existing value when UI posts masked placeholder.
+        if (
+          PROTECTED_SECRET_FIELDS.has(key) &&
+          value.trim() === MASKED_SECRET_PLACEHOLDER
+        ) {
+          skippedProtectedFields.push(key);
+          return;
+        }
+
         // Prevent accidental secret wipe:
         // If incoming value is blank for protected field and DB already has non-blank value,
         // keep existing DB value unchanged.
@@ -178,7 +203,7 @@ export const saveEnvVariables = asyncHandler(async (req, res) => {
         const incomingBlank = typeof value === "string" && value.trim() === "";
         const existingNonBlank =
           typeof existingValue === "string" && existingValue.trim() !== "";
-        if (protectedSecretFields.has(key) && incomingBlank && existingNonBlank) {
+        if (PROTECTED_SECRET_FIELDS.has(key) && incomingBlank && existingNonBlank) {
           skippedProtectedFields.push(key);
           return;
         }
