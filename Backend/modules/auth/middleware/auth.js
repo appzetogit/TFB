@@ -8,14 +8,25 @@ import { errorResponse } from "../../../shared/utils/response.js";
  */
 export const authenticate = async (req, res, next) => {
   try {
-    // Get token from Authorization header
     const authHeader = req.headers.authorization;
+    const bearerToken =
+      typeof authHeader === "string" && authHeader.startsWith("Bearer ")
+        ? authHeader.substring(7)
+        : null;
+    const rawAuthToken =
+      typeof authHeader === "string" && authHeader.trim() ? authHeader.trim() : null;
+    const token =
+      bearerToken ||
+      req.headers["x-access-token"] ||
+      req.headers["x-auth-token"] ||
+      req.headers.token ||
+      req.query?.accessToken ||
+      req.query?.token ||
+      rawAuthToken;
 
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    if (!token) {
       return errorResponse(res, 401, "No token provided");
     }
-
-    const token = authHeader.substring(7); // Remove 'Bearer ' prefix
 
     // Verify token
     const decoded = jwtService.verifyAccessToken(token);
