@@ -348,13 +348,18 @@ export default function RestaurantLogin() {
       if (hasFlutterGoogleBridge()) {
         const flutterResult = await nativeGoogleSignIn()
 
-        if (!flutterResult?.success || !flutterResult?.idToken) {
+        const flutterToken = flutterResult?.idToken || flutterResult?.accessToken || ""
+        if (!flutterResult?.success || !flutterToken) {
           setIsSending(false)
-          setApiError("Google sign-in cancelled or failed. Please try again.")
+          const cancelledMessage = flutterResult?.cancelled
+            ? "Google sign-in was cancelled."
+            : "Google sign-in cancelled or failed. Please try again."
+          setApiError(cancelledMessage)
+          console.warn("[Google][Flutter] Unexpected nativeGoogleSignIn payload:", flutterResult?.raw || flutterResult)
           return
         }
 
-        const idToken = flutterResult.idToken
+        const idToken = flutterToken
 
         // 2) Preferred: use Firebase credential with idToken
         try {

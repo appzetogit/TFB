@@ -411,13 +411,18 @@ export default function SignIn() {
       if (hasFlutterGoogleBridge()) {
         const flutterResult = await nativeGoogleSignIn()
 
-        if (!flutterResult?.success || !flutterResult?.idToken) {
-          setApiError("Google sign-in cancelled or failed. Please try again.")
+        const flutterToken = flutterResult?.idToken || flutterResult?.accessToken || ""
+        if (!flutterResult?.success || !flutterToken) {
+          const cancelledMessage = flutterResult?.cancelled
+            ? "Google sign-in was cancelled."
+            : "Google sign-in cancelled or failed. Please try again."
+          setApiError(cancelledMessage)
+          console.warn("[Google][Flutter] Unexpected nativeGoogleSignIn payload:", flutterResult?.raw || flutterResult)
           setIsLoading(false)
           return
         }
 
-        const idToken = flutterResult.idToken
+        const idToken = flutterToken
 
         // 2) Preferred: try to sign in via Firebase credential using idToken
         try {

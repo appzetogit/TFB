@@ -17,6 +17,67 @@ export function hasFlutterGoogleBridge() {
   );
 }
 
+function pickFirstString(values = []) {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim() !== "") {
+      return value.trim();
+    }
+  }
+  return "";
+}
+
+function normalizeFlutterGoogleResult(raw) {
+  const obj = raw && typeof raw === "object" ? raw : {};
+  const data = obj.data && typeof obj.data === "object" ? obj.data : {};
+  const tokenObj = obj.token && typeof obj.token === "object" ? obj.token : {};
+
+  const idToken = pickFirstString([
+    obj.idToken,
+    obj.id_token,
+    obj.googleIdToken,
+    obj.google_id_token,
+    obj.token,
+    data.idToken,
+    data.id_token,
+    data.googleIdToken,
+    tokenObj.idToken,
+    tokenObj.id_token,
+  ]);
+
+  const accessToken = pickFirstString([
+    obj.accessToken,
+    obj.access_token,
+    data.accessToken,
+    data.access_token,
+    tokenObj.accessToken,
+    tokenObj.access_token,
+  ]);
+
+  const cancelled =
+    obj.cancelled === true ||
+    obj.canceled === true ||
+    obj.isCancelled === true ||
+    obj.isCanceled === true ||
+    obj.status === "cancelled" ||
+    obj.status === "canceled" ||
+    obj.message === "cancelled" ||
+    obj.message === "canceled";
+
+  const successSignal =
+    obj.success === true ||
+    obj.status === "success" ||
+    obj.status === "ok" ||
+    (obj.result && obj.result === "success");
+
+  return {
+    success: !!(successSignal || idToken || accessToken),
+    idToken,
+    accessToken,
+    cancelled,
+    raw: obj,
+  };
+}
+
 export async function nativeGoogleSignIn() {
   if (!hasFlutterGoogleBridge()) {
     return { success: false, reason: "no_flutter_bridge" };
@@ -28,7 +89,8 @@ export async function nativeGoogleSignIn() {
     const result = await window.flutter_inappwebview.callHandler(
       "nativeGoogleSignIn",
     );
-    return result || { success: false, reason: "empty_result" };
+    if (!result) return { success: false, reason: "empty_result" };
+    return normalizeFlutterGoogleResult(result);
   } catch (error) {
     console.error("[FlutterGoogleAuthBridge] callHandler failed:", error);
     return { success: false, error };
