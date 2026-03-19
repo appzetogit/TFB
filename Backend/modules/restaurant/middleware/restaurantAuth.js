@@ -74,7 +74,15 @@ export const authenticate = async (req, res, next) => {
     
     // Check for FCM token routes - allow token registration even when inactive
     // Restaurants need to register for push notifications (e.g. approval alerts) before admin approves
-    const isFcmRoute = requestPath.includes('/fcm-token') || reqPath === '/fcm-token' || reqPath.startsWith('/fcm-token');
+    const normalizeRoutePart = (v) => (typeof v === 'string' ? v.toLowerCase() : '');
+    const normalizedRequestPath = normalizeRoutePart(requestPath);
+    const normalizedReqPath = normalizeRoutePart(reqPath);
+    const normalizedBaseUrl = normalizeRoutePart(baseUrl);
+    // Be flexible with URL shapes: "/fcm-token", "fcm-token", trailing slashes, query params, etc.
+    const isFcmRoute =
+      normalizedRequestPath.includes('fcm-token') ||
+      normalizedReqPath.includes('fcm-token') ||
+      normalizedBaseUrl.includes('fcm-token');
     
     // Debug logging for inactive restaurants
     if (!restaurant.isActive) {
@@ -84,24 +92,11 @@ export const authenticate = async (req, res, next) => {
     // These are essential for restaurant setup and management
     // FCM: restaurants need to register tokens to receive approval notifications
     if (!restaurant.isActive && !isOnboardingRoute && !isProfileRoute && !isMenuRoute && !isInventoryRoute && !isFcmRoute) {
-      console.error('❌ Restaurant account is inactive - access denied:', {
-        restaurantId: restaurant._id,
-        restaurantName: restaurant.name,
-        isActive: restaurant.isActive,
-        requestPath,
-        reqPath,
-        baseUrl,
-        originalUrl: req.originalUrl,
-        url: req.url,
-        routeChecks: {
-          isOnboardingRoute,
-          isProfileRoute,
-          isMenuRoute,
-          isInventoryRoute,
-          isFcmRoute
-        }
-      });
-      return errorResponse(res, 401, 'Restaurant account is inactive. Please wait for admin approval.');
+      return errorResponse(
+        res,
+        401,
+        'Restaurant account is inactive. Please wait for admin approval.',
+      );
     }
 
     // Attach restaurant to request
