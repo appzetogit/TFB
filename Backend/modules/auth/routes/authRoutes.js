@@ -78,10 +78,15 @@ const fcmRegisterSchema = Joi.object({
   platform: Joi.alternatives()
     .try(
       Joi.string().lowercase().valid('web', 'app', 'android', 'ios'),
-      Joi.number().integer().min(0).max(3)
+      Joi.number().integer().min(0).max(3),
+      Joi.string().pattern(/^[0-3]$/)
     )
     .required()
-    .custom((v) => (typeof v === 'number' ? PLATFORM_MAP[v] : v), 'platform map'),
+    .custom((v) => {
+      if (typeof v === 'number') return PLATFORM_MAP[v];
+      if (typeof v === 'string' && /^[0-3]$/.test(v)) return PLATFORM_MAP[Number(v)];
+      return v;
+    }, 'platform map'),
   fcmToken: Joi.string().required(),
 });
 
@@ -89,10 +94,15 @@ const fcmDeleteSchema = Joi.object({
   platform: Joi.alternatives()
     .try(
       Joi.string().lowercase().valid('web', 'app', 'android', 'ios'),
-      Joi.number().integer().min(0).max(3)
+      Joi.number().integer().min(0).max(3),
+      Joi.string().pattern(/^[0-3]$/)
     )
     .required()
-    .custom((v) => (typeof v === 'number' ? PLATFORM_MAP[v] : v), 'platform map'),
+    .custom((v) => {
+      if (typeof v === 'number') return PLATFORM_MAP[v];
+      if (typeof v === 'string' && /^[0-3]$/.test(v)) return PLATFORM_MAP[Number(v)];
+      return v;
+    }, 'platform map'),
 });
 
 // Merge query params into body for FCM (Flutter/web clients may send platform in query)

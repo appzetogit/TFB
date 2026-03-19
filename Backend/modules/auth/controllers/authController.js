@@ -344,6 +344,9 @@ export const registerFcmToken = asyncHandler(async (req, res) => {
   let platform = typeof platformRaw === 'number' && platformRaw >= 0 && platformRaw <= 3
     ? PLATFORM_MAP[platformRaw]
     : (typeof platformRaw === 'string' ? platformRaw.toLowerCase().trim() : String(platformRaw || '').toLowerCase().trim());
+  if (typeof platform === 'string' && /^[0-3]$/.test(platform)) {
+    platform = PLATFORM_MAP[Number(platform)];
+  }
   const fcmToken = req.body?.fcmToken ?? req.query?.fcmToken;
 
   if (!platform || !fcmToken) {
@@ -394,6 +397,9 @@ export const removeFcmToken = asyncHandler(async (req, res) => {
   let platform = typeof platformRaw === 'number' && platformRaw >= 0 && platformRaw <= 3
     ? PLATFORM_MAP[platformRaw]
     : (typeof platformRaw === 'string' ? platformRaw.toLowerCase().trim() : String(platformRaw || '').toLowerCase().trim());
+  if (typeof platform === 'string' && /^[0-3]$/.test(platform)) {
+    platform = PLATFORM_MAP[Number(platform)];
+  }
 
   if (!platform) {
     return errorResponse(res, 400, "platform is required (body or ?platform=app)");
