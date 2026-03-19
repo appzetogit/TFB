@@ -845,6 +845,26 @@ export const deliveryAPI = {
     return apiClient.get(API_ENDPOINTS.DELIVERY.AUTH.ME);
   },
 
+  // Register / refresh FCM token for authenticated delivery partner
+  registerFcmToken: (platform, fcmToken) => {
+    console.log("[FCM][Delivery] Sending token to backend", {
+      platform,
+      hasToken: !!fcmToken,
+    });
+    return apiClient.post(API_ENDPOINTS.DELIVERY.AUTH.FCM_TOKEN, {
+      platform,
+      fcmToken,
+    });
+  },
+
+  // Remove FCM token for this delivery platform on logout
+  removeFcmToken: (platform = "web") => {
+    console.log("[FCM][Delivery] Removing token on backend for platform", platform);
+    return apiClient.delete(API_ENDPOINTS.DELIVERY.AUTH.FCM_TOKEN, {
+      data: { platform },
+    });
+  },
+
   // Dashboard
   getDashboard: () => {
     return apiClient.get(API_ENDPOINTS.DELIVERY.DASHBOARD);
