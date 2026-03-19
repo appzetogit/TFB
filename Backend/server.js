@@ -122,6 +122,25 @@ try {
 const app = express();
 const httpServer = createServer(app);
 
+// Reverse proxy awareness (needed for correct client IP + rate-limit behavior).
+// If TRUST_PROXY is set, honor it; otherwise default to 1 hop in production.
+const trustProxyRaw = process.env.TRUST_PROXY;
+if (typeof trustProxyRaw === "string" && trustProxyRaw.trim() !== "") {
+  const v = trustProxyRaw.trim().toLowerCase();
+  if (v === "true") {
+    app.set("trust proxy", true);
+  } else if (v === "false") {
+    app.set("trust proxy", false);
+  } else if (!Number.isNaN(Number(v))) {
+    app.set("trust proxy", Number(v));
+  } else {
+    // Values like "loopback", "linklocal", "uniquelocal" are supported by Express.
+    app.set("trust proxy", trustProxyRaw);
+  }
+} else if (process.env.NODE_ENV === "production") {
+  app.set("trust proxy", 1);
+}
+
 // Initialize Socket.IO with proper CORS configuration
 const allowedSocketOrigins = [
   process.env.CORS_ORIGIN,
