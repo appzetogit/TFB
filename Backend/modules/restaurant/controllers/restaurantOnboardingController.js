@@ -5,6 +5,28 @@ import {
 } from "../../../shared/utils/response.js";
 import { createRestaurantFromOnboarding } from "./restaurantController.js";
 
+const normalizeMediaItem = (item) => {
+  if (!item) return null;
+  if (typeof item === "string") {
+    const trimmed = item.trim();
+    return trimmed ? { url: trimmed } : null;
+  }
+  if (typeof item === "object") {
+    if (typeof item.url === "string" && item.url.trim()) {
+      return {
+        url: item.url.trim(),
+        ...(item.publicId ? { publicId: item.publicId } : {}),
+      };
+    }
+  }
+  return null;
+};
+
+const normalizeMediaArray = (items) => {
+  if (!Array.isArray(items)) return [];
+  return items.map(normalizeMediaItem).filter(Boolean);
+};
+
 // Get current restaurant's onboarding data
 export const getOnboarding = async (req, res) => {
   try {
@@ -50,7 +72,17 @@ export const upsertOnboarding = async (req, res) => {
 
     // Step2: Update if provided (even if empty arrays, as user might be clearing data)
     if (step2 !== undefined && step2 !== null) {
-      update["onboarding.step2"] = step2;
+      const normalizedStep2 = { ...step2 };
+      if ("menuImageUrls" in normalizedStep2) {
+        normalizedStep2.menuImageUrls = normalizeMediaArray(
+          normalizedStep2.menuImageUrls,
+        );
+      }
+      if ("profileImageUrl" in normalizedStep2) {
+        normalizedStep2.profileImageUrl =
+          normalizeMediaItem(normalizedStep2.profileImageUrl) || null;
+      }
+      update["onboarding.step2"] = normalizedStep2;
     }
 
     // Step3: Update if provided (replace completely, as frontend sends full step3 object)
@@ -132,21 +164,32 @@ export const upsertOnboarding = async (req, res) => {
     // Update restaurant schema when step2 is completed (cuisines, openDays, menuImages, etc.)
     if (finalCompletedSteps >= 2 && step2) {
       try {
+        const normalizedStep2 = { ...step2 };
+        if ("menuImageUrls" in normalizedStep2) {
+          normalizedStep2.menuImageUrls = normalizeMediaArray(
+            normalizedStep2.menuImageUrls,
+          );
+        }
+        if ("profileImageUrl" in normalizedStep2) {
+          normalizedStep2.profileImageUrl =
+            normalizeMediaItem(normalizedStep2.profileImageUrl) || null;
+        }
+
         const updateData = {};
-        if (step2.profileImageUrl) {
-          updateData.profileImage = step2.profileImageUrl;
+        if (normalizedStep2.profileImageUrl) {
+          updateData.profileImage = normalizedStep2.profileImageUrl;
         }
-        if (step2.menuImageUrls !== undefined) {
-          updateData.menuImages = step2.menuImageUrls; // Update even if empty array
+        if (normalizedStep2.menuImageUrls !== undefined) {
+          updateData.menuImages = normalizedStep2.menuImageUrls; // Update even if empty array
         }
-        if (step2.cuisines !== undefined) {
-          updateData.cuisines = step2.cuisines; // Update even if empty array
+        if (normalizedStep2.cuisines !== undefined) {
+          updateData.cuisines = normalizedStep2.cuisines; // Update even if empty array
         }
-        if (step2.deliveryTimings) {
-          updateData.deliveryTimings = step2.deliveryTimings;
+        if (normalizedStep2.deliveryTimings) {
+          updateData.deliveryTimings = normalizedStep2.deliveryTimings;
         }
-        if (step2.openDays !== undefined) {
-          updateData.openDays = step2.openDays; // Update even if empty array
+        if (normalizedStep2.openDays !== undefined) {
+          updateData.openDays = normalizedStep2.openDays; // Update even if empty array
         }
 
         if (Object.keys(updateData).length > 0) {

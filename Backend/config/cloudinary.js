@@ -1,5 +1,6 @@
 import { v2 as cloudinary } from 'cloudinary';
 import { getCloudinaryCredentials } from '../shared/utils/envService.js';
+import { clearEnvCache } from '../shared/utils/envService.js';
 
 // Normalize env values (trim quotes if present)
 function cleanEnv(value) {
@@ -23,10 +24,24 @@ async function initializeCloudinary() {
   }
 
   try {
-    const credentials = await getCloudinaryCredentials();
-    const cloudName = cleanEnv(credentials.cloudName || process.env.CLOUDINARY_CLOUD_NAME);
-    const apiKey = cleanEnv(credentials.apiKey || process.env.CLOUDINARY_API_KEY);
-    const apiSecret = cleanEnv(credentials.apiSecret || process.env.CLOUDINARY_API_SECRET);
+    const resolveCredentials = async () => {
+      const credentials = await getCloudinaryCredentials();
+      return {
+        cloudName: cleanEnv(credentials.cloudName || process.env.CLOUDINARY_CLOUD_NAME),
+        apiKey: cleanEnv(credentials.apiKey || process.env.CLOUDINARY_API_KEY),
+        apiSecret: cleanEnv(credentials.apiSecret || process.env.CLOUDINARY_API_SECRET),
+      };
+    };
+
+    // First attempt from cache/DB.
+    let { cloudName, apiKey, apiSecret } = await resolveCredentials();
+
+    // If any value appears missing, force-refresh DB env cache and retry once.
+    if (!cloudName || !apiKey || !apiSecret) {
+      clearEnvCache();
+      ({ cloudName, apiKey, apiSecret } = await resolveCredentials());
+    }
+
     if (!cloudName || !apiKey || !apiSecret) {
       const missing = [];
       if (!cloudName) missing.push('CLOUDINARY_CLOUD_NAME');
