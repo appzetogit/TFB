@@ -110,6 +110,12 @@ const mergeFcmQueryForBody = (req, res, next) => {
   if (!req.body) req.body = {};
   if (!req.body.platform && req.query.platform) req.body.platform = req.query.platform;
   if (!req.body.fcmToken && req.query.fcmToken) req.body.fcmToken = req.query.fcmToken;
+  if (!req.body.fcmToken && req.body.token) req.body.fcmToken = req.body.token;
+  if (!req.body.fcmToken && req.body.fcm_token) req.body.fcmToken = req.body.fcm_token;
+  if (!req.body.fcmToken && req.body.deviceToken) req.body.fcmToken = req.body.deviceToken;
+  if (!req.body.fcmToken && req.query.token) req.body.fcmToken = req.query.token;
+  if (!req.body.fcmToken && req.query.fcm_token) req.body.fcmToken = req.query.fcm_token;
+  if (!req.body.fcmToken && req.query.deviceToken) req.body.fcmToken = req.query.deviceToken;
   next();
 };
 
