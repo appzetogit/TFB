@@ -1,5 +1,5 @@
 import { useParams, Link, useSearchParams, useNavigate } from "react-router-dom"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { toast } from "sonner"
 import {
@@ -236,6 +236,24 @@ export default function OrderTracking() {
   const [isSubmittingReview, setIsSubmittingReview] = useState(false)
   const [reviewSubmitted, setReviewSubmitted] = useState(false)
 
+  const applyOrderStatus = useCallback((apiOrder) => {
+    if (!apiOrder) return
+    const status = apiOrder.status
+    const phase = apiOrder.deliveryState?.currentPhase
+
+    if (status === 'cancelled') {
+      setOrderStatus('cancelled')
+    } else if (status === 'delivered' || status === 'completed' || phase === 'completed') {
+      setOrderStatus('delivered')
+    } else if (status === 'out_for_delivery') {
+      setOrderStatus('pickup')
+    } else if (status === 'ready') {
+      setOrderStatus('prepared')
+    } else if (status === 'preparing') {
+      setOrderStatus('preparing')
+    }
+  }, [])
+
   const defaultAddress = getDefaultAddress()
 
   // Poll for order updates (especially when delivery partner accepts)
@@ -315,6 +333,7 @@ export default function OrderTracking() {
             };
 
             setOrder(transformedOrder);
+            applyOrderStatus(apiOrder);
           }
         }
       } catch (err) {
@@ -323,7 +342,7 @@ export default function OrderTracking() {
     }, pollInterval);
 
     return () => clearInterval(interval);
-  }, [orderId, order?.deliveryState?.status, order?.deliveryState?.currentPhase]);
+  }, [orderId, order?.deliveryState?.status, order?.deliveryState?.currentPhase, order?.status, applyOrderStatus]);
 
   // Fetch order from API if not found in context
   useEffect(() => {
@@ -458,17 +477,7 @@ export default function OrderTracking() {
           // Update orderStatus based on API order status
           // 'ready' = food ready at restaurant, waiting for delivery partner (show "Food is ready")
           // 'out_for_delivery' = delivery partner picked up and on the way (show "Order picked up")
-          if (apiOrder.status === 'cancelled') {
-            setOrderStatus('cancelled');
-          } else if (apiOrder.status === 'preparing') {
-            setOrderStatus('preparing');
-          } else if (apiOrder.status === 'ready') {
-            setOrderStatus('prepared');
-          } else if (apiOrder.status === 'out_for_delivery') {
-            setOrderStatus('pickup');
-          } else if (apiOrder.status === 'delivered') {
-            setOrderStatus('delivered');
-          }
+          applyOrderStatus(apiOrder)
         } else {
           throw new Error('Order not found')
         }
@@ -483,7 +492,7 @@ export default function OrderTracking() {
     if (orderId) {
       fetchOrder()
     }
-  }, [orderId, getOrderById])
+  }, [orderId, getOrderById, applyOrderStatus])
 
   // Simulate order status progression
   useEffect(() => {

@@ -834,6 +834,7 @@ export default function LocationSelectorOverlay({ isOpen, onClose }) {
       )
 
       let locationData
+      let usedFallback = false
       try {
         locationData = await Promise.race([locationPromise, timeoutPromise])
 
@@ -844,6 +845,38 @@ export default function LocationSelectorOverlay({ isOpen, onClose }) {
       } catch (raceError) {
         console.warn("⚠️ Location request failed or timed out:", raceError.message)
 
+        // Fallback: try direct geolocation with lower accuracy
+        try {
+          const lowAccPosition = await new Promise((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(
+              (pos) => resolve(pos),
+              (err) => reject(err),
+              { enableHighAccuracy: false, timeout: 5000, maximumAge: 60000 }
+            )
+          })
+          locationData = {
+            latitude: lowAccPosition.coords.latitude,
+            longitude: lowAccPosition.coords.longitude,
+            accuracy: lowAccPosition.coords.accuracy,
+            address: "Current location",
+            formattedAddress: "Current location",
+            city: "",
+            state: "",
+            area: ""
+          }
+          usedFallback = true
+          console.log("📍 Using low-accuracy geolocation fallback:", locationData)
+          toast.info("Using low accuracy location", {
+            id: "location-request",
+            duration: 2000,
+          })
+        } catch (lowAccErr) {
+          // Continue to cached location fallback
+        }
+
+        if (locationData?.latitude && locationData?.longitude) {
+          // We already have a fallback location, skip cached/error path
+        } else {
         // If timeout or error, try to use cached location as fallback
         const stored = localStorage.getItem("userLocation")
         if (stored) {
@@ -895,6 +928,7 @@ export default function LocationSelectorOverlay({ isOpen, onClose }) {
             duration: 5000,
           })
           return
+        }
         }
       }
 
@@ -2869,6 +2903,4 @@ export default function LocationSelectorOverlay({ isOpen, onClose }) {
     </div>
   )
 }
-
-
 
