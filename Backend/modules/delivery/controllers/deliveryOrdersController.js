@@ -258,8 +258,14 @@ export const acceptOrder = asyncHandler(async (req, res) => {
     }
     // Find order - try both by _id and orderId
     // First check if order exists (without deliveryPartnerId filter)
+    const isValidObjectId = mongoose.Types.ObjectId.isValid(orderId);
+    const orderLookupOr = [{ orderId: orderId }];
+    if (isValidObjectId) {
+      orderLookupOr.unshift({ _id: orderId });
+    }
+
     let order = await Order.findOne({
-      $or: [{ _id: orderId }, { orderId: orderId }],
+      $or: orderLookupOr,
     })
       .populate("restaurantId", "name location address phone ownerPhone")
       .populate("userId", "name phone")

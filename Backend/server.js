@@ -570,15 +570,18 @@ io.on("connection", (socket) => {
         const { default: Order } =
           await import("./modules/order/models/Order.js");
 
-        const order = await Order.findById(orderId)
-          .populate({
-            path: "deliveryPartnerId",
-            select: "availability",
-            populate: {
-              path: "availability.currentLocation",
-            },
-          })
-          .lean();
+      const isValidObjectId = mongoose.Types.ObjectId.isValid(orderId);
+      const order = isValidObjectId
+        ? await Order.findById(orderId)
+        : await Order.findOne({ orderId: orderId })
+        .populate({
+          path: "deliveryPartnerId",
+          select: "availability",
+          populate: {
+            path: "availability.currentLocation",
+          },
+        })
+        .lean();
 
         if (order?.deliveryPartnerId?.availability?.currentLocation) {
           const coords =
@@ -609,7 +612,10 @@ io.on("connection", (socket) => {
       const { default: Order } =
         await import("./modules/order/models/Order.js");
 
-      const order = await Order.findById(orderId)
+      const isValidObjectId = mongoose.Types.ObjectId.isValid(orderId);
+      const order = isValidObjectId
+        ? await Order.findById(orderId)
+        : await Order.findOne({ orderId: orderId })
         .populate({
           path: "deliveryPartnerId",
           select: "availability",

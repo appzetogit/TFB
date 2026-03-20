@@ -639,6 +639,7 @@ export default function DeliveryHome() {
   const [customerRating, setCustomerRating] = useState(0)
   const [customerReviewText, setCustomerReviewText] = useState("")
   const [orderEarnings, setOrderEarnings] = useState(0) // Store earnings from completed order
+  const [isDeliveryCompleted, setIsDeliveryCompleted] = useState(false)
   const [routePolyline, setRoutePolyline] = useState([])
   const [showRoutePath, setShowRoutePath] = useState(false) // Toggle to show/hide route path - disabled by default
   const [directionsResponse, setDirectionsResponse] = useState(null) // Directions API response for road-based routing
@@ -905,17 +906,81 @@ export default function DeliveryHome() {
 
   // State for active earning addon
   const [activeEarningAddon, setActiveEarningAddon] = useState(null)
+  const debugEarningAddonLogs = localStorage.getItem("debug_earning_addon") === "true"
+
+  const getCurrentOrderId = () =>
+    selectedRestaurant?.orderId ||
+    selectedRestaurant?.id ||
+    selectedRestaurant?._id ||
+    newOrder?.orderId ||
+    newOrder?.orderMongoId ||
+    newOrder?._id ||
+    null
+
+  const addCompletedOrderId = (orderId) => {
+    if (!orderId) return
+    try {
+      const raw = localStorage.getItem("completedOrderIds")
+      const list = Array.isArray(raw ? JSON.parse(raw) : null) ? JSON.parse(raw) : []
+      if (!list.includes(orderId)) {
+        list.push(orderId)
+        // keep last 50
+        const trimmed = list.slice(-50)
+        localStorage.setItem("completedOrderIds", JSON.stringify(trimmed))
+      }
+    } catch (e) {
+      // ignore storage errors
+    }
+  }
+
+  const isOrderIdCompleted = (orderId) => {
+    if (!orderId) return false
+    try {
+      const raw = localStorage.getItem("completedOrderIds")
+      const list = raw ? JSON.parse(raw) : []
+      return Array.isArray(list) && list.includes(orderId)
+    } catch (e) {
+      return false
+    }
+  }
+
+  const getEstimatedEarningValue = () => {
+    const est =
+      selectedRestaurant?.estimatedEarnings ??
+      selectedRestaurant?.amount ??
+      0
+    if (typeof est === "object" && est !== null) {
+      return Number(est.totalEarning ?? est.amount ?? 0) || 0
+    }
+    return Number(est) || 0
+  }
+
+  const orderStatusForSummary =
+    selectedRestaurant?.orderStatus || selectedRestaurant?.status || ""
+  const deliveryPhaseForSummary =
+    selectedRestaurant?.deliveryPhase ||
+    selectedRestaurant?.deliveryState?.currentPhase ||
+    ""
+  const isDeliveredOrCompletedSummary =
+    orderStatusForSummary === "delivered" ||
+    orderStatusForSummary === "completed" ||
+    deliveryPhaseForSummary === "completed" ||
+    deliveryPhaseForSummary === "delivered"
 
   // Fetch active earning addon offers
   useEffect(() => {
     const fetchActiveEarningAddons = async () => {
       try {
         const response = await deliveryAPI.getActiveEarningAddons()
-        console.log('Active earning addons response:', response?.data)
+        if (debugEarningAddonLogs) {
+          console.log('Active earning addons response:', response?.data)
+        }
         
         if (response?.data?.success && response?.data?.data?.activeOffers) {
           const offers = response.data.data.activeOffers
-          console.log('Active offers found:', offers)
+          if (debugEarningAddonLogs) {
+            console.log('Active offers found:', offers)
+          }
           
           // Get the first valid active offer (prioritize isValid, then isUpcoming, then any active status)
           const activeOffer = offers.find(offer => offer.isValid) || 
@@ -924,10 +989,14 @@ export default function DeliveryHome() {
                              offers[0] || 
                              null
           
-          console.log('Selected active offer:', activeOffer)
+          if (debugEarningAddonLogs) {
+            console.log('Selected active offer:', activeOffer)
+          }
           setActiveEarningAddon(activeOffer)
         } else {
-          console.log('No active offers found in response')
+          if (debugEarningAddonLogs) {
+            console.log('No active offers found in response')
+          }
           setActiveEarningAddon(null)
         }
       } catch (error) {
@@ -2147,7 +2216,15 @@ export default function DeliveryHome() {
       // Accept order via backend API and get route
       const acceptOrderAndShowRoute = async () => {
         // Get order ID from selectedRestaurant or newOrder (define outside try-catch for error handling)
-        const orderId = selectedRestaurant?.id || newOrder?.orderMongoId || newOrder?.orderId
+        const orderId =
+          selectedRestaurant?.orderId ||
+          selectedRestaurant?.id ||
+          selectedRestaurant?._id ||
+          selectedRestaurant?.mongoId ||
+          newOrder?.orderMongoId ||
+          newOrder?.orderId ||
+          newOrder?._id ||
+          newOrder?.mongoId
         
         console.log('🔍 Order ID lookup:', {
           selectedRestaurantId: selectedRestaurant?.id,
@@ -3176,15 +3253,10 @@ export default function DeliveryHome() {
       setReachedDropIsAnimatingToComplete(true)
       setReachedDropButtonProgress(1)
 
-      // Close popup, confirm reached drop, and show order delivered animation instantly (no delay)
-      // Close reached drop popup first
+      // Close reached drop popup first, then confirm reached drop before showing delivered popup
       setShowReachedDropPopup(false)
-      
-      // Show Order Delivered popup instantly after Reached Drop is confirmed
-      console.log('✅ Showing Order Delivered popup instantly after Reached Drop confirmation')
-      setShowOrderDeliveredAnimation(true)
-      
-      // API call in background (async, doesn't block popup)
+
+      // API call (wait for success before showing delivered popup)
       ;(async () => {
         // Get order ID - prioritize MongoDB _id over orderId string for API call
         // Backend expects _id (MongoDB ObjectId) in the URL parameter
@@ -3203,54 +3275,55 @@ export default function DeliveryHome() {
           finalOrderIdForApi: orderIdForApi
         })
         
-        if (orderIdForApi) {
-          try {
-            // Call backend API to confirm reached drop (in background, don't block popup)
-            // Use MongoDB _id for API call to avoid ObjectId casting errors
-            console.log('📦 Confirming reached drop for order:', orderIdForApi)
-            const response = await deliveryAPI.confirmReachedDrop(orderIdForApi)
-            
-            if (response.data?.success) {
-              console.log('✅ Reached drop confirmed')
-            } else {
-              console.error('❌ Failed to confirm reached drop:', response.data)
-              toast.error(response.data?.message || 'Failed to confirm reached drop. Please try again.')
-            }
-          } catch (error) {
-            const status = error.response?.status
-            
-            // Handle 500 errors gracefully (server-side issue, popup already shown)
-            if (status === 500) {
-              // For 500 errors, just log warning - popup is already shown, backend will sync later
-              console.warn('⚠️ Server error confirming reached drop (500), but popup is shown. Backend will sync status automatically.', {
-                orderIdForApi: orderIdForApi || 'unknown',
-                message: error.response?.data?.message || error.message
-              })
-              // Don't show error toast or log as error - it's a server issue, not user action
-              return
-            }
-            
-            // For other errors, log and show error message
-            console.error('❌ Error confirming reached drop:', error)
-            console.error('❌ Error details:', {
-              message: error.message,
-              response: error.response?.data,
-              status: status,
-              orderIdForApi: orderIdForApi || 'unknown',
-              selectedRestaurant: selectedRestaurant,
-              newOrder: newOrder
-            })
-            
-            // Show specific error message based on status code
-            let errorMessage = 'Failed to confirm reached drop. Please try again.'
-            if (status === 404) {
-              errorMessage = 'Order not found. Please refresh and try again.'
-            } else if (error.response?.data?.message) {
-              errorMessage = error.response.data.message
-            }
-            
-            toast.error(errorMessage)
+        if (!orderIdForApi) {
+          console.error('❌ No order ID available to confirm reached drop')
+          toast.error('Order ID not found. Please try again.')
+          setReachedDropButtonProgress(0)
+          setReachedDropIsAnimatingToComplete(false)
+          setShowReachedDropPopup(true)
+          return
+        }
+
+        try {
+          // Call backend API to confirm reached drop
+          console.log('📦 Confirming reached drop for order:', orderIdForApi)
+          const response = await deliveryAPI.confirmReachedDrop(orderIdForApi)
+          
+          if (response.data?.success) {
+            console.log('✅ Reached drop confirmed')
+            console.log('✅ Showing Order Delivered popup after Reached Drop confirmation')
+            setShowOrderDeliveredAnimation(true)
+          } else {
+            console.error('❌ Failed to confirm reached drop:', response.data)
+            toast.error(response.data?.message || 'Failed to confirm reached drop. Please try again.')
+            setReachedDropButtonProgress(0)
+            setReachedDropIsAnimatingToComplete(false)
+            setShowReachedDropPopup(true)
           }
+        } catch (error) {
+          const status = error.response?.status
+          
+          console.error('❌ Error confirming reached drop:', error)
+          console.error('❌ Error details:', {
+            message: error.message,
+            response: error.response?.data,
+            status: status,
+            orderIdForApi: orderIdForApi || 'unknown',
+            selectedRestaurant: selectedRestaurant,
+            newOrder: newOrder
+          })
+          
+          let errorMessage = 'Failed to confirm reached drop. Please try again.'
+          if (status === 404) {
+            errorMessage = 'Order not found. Please refresh and try again.'
+          } else if (error.response?.data?.message) {
+            errorMessage = error.response.data.message
+          }
+          
+          toast.error(errorMessage)
+          setReachedDropButtonProgress(0)
+          setReachedDropIsAnimatingToComplete(false)
+          setShowReachedDropPopup(true)
         }
       })()
     } else {
@@ -3828,16 +3901,8 @@ export default function DeliveryHome() {
       setOrderDeliveredIsAnimatingToComplete(true)
       setOrderDeliveredButtonProgress(1)
 
-      // After animation, mark delivery complete directly (no extra page/popups)
+      // After animation, call completeDelivery API so order status becomes "delivered" everywhere
       setTimeout(() => {
-        setShowOrderDeliveredAnimation(false)
-
-        // Clear all pickup/delivery related popups
-        setShowReachedDropPopup(false)
-        setShowreachedPickupPopup(false)
-        setShowOrderIdConfirmationPopup(false)
-
-        // Call completeDelivery API so order status becomes "delivered" everywhere
         ;(async () => {
           try {
             const orderIdForApi =
@@ -3853,6 +3918,8 @@ export default function DeliveryHome() {
                 newOrder,
               })
               toast.error("Order ID not available. Please try again.")
+              setOrderDeliveredButtonProgress(0)
+              setOrderDeliveredIsAnimatingToComplete(false)
               return
             }
 
@@ -3895,6 +3962,14 @@ export default function DeliveryHome() {
               }
 
               setOrderEarnings(earnings)
+              setIsDeliveryCompleted(true)
+              const completedId =
+                selectedRestaurant?.orderId ||
+                selectedRestaurant?.id ||
+                newOrder?.orderId ||
+                newOrder?.orderMongoId ||
+                newOrder?._id
+              if (completedId) addCompletedOrderId(completedId)
 
               console.log(
                 "✅ Delivery completed and earnings added to wallet:",
@@ -3914,18 +3989,27 @@ export default function DeliveryHome() {
                 toast.success("Order marked as delivered")
               }
 
-              // Clear active order from UI so everywhere reflects delivered state
-              clearOrderData()
+              // Clear active order from storage so it doesn't re-open, but keep UI summary visible
+              clearOrderStorageOnly()
+              // Keep completion popup open so user can see summary and close with Done
+              setShowOrderDeliveredAnimation(true)
+              setShowReachedDropPopup(false)
+              setShowreachedPickupPopup(false)
+              setShowOrderIdConfirmationPopup(false)
             } else {
               console.error("❌ Failed to complete delivery:", response.data)
               toast.error(
                 response.data?.message ||
                   "Failed to complete delivery. Please try again.",
               )
+              setOrderDeliveredButtonProgress(0)
+              setOrderDeliveredIsAnimatingToComplete(false)
             }
           } catch (error) {
             console.error("❌ Error completing delivery:", error)
             toast.error("Failed to complete delivery. Please try again.")
+            setOrderDeliveredButtonProgress(0)
+            setOrderDeliveredIsAnimatingToComplete(false)
           } finally {
             // Reset after animation
             setTimeout(() => {
@@ -4534,16 +4618,27 @@ export default function DeliveryHome() {
       })
 
       if (response?.data?.success && response?.data?.data?.orders) {
-        const orders = response.data.data.orders
-        console.log(`✅ Found ${orders.length} assigned order(s)`)
+          const orders = response.data.data.orders
+          console.log(`✅ Found ${orders.length} assigned order(s)`)
         
         // Filter out orders that are already accepted or delivered
         const pendingOrders = orders.filter(order => {
           const orderStatus = order.status
           const deliveryPhase = order.deliveryState?.currentPhase
+          const orderId = order.orderId || order._id?.toString()
+
+          // Skip if this order was completed locally (avoid reopening same order)
+          if (orderId && isOrderIdCompleted(orderId)) {
+            return false
+          }
           
           // Skip if already delivered or completed
-          if (orderStatus === 'delivered' || deliveryPhase === 'completed') {
+          if (
+            orderStatus === 'delivered' ||
+            orderStatus === 'completed' ||
+            deliveryPhase === 'completed' ||
+            order.deliveryState?.status === 'completed'
+          ) {
             return false
           }
           
@@ -6119,7 +6214,13 @@ export default function DeliveryHome() {
           order = orderResponse.data.data;
           
           // Check if order is cancelled or deleted
-          if (order.status === 'cancelled' || order.status === 'delivered') {
+          if (
+            order.status === 'cancelled' ||
+            order.status === 'delivered' ||
+            order.status === 'completed' ||
+            order.deliveryState?.currentPhase === 'completed' ||
+            isOrderIdCompleted(orderId)
+          ) {
             console.log(`⚠️ Order is ${order.status}, removing from localStorage`);
             localStorage.removeItem('deliveryActiveOrder');
             setSelectedRestaurant(null);
@@ -6355,6 +6456,9 @@ export default function DeliveryHome() {
   const clearOrderData = useCallback(() => {
     console.log('🧹 Clearing order data...');
     localStorage.removeItem('deliveryActiveOrder');
+    localStorage.removeItem('activeOrder');
+    setActiveOrder(null);
+    setIsDeliveryCompleted(false);
     setSelectedRestaurant(null);
     setShowReachedDropPopup(false);
     setShowOrderDeliveredAnimation(false);
@@ -6379,6 +6483,28 @@ export default function DeliveryHome() {
     setRoutePolyline([]);
     setShowRoutePath(false);
   }, [clearNewOrder, clearOrderReady])
+
+  const closeOrderDeliveredPopup = useCallback(() => {
+    const completedId = getCurrentOrderId()
+    if (completedId) addCompletedOrderId(completedId)
+    setShowOrderDeliveredAnimation(false)
+    setShowPaymentPage(false)
+    setOrderEarnings(0)
+    clearOrderData()
+    navigate("/delivery")
+  }, [clearOrderData, navigate])
+
+  const hideOrderDeliveredPopup = useCallback(() => {
+    // Allow user to dismiss UI even before completion
+    setShowOrderDeliveredAnimation(false)
+  }, [])
+
+  const clearOrderStorageOnly = useCallback(() => {
+    localStorage.removeItem("deliveryActiveOrder")
+    localStorage.removeItem("activeOrder")
+    setActiveOrder(null)
+    acceptedOrderIdsRef.current.clear()
+  }, [])
 
   // Periodically verify order still exists (every 30 seconds) to catch deletions
   useEffect(() => {
@@ -10128,17 +10254,23 @@ export default function DeliveryHome() {
       <BottomPopup
         isOpen={showOrderDeliveredAnimation}
         onClose={() => {
-          setShowOrderDeliveredAnimation(false)
-          setShowCustomerReviewPopup(true)
+          if (isDeliveryCompleted) {
+            closeOrderDeliveredPopup()
+          } else {
+            hideOrderDeliveredPopup()
+          }
         }}
-        showCloseButton={false}
+        title="Delivery Complete"
+        showCloseButton={true}
         closeOnBackdropClick={false}
         maxHeight="80vh"
         showHandle={true}
         showBackdrop={false}
         backdropBlocksInteraction={false}
+        stickyFooter={true}
       >
-        <div className="">
+        <div className="flex flex-col h-full">
+          <div className="flex-1 overflow-y-auto">
           {/* Success Icon and Title */}
           <div className="text-center mb-6">
             <div className="w-20 h-20 bg-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -10207,11 +10339,12 @@ export default function DeliveryHome() {
 
           {/* Your earning: delivery commission added to wallet when you confirm */}
           {(() => {
-            const earned = orderEarnings > 0
-              ? orderEarnings
-              : (typeof selectedRestaurant?.estimatedEarnings === 'object' && selectedRestaurant?.estimatedEarnings != null
-                  ? (selectedRestaurant.estimatedEarnings.totalEarning ?? selectedRestaurant.estimatedEarnings.amount ?? 0)
-                  : Number(selectedRestaurant?.estimatedEarnings || selectedRestaurant?.amount || 0) || 0)
+            const estimated = getEstimatedEarningValue()
+            const earned = orderEarnings > 0 ? orderEarnings : estimated
+            const showMismatch =
+              orderEarnings > 0 &&
+              estimated > 0 &&
+              Math.abs(Number(orderEarnings) - Number(estimated)) >= 1
             if (earned <= 0) return null
             return (
               <div className="rounded-xl p-4 mb-6 bg-red-50 border border-red-200">
@@ -10226,71 +10359,101 @@ export default function DeliveryHome() {
                     ₹{Number(earned).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
                 </div>
+                {showMismatch && (
+                  <div className="mt-2 text-xs text-red-700/80 flex justify-between">
+                    <span>Offer estimate</span>
+                    <span>₹{Number(estimated).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  </div>
+                )}
               </div>
             )
           })()}
 
-          {/* Order Delivered Button with Swipe */}
-          <div className="relative w-full">
-            <motion.div
-              ref={orderDeliveredButtonRef}
-              className="relative w-full bg-red-600 rounded-full overflow-hidden shadow-xl"
-              style={{ touchAction: 'pan-x' }} // Prevent vertical scrolling, allow horizontal pan
-              onTouchStart={handleOrderDeliveredTouchStart}
-              onTouchMove={handleOrderDeliveredTouchMove}
-              onTouchEnd={handleOrderDeliveredTouchEnd}
-              whileTap={{ scale: 0.98 }}
+          {/* Done button (only after delivery is completed) */}
+          {(isDeliveryCompleted || orderEarnings > 0 || isDeliveredOrCompletedSummary) && (
+            <button
+              onClick={closeOrderDeliveredPopup}
+              className="w-full mb-4 bg-black text-white py-3 rounded-xl font-semibold text-base hover:bg-gray-800 transition-colors"
             >
-              {/* Swipe progress background */}
-              <motion.div
-                className="absolute inset-0 bg-red-500 rounded-full"
-                animate={{
-                  width: `${orderDeliveredButtonProgress * 100}%`
-                }}
-                transition={orderDeliveredIsAnimatingToComplete ? {
-                  type: "spring",
-                  stiffness: 200,
-                  damping: 25
-                } : { duration: 0 }}
-              />
+              Done
+            </button>
+          )}
 
-              {/* Button content container */}
-              <div className="relative flex items-center h-[64px] px-1">
-                {/* Left: Black circle with arrow */}
+          {!isDeliveryCompleted && (
+            <button
+              onClick={hideOrderDeliveredPopup}
+              className="w-full mb-4 bg-gray-100 text-gray-700 py-3 rounded-xl font-semibold text-base hover:bg-gray-200 transition-colors"
+            >
+              Close
+            </button>
+          )}
+          </div>
+
+          {!isDeliveryCompleted && (
+            <div className="pt-3">
+              {/* Order Delivered Button with Swipe */}
+              <div className="relative w-full">
                 <motion.div
-                  className="w-14 h-14 bg-gray-900 rounded-full flex items-center justify-center shrink-0 relative z-20 shadow-2xl"
-                  animate={{
-                    x: orderDeliveredButtonProgress * (orderDeliveredButtonRef.current ? (orderDeliveredButtonRef.current.offsetWidth - 56 - 32) : 240)
-                  }}
-                  transition={orderDeliveredIsAnimatingToComplete ? {
-                    type: "spring",
-                    stiffness: 300,
-                    damping: 30
-                  } : { duration: 0 }}
+                  ref={orderDeliveredButtonRef}
+                  className="relative w-full bg-red-600 rounded-full overflow-hidden shadow-xl"
+                  style={{ touchAction: 'pan-x' }} // Prevent vertical scrolling, allow horizontal pan
+                  onTouchStart={handleOrderDeliveredTouchStart}
+                  onTouchMove={handleOrderDeliveredTouchMove}
+                  onTouchEnd={handleOrderDeliveredTouchEnd}
+                  whileTap={{ scale: 0.98 }}
                 >
-                  <ArrowRight className="w-5 h-5 text-white" />
-                </motion.div>
-
-                {/* Text - centered and stays visible */}
-                <div className="absolute inset-0 flex items-center justify-center left-16 right-4 pointer-events-none">
-                  <motion.span
-                    className="text-white font-semibold flex items-center justify-center text-center text-base select-none"
+                  {/* Swipe progress background */}
+                  <motion.div
+                    className="absolute inset-0 bg-red-500 rounded-full"
                     animate={{
-                      opacity: orderDeliveredButtonProgress > 0.5 ? Math.max(0.2, 1 - orderDeliveredButtonProgress * 0.8) : 1,
-                      x: orderDeliveredButtonProgress > 0.5 ? orderDeliveredButtonProgress * 15 : 0
+                      width: `${orderDeliveredButtonProgress * 100}%`
                     }}
                     transition={orderDeliveredIsAnimatingToComplete ? {
                       type: "spring",
                       stiffness: 200,
                       damping: 25
                     } : { duration: 0 }}
-                  >
-                    {orderDeliveredButtonProgress > 0.5 ? 'Release to Confirm' : 'Order Delivered'}
-                  </motion.span>
-                </div>
+                  />
+
+                  {/* Button content container */}
+                  <div className="relative flex items-center h-[64px] px-1">
+                    {/* Left: Black circle with arrow */}
+                    <motion.div
+                      className="w-14 h-14 bg-gray-900 rounded-full flex items-center justify-center shrink-0 relative z-20 shadow-2xl"
+                      animate={{
+                        x: orderDeliveredButtonProgress * (orderDeliveredButtonRef.current ? (orderDeliveredButtonRef.current.offsetWidth - 56 - 32) : 240)
+                      }}
+                      transition={orderDeliveredIsAnimatingToComplete ? {
+                        type: "spring",
+                        stiffness: 300,
+                        damping: 30
+                      } : { duration: 0 }}
+                    >
+                      <ArrowRight className="w-5 h-5 text-white" />
+                    </motion.div>
+
+                    {/* Text - centered and stays visible */}
+                    <div className="absolute inset-0 flex items-center justify-center left-16 right-4 pointer-events-none">
+                      <motion.span
+                        className="text-white font-semibold flex items-center justify-center text-center text-base select-none"
+                        animate={{
+                          opacity: orderDeliveredButtonProgress > 0.5 ? Math.max(0.2, 1 - orderDeliveredButtonProgress * 0.8) : 1,
+                          x: orderDeliveredButtonProgress > 0.5 ? orderDeliveredButtonProgress * 15 : 0
+                        }}
+                        transition={orderDeliveredIsAnimatingToComplete ? {
+                          type: "spring",
+                          stiffness: 200,
+                          damping: 25
+                        } : { duration: 0 }}
+                      >
+                        {orderDeliveredButtonProgress > 0.5 ? 'Release to Confirm' : 'Order Delivered'}
+                      </motion.span>
+                    </div>
+                  </div>
+                </motion.div>
               </div>
-            </motion.div>
-          </div>
+            </div>
+          )}
         </div>
       </BottomPopup>
 
