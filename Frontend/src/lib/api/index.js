@@ -284,7 +284,7 @@ export const locationAPI = {
     });
   },
   // Get nearby locations
-  getNearbyLocations: (lat, lng, radius = 500, query = "") => {
+  getNearbyLocations: (lat, lng, radius = 100, query = "") => {
     return apiClient.get(API_ENDPOINTS.LOCATION.NEARBY, {
       params: { lat, lng, radius, query },
     });
