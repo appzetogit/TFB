@@ -2216,18 +2216,19 @@ function OrderCard({
   onMarkReadySuccess,
 }) {
   const isReady = status === "Ready"
+  const showCancel = status === 'preparing' && onCancel
 
   return (
     <div className="w-full bg-white rounded-2xl p-4 mb-3 border border-gray-200 hover:border-gray-300 shadow-sm hover:shadow-md transition-all relative overflow-hidden">
       {/* Cancel button - only show for preparing orders */}
-      {status === 'preparing' && onCancel && (
+      {showCancel && (
         <button
           type="button"
           onClick={(e) => {
             e.stopPropagation();
             onCancel({ orderId, mongoId, customerName });
           }}
-          className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center rounded-full bg-white border border-red-100 text-red-600 shadow-md hover:bg-red-50 transition-colors z-10"
+          className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center rounded-full bg-white/95 border border-red-100 text-red-600 shadow-md hover:bg-red-50 transition-colors z-10"
           title="Cancel Order"
         >
           <X className="w-4 h-4" />
@@ -2247,7 +2248,7 @@ function OrderCard({
             items,
           })
         }
-        className="w-full text-left flex gap-3 items-stretch cursor-pointer"
+        className="w-full text-left flex gap-3 items-start cursor-pointer"
       >
         {/* Photo */}
         <div className="h-20 w-20 rounded-xl overflow-hidden bg-gray-100 flex items-center justify-center flex-shrink-0 my-auto">
@@ -2269,7 +2270,7 @@ function OrderCard({
         {/* Content */}
         <div className="flex-1 flex flex-col justify-between min-h-[80px]">
           {/* Top row */}
-          <div className="flex items-start justify-between gap-2">
+          <div className={`flex items-start justify-between gap-2 ${showCancel ? "pr-10" : ""}`}>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold text-black leading-tight truncate">
                 Order #{orderId}
@@ -2300,7 +2301,7 @@ function OrderCard({
 
           {/* Middle row */}
           <div className="mt-2">
-            <p className="text-xs text-gray-600 line-clamp-1">
+            <p className="text-xs text-gray-600 line-clamp-2">
               {itemsSummary}
             </p>
           </div>
@@ -2314,7 +2315,7 @@ function OrderCard({
               </p>
               {/* Delivery Assignment Status - Only show for preparing orders */}
               {status === 'preparing' && (
-                <div className="flex items-center gap-1.5 flex-wrap">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${deliveryPartnerId
                     ? 'bg-red-100 text-red-700 border border-red-300'
                     : 'bg-orange-100 text-orange-700 border border-orange-300'
