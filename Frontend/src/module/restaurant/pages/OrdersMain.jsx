@@ -27,6 +27,32 @@ const filterTabs = [
   { id: "cancelled", label: "Cancelled" },
 ]
 
+const getDeliveryPhaseFlags = (order) => {
+  const status = (order?.status || "").toLowerCase()
+  const phase = (order?.deliveryState?.currentPhase || "").toLowerCase()
+  const trackingOut =
+    order?.tracking?.out_for_delivery?.status === true ||
+    order?.tracking?.outForDelivery?.status === true ||
+    order?.tracking?.outForDelivery?.timestamp
+
+  const isDelivered =
+    status === "delivered" ||
+    status === "completed" ||
+    phase === "completed" ||
+    phase === "delivered"
+
+  const isOutForDelivery =
+    status === "out_for_delivery" ||
+    status === "out-for-delivery" ||
+    phase === "en_route_to_delivery" ||
+    phase === "at_delivery" ||
+    phase === "picked_up" ||
+    phase === "pickedup" ||
+    trackingOut
+
+  return { isDelivered, isOutForDelivery }
+}
+
 // Completed Orders List Component
 function CompletedOrders({ onSelectOrder }) {
   const [orders, setOrders] = useState([])
@@ -43,9 +69,11 @@ function CompletedOrders({ onSelectOrder }) {
         if (!isMounted) return
 
         if (response.data?.success && response.data.data?.orders) {
-          const completedOrders = response.data.data.orders.filter(
-            order => order.status === 'delivered' || order.status === 'completed'
-          )
+          const completedOrders = response.data.data.orders.filter(order => {
+            const { isDelivered } = getDeliveryPhaseFlags(order)
+            const status = (order.status || "").toLowerCase()
+            return isDelivered || status === 'delivered' || status === 'completed'
+          })
 
           const transformedOrders = completedOrders.map(order => ({
             orderId: order.orderId || order._id,
@@ -146,7 +174,7 @@ function CompletedOrders({ onSelectOrder }) {
               : 'N/A'
 
             return (
-              <div key={order.orderId || order.mongoId} className="w-full bg-white rounded-2xl p-4 mb-3 border border-gray-200">
+              <div key={order.orderId || order.mongoId} className="w-full bg-white rounded-2xl p-4 mb-3 border border-gray-200 shadow-sm hover:border-gray-300 hover:shadow-md transition-all">
                 <button
                   type="button"
                   onClick={() =>
@@ -160,7 +188,7 @@ function CompletedOrders({ onSelectOrder }) {
                       itemsSummary: order.itemsSummary,
                     })
                   }
-                  className="w-full text-left flex gap-3 items-stretch"
+                  className="w-full text-left flex gap-3 items-start"
                 >
                   <div className="h-20 w-20 rounded-xl overflow-hidden bg-gray-100 flex items-center justify-center flex-shrink-0 my-auto">
                     {order.photoUrl ? (
@@ -391,38 +419,38 @@ function CancelledOrders({ onSelectOrder }) {
                   </div>
 
                   <div className="flex-1 flex flex-col justify-between min-h-[80px]">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <p className="text-sm font-semibold text-black leading-tight">
+                    <div className="flex flex-col gap-2">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-black leading-tight truncate">
                           Order #{order.orderId}
                         </p>
-                        <p className="text-[11px] text-gray-500 mt-1">
+                        <p className="text-[11px] text-gray-500 mt-1 truncate">
                           {order.customerName}
                         </p>
                       </div>
 
-                      <div className="flex flex-col items-end gap-1">
-                        <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-medium border ${order.cancelledBy === 'user'
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium border ${order.cancelledBy === 'user'
                           ? 'border-orange-500 text-orange-600'
                           : 'border-red-500 text-red-600'
                           }`}>
                           <span className={`h-1.5 w-1.5 rounded-full ${order.cancelledBy === 'user' ? 'bg-orange-500' : 'bg-red-500'
                             }`} />
-                          {cancelledByText}
+                          <span className="truncate max-w-[110px]">{cancelledByText}</span>
                         </span>
-                        <span className="text-[11px] text-gray-500 text-right">
+                        <span className="text-[10px] text-gray-500 leading-tight whitespace-nowrap">
                           {cancelledDate}
                         </span>
                       </div>
                     </div>
 
                     <div className="mt-2">
-                      <p className="text-xs text-gray-600 line-clamp-1">
+                      <p className="text-xs text-gray-600 line-clamp-2">
                         {order.itemsSummary}
                       </p>
                       {order.cancellationReason && (
-                        <p className="text-[10px] text-red-600 mt-1 line-clamp-1">
-                          Reason: {order.cancellationReason}
+                        <p className="text-[10px] text-red-600/90 mt-1 line-clamp-2">
+                          {order.cancellationReason}
                         </p>
                       )}
                     </div>
@@ -2335,9 +2363,11 @@ function PreparingOrders({ onSelectOrder, onCancel }) {
       if (!isMountedRef.current) return
 
       if (response.data?.success && response.data.data?.orders) {
-        const preparingOrders = response.data.data.orders.filter(
-          order => order.status === 'preparing'
-        )
+        const preparingOrders = response.data.data.orders.filter(order => {
+          const { isDelivered, isOutForDelivery } = getDeliveryPhaseFlags(order)
+          const status = (order.status || "").toLowerCase()
+          return status === 'preparing' && !isOutForDelivery && !isDelivered
+        })
         const transformedOrders = preparingOrders.map(order => {
           const initialETA = order.estimatedDeliveryTime || 30
           const preparingTimestamp = order.tracking?.preparing?.timestamp
@@ -2558,9 +2588,11 @@ function ReadyOrders({ onSelectOrder }) {
 
         if (response.data?.success && response.data.data?.orders) {
           // Filter orders with 'ready' status
-          const readyOrders = response.data.data.orders.filter(
-            order => order.status === 'ready'
-          )
+          const readyOrders = response.data.data.orders.filter(order => {
+            const { isDelivered, isOutForDelivery } = getDeliveryPhaseFlags(order)
+            const status = (order.status || "").toLowerCase()
+            return status === 'ready' && !isOutForDelivery && !isDelivered
+          })
 
           const transformedOrders = readyOrders.map(order => ({
             orderId: order.orderId || order._id,
@@ -2677,9 +2709,10 @@ const OutForDeliveryOrders = ({ onSelectOrder }) => {
 
         if (response.data?.success && response.data.data?.orders) {
           // Filter orders with 'out_for_delivery' status
-          const outForDeliveryOrders = response.data.data.orders.filter(
-            order => order.status === 'out_for_delivery'
-          )
+          const outForDeliveryOrders = response.data.data.orders.filter(order => {
+            const { isDelivered, isOutForDelivery } = getDeliveryPhaseFlags(order)
+            return !isDelivered && isOutForDelivery
+          })
 
           const transformedOrders = outForDeliveryOrders.map(order => ({
             orderId: order.orderId || order._id,
