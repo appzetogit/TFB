@@ -10,6 +10,17 @@ export const TFB_FCM_FOREGROUND_EVENT = "tfb-fcm-foreground";
 
 let foregroundMessageInitialized = false;
 
+function detectFcmPlatform() {
+  try {
+    const ua = navigator?.userAgent || "";
+    if (/iPad|iPhone|iPod/i.test(ua)) return "ios";
+    if (/Android/i.test(ua)) return "android";
+    return "web";
+  } catch {
+    return "web";
+  }
+}
+
 export function getWebNotificationPermission() {
   try {
     if (typeof Notification === "undefined") return "unsupported";
@@ -196,9 +207,10 @@ export async function registerFcmTokenForLoggedInUser({ forcePrompt = false } = 
   try {
     const token = await getBrowserFcmToken({ forcePrompt });
     if (!token) return;
+    const platform = detectFcmPlatform();
 
-    console.log("[FCM] Token to send (user):", token.substring(0, 30) + "...");
-    const res = await authAPI.registerFcmToken("web", token);
+    console.log("[FCM] Token to send (user):", token.substring(0, 30) + "...", "platform:", platform);
+    const res = await authAPI.registerFcmToken(platform, token);
     const saved =
       res?.data?.data?.fcmTokenWeb ?? res?.data?.data?.fcmtokenWeb;
     console.log(
@@ -224,12 +236,15 @@ export async function registerFcmTokenForRestaurant({ forcePrompt = false } = {}
   try {
     const token = await getBrowserFcmToken({ forcePrompt });
     if (!token) return;
+    const platform = detectFcmPlatform();
 
     console.log(
       "[FCM][Restaurant] Token to send:",
       token.substring(0, 30) + "...",
+      "platform:",
+      platform,
     );
-    const res = await restaurantAPI.registerFcmToken("web", token);
+    const res = await restaurantAPI.registerFcmToken(platform, token);
     const saved =
       res?.data?.data?.fcmTokenWeb ?? res?.data?.data?.fcmtokenWeb;
     console.log(
@@ -248,7 +263,8 @@ export async function registerFcmTokenForDelivery({ forcePrompt = false } = {}) 
   try {
     const token = await getBrowserFcmToken({ forcePrompt });
     if (!token) return;
-    const res = await deliveryAPI.registerFcmToken?.("web", token);
+    const platform = detectFcmPlatform();
+    const res = await deliveryAPI.registerFcmToken?.(platform, token);
     return res?.data;
   } catch (error) {
     console.error("[FCM][Delivery] Error during web FCM registration:", error?.message || error);
@@ -259,7 +275,8 @@ export async function registerFcmTokenForAdmin({ forcePrompt = false } = {}) {
   try {
     const token = await getBrowserFcmToken({ forcePrompt });
     if (!token) return;
-    const res = await adminAPI.registerFcmToken?.("web", token);
+    const platform = detectFcmPlatform();
+    const res = await adminAPI.registerFcmToken?.(platform, token);
     return res?.data;
   } catch (error) {
     console.error("[FCM][Admin] Error during web FCM registration:", error?.message || error);

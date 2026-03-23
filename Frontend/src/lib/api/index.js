@@ -21,6 +21,14 @@
 import apiClient from "./axios.js";
 import { API_ENDPOINTS } from "./config.js";
 
+const buildFcmTokenUrl = (basePath, platform, fcmToken) => {
+  const params = new URLSearchParams();
+  if (platform) params.set("platform", String(platform));
+  if (fcmToken) params.set("fcmToken", String(fcmToken));
+  const qs = params.toString();
+  return qs ? `${basePath}?${qs}` : basePath;
+};
+
 // Export the configured axios instance
 export default apiClient;
 
@@ -130,7 +138,7 @@ export const authAPI = {
       platform,
       hasToken: !!fcmToken,
     });
-    return apiClient.post(API_ENDPOINTS.AUTH.FCM_TOKEN, {
+    return apiClient.post(buildFcmTokenUrl(API_ENDPOINTS.AUTH.FCM_TOKEN, platform, fcmToken), {
       platform,
       fcmToken,
     });
@@ -139,7 +147,7 @@ export const authAPI = {
   // Remove FCM token for this platform on logout
   removeFcmToken: (platform = "web") => {
     console.log("[FCM] Removing token on backend for platform", platform);
-    return apiClient.delete(API_ENDPOINTS.AUTH.FCM_TOKEN, {
+    return apiClient.delete(buildFcmTokenUrl(API_ENDPOINTS.AUTH.FCM_TOKEN, platform), {
       data: { platform },
     });
   },
@@ -397,7 +405,7 @@ export const restaurantAPI = {
       platform,
       hasToken: !!fcmToken,
     });
-    return apiClient.post(API_ENDPOINTS.RESTAURANT.AUTH.FCM_TOKEN, {
+    return apiClient.post(buildFcmTokenUrl(API_ENDPOINTS.RESTAURANT.AUTH.FCM_TOKEN, platform, fcmToken), {
       platform,
       fcmToken,
     });
@@ -409,7 +417,7 @@ export const restaurantAPI = {
       "[FCM][Restaurant] Removing token on backend for platform",
       platform,
     );
-    return apiClient.delete(API_ENDPOINTS.RESTAURANT.AUTH.FCM_TOKEN, {
+    return apiClient.delete(buildFcmTokenUrl(API_ENDPOINTS.RESTAURANT.AUTH.FCM_TOKEN, platform), {
       data: { platform },
     });
   },
@@ -855,7 +863,7 @@ export const deliveryAPI = {
       platform,
       hasToken: !!fcmToken,
     });
-    return apiClient.post(API_ENDPOINTS.DELIVERY.AUTH.FCM_TOKEN, {
+    return apiClient.post(buildFcmTokenUrl(API_ENDPOINTS.DELIVERY.AUTH.FCM_TOKEN, platform, fcmToken), {
       platform,
       fcmToken,
     });
@@ -864,7 +872,7 @@ export const deliveryAPI = {
   // Remove FCM token for this delivery platform on logout
   removeFcmToken: (platform = "web") => {
     console.log("[FCM][Delivery] Removing token on backend for platform", platform);
-    return apiClient.delete(API_ENDPOINTS.DELIVERY.AUTH.FCM_TOKEN, {
+    return apiClient.delete(buildFcmTokenUrl(API_ENDPOINTS.DELIVERY.AUTH.FCM_TOKEN, platform), {
       data: { platform },
     });
   },
