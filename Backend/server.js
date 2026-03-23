@@ -148,6 +148,10 @@ const allowedSocketOrigins = [
  
   "https://app.tifunbox.com",
   "http://app.tifunbox.com",
+  "capacitor://localhost",
+  "ionic://localhost",
+  "app://localhost",
+  "file://",
   "http://localhost:5173",
   "http://localhost:3000",
   "http://127.0.0.1:5173",
@@ -344,11 +348,16 @@ app.use(helmet());
 const allowedOrigins = [
   process.env.CORS_ORIGIN,
   "https://app.tifunbox.com",
+  "https://www.app.tifunbox.com",
   "http://localhost:3000",
   "http://localhost:5173",
   "http://localhost:5174",
   "http://127.0.0.1:5173",
   "http://127.0.0.1:5174",
+  "capacitor://localhost",
+  "ionic://localhost",
+  "app://localhost",
+  "file://",
 ].filter(Boolean); // Remove undefined values
 
 app.use(
