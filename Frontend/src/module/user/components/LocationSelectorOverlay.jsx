@@ -1070,10 +1070,11 @@ export default function LocationSelectorOverlay({ isOpen, onClose }) {
         duration: 2000,
       })
 
-      // Wait 2 seconds then redirect back to caller (cart/home/etc.)
+      // Wait 2 seconds then close overlay without route navigation.
+      // This keeps the user on the same page and allows components to re-render
+      // from the emitted userLocationUpdated event/local state changes.
       setTimeout(() => {
         onClose()
-        navigateAfterClose("/")
       }, 2000)
     } catch (error) {
       // Handle permission denied or other errors
