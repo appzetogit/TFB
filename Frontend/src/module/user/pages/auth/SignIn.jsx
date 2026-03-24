@@ -66,6 +66,9 @@ export default function SignIn() {
   const [isLoading, setIsLoading] = useState(false)
   const [apiError, setApiError] = useState("")
   const redirectHandledRef = useRef(false)
+  const isIOSBrowser = /iPad|iPhone|iPod/i.test(
+    typeof navigator !== "undefined" ? navigator.userAgent : "",
+  )
 
   // Prefill phone when user comes back from OTP screen
   useEffect(() => {
@@ -472,10 +475,16 @@ export default function SignIn() {
       }
 
       // 4) Normal browser path
-      const { signInWithPopup } = await import("firebase/auth")
+      const { signInWithPopup, signInWithRedirect } = await import("firebase/auth")
 
       // Log current origin for debugging
       console.log("🚀 Starting Google sign-in popup...")
+
+      // iOS browsers often block popup-based auth; redirect flow is more reliable there.
+      if (isIOSBrowser) {
+        await signInWithRedirect(firebaseAuth, googleProvider)
+        return
+      }
 
       // Use popup for better UX and error handling
       const result = await signInWithPopup(firebaseAuth, googleProvider)
@@ -505,6 +514,11 @@ export default function SignIn() {
       } else if (errorCode === "auth/operation-not-allowed") {
         message = "This sign-in method is disabled. Please enable it in the Firebase Console."
       } else if (errorCode === "auth/popup-blocked") {
+        try {
+          const { signInWithRedirect } = await import("firebase/auth")
+          await signInWithRedirect(firebaseAuth, googleProvider)
+          return
+        } catch (_) {}
         message = "Popup was blocked. Please allow popups and try again."
       } else if (errorCode === "auth/popup-closed-by-user") {
         message = "Sign-in was cancelled. Please try again."
