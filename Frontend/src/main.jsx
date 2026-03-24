@@ -54,6 +54,8 @@ const attemptChunkRecoveryReload = () => {
   const onceKey = "tfb_chunk_recovery_once"
   if (safeSessionGet(onceKey) === "1") return
   safeSessionSet(onceKey, "1")
+  // Do not auto-navigate on iOS/in-app contexts to avoid browser handoff behavior.
+  if (isIOS() || isGoogleInAppBrowser()) return
   try {
     // Use in-place reload to avoid cross-browser handoff restrictions on iOS in-app browsers.
     window.location.reload()
