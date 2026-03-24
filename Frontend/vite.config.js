@@ -62,6 +62,8 @@ export default defineConfig({
     outDir: "dist",
     sourcemap: false,
     chunkSizeWarningLimit: 1600,
+    // Broader real-world iOS coverage (Safari / in-app browsers)
+    target: ["es2020", "safari14"],
     minify: "terser",
     terserOptions: {
       compress: {

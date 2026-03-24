@@ -145,8 +145,8 @@ if (typeof trustProxyRaw === "string" && trustProxyRaw.trim() !== "") {
 // Initialize Socket.IO with proper CORS configuration
 const allowedSocketOrigins = [
   process.env.CORS_ORIGIN,
- 
   "https://app.tifunbox.com",
+  "https://www.app.tifunbox.com",
   "http://app.tifunbox.com",
   "capacitor://localhost",
   "ionic://localhost",
@@ -370,15 +370,22 @@ app.use(
         allowedOrigins.indexOf(origin) !== -1 ||
         process.env.NODE_ENV === "development"
       ) {
-        callback(null, true);
-      } else {
-        console.warn(`⚠️ CORS blocked origin: ${origin}`);
-        callback(null, true); // Allow in development, block in production
+        // Reflect the request origin so Access-Control-Allow-Origin is never *
+        // (required for credentialed requests on Safari / Chrome)
+        return callback(null, origin);
       }
+      console.warn(`⚠️ CORS unknown origin (allowing): ${origin}`);
+      return callback(null, origin);
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "X-Requested-With",
+      "x-refresh-token",
+      "X-Refresh-Token",
+    ],
   }),
 );
 

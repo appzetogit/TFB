@@ -8,6 +8,10 @@ import {
   errorResponse,
 } from "../../../shared/utils/response.js";
 import { asyncHandler } from "../../../shared/middleware/asyncHandler.js";
+import {
+  getRefreshTokenCookieOptions,
+  getClearRefreshTokenCookieOptions,
+} from "../../../config/refreshCookie.js";
 import winston from "winston";
 
 const logger = winston.createLogger({
@@ -304,12 +308,7 @@ export const verifyOTP = asyncHandler(async (req, res) => {
     });
 
     // Set refresh token in httpOnly cookie
-    res.cookie("refreshToken", tokens.refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-    });
+    res.cookie("refreshToken", tokens.refreshToken, getRefreshTokenCookieOptions());
 
     // Return access token and user info
     return successResponse(res, 200, "Authentication successful", {
@@ -476,11 +475,7 @@ export const refreshToken = asyncHandler(async (req, res) => {
  */
 export const logout = asyncHandler(async (req, res) => {
   // Clear refresh token cookie
-  res.clearCookie("refreshToken", {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "strict",
-  });
+  res.clearCookie("refreshToken", getClearRefreshTokenCookieOptions());
 
   return successResponse(res, 200, "Logged out successfully");
 });
@@ -551,12 +546,7 @@ export const register = asyncHandler(async (req, res) => {
   });
 
   // Set refresh token in httpOnly cookie
-  res.cookie("refreshToken", tokens.refreshToken, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "strict",
-    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-  });
+  res.cookie("refreshToken", tokens.refreshToken, getRefreshTokenCookieOptions());
 
   logger.info(`New user registered via email: ${user._id}`, {
     email,
@@ -653,12 +643,7 @@ export const login = asyncHandler(async (req, res) => {
   });
 
   // Set refresh token in httpOnly cookie
-  res.cookie("refreshToken", tokens.refreshToken, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "strict",
-    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-  });
+  res.cookie("refreshToken", tokens.refreshToken, getRefreshTokenCookieOptions());
 
   logger.info(`User logged in via email: ${user._id}`, {
     email,
@@ -969,12 +954,7 @@ export const firebaseGoogleLogin = asyncHandler(async (req, res) => {
     });
 
     // Set refresh token in httpOnly cookie
-    res.cookie("refreshToken", tokens.refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-    });
+    res.cookie("refreshToken", tokens.refreshToken, getRefreshTokenCookieOptions());
 
     return successResponse(
       res,
@@ -1161,12 +1141,11 @@ export const googleCallback = asyncHandler(async (req, res) => {
     });
 
     // Set refresh token in httpOnly cookie
-    res.cookie("refreshToken", jwtTokens.refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-    });
+    res.cookie(
+      "refreshToken",
+      jwtTokens.refreshToken,
+      getRefreshTokenCookieOptions(),
+    );
 
     // Clear OAuth state cookie
     res.clearCookie("oauth_state");
