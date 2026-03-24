@@ -150,7 +150,7 @@ export default function DeliverySignIn() {
   const isValid = !validatePhone(formData.phone, formData.countryCode)
 
   return (
-    <div className="max-h-screen h-screen bg-white flex flex-col">
+    <div className="min-h-screen bg-white flex flex-col overflow-y-auto">
       {/* Top Section - Logo and Badge */}
       <div className="flex flex-col items-center pt-8 pb-6 px-6">
         {/* Tifunbox wordmark styled like logo font */}
@@ -252,9 +252,13 @@ export default function DeliverySignIn() {
           {/* Terms and Conditions */}
           <p className="text-xs text-center text-gray-600 px-4">
             By continuing, you agree to our{" "}
-            <a href="#" className="text-blue-600 hover:underline">
+            <button
+              type="button"
+              onClick={() => navigate("/delivery/terms")}
+              className="text-blue-600 hover:underline"
+            >
               Terms and Conditions
-            </a>
+            </button>
           </p>
         </div>
       </div>

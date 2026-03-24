@@ -18,6 +18,57 @@ const safeStorageGet = (key, fallback = null) => {
   }
 }
 
+const getUa = () => {
+  try {
+    return String(window?.navigator?.userAgent || "")
+  } catch {
+    return ""
+  }
+}
+
+const isIOS = () => /iPad|iPhone|iPod/i.test(getUa())
+const isGoogleInAppBrowser = () => {
+  const ua = getUa()
+  return /\bGSA\//i.test(ua) || /\bCriOS\//i.test(ua)
+}
+
+const safeSessionGet = (key, fallback = null) => {
+  try {
+    if (typeof window === "undefined" || !window.sessionStorage) return fallback
+    const value = window.sessionStorage.getItem(key)
+    return value == null ? fallback : value
+  } catch {
+    return fallback
+  }
+}
+
+const safeSessionSet = (key, value) => {
+  try {
+    if (typeof window === "undefined" || !window.sessionStorage) return
+    window.sessionStorage.setItem(key, value)
+  } catch {}
+}
+
+const attemptChunkRecoveryReload = () => {
+  // Prevent infinite reload loops in case of persistent server/cache issue.
+  const onceKey = "tfb_chunk_recovery_once"
+  if (safeSessionGet(onceKey) === "1") return
+  safeSessionSet(onceKey, "1")
+  const url = new URL(window.location.href)
+  url.searchParams.set("_r", String(Date.now()))
+  window.location.replace(url.toString())
+}
+
+const isLikelyChunkLoadError = (message = "") => {
+  const text = String(message || "").toLowerCase()
+  return (
+    text.includes("failed to fetch dynamically imported module") ||
+    text.includes("importing a module script failed") ||
+    text.includes("loading chunk") ||
+    text.includes("chunkloaderror")
+  )
+}
+
 // Load business settings on app start (favicon, title)
 // Silently handle errors - this is not critical for app functionality
 setTimeout(() => {
@@ -232,6 +283,13 @@ window.addEventListener('unhandledrejection', (event) => {
     event.preventDefault() // Prevent error from showing in console
     return
   }
+
+  // iOS Google in-app browser is more prone to stale chunk cache after deploy.
+  if ((isIOS() || isGoogleInAppBrowser()) && isLikelyChunkLoadError(errorMsg || errorStr)) {
+    event.preventDefault()
+    attemptChunkRecoveryReload()
+    return
+  }
   
   // Suppress refund processing errors that are already handled by the component
   // These errors are logged with console.error in the component's catch block
@@ -242,6 +300,13 @@ window.addEventListener('unhandledrejection', (event) => {
     // Error is already handled by the component, just prevent unhandled rejection
     event.preventDefault()
     return
+  }
+})
+
+window.addEventListener("error", (event) => {
+  const message = event?.message || ""
+  if ((isIOS() || isGoogleInAppBrowser()) && isLikelyChunkLoadError(message)) {
+    attemptChunkRecoveryReload()
   }
 })
 

@@ -158,6 +158,32 @@ const allowedSocketOrigins = [
   "http://127.0.0.1:3000",
 ].filter(Boolean); // Remove undefined values
 
+const isTrustedAppOrigin = (origin) => {
+  if (!origin || typeof origin !== "string") return false;
+  try {
+    const { hostname, protocol } = new URL(origin);
+    if (!/^https?:$/i.test(protocol)) return false;
+
+    // Primary web app domains
+    if (
+      hostname === "app.tifunbox.com" ||
+      hostname === "www.app.tifunbox.com" ||
+      hostname.endsWith(".app.tifunbox.com")
+    ) {
+      return true;
+    }
+
+    // iOS Google app in-app browser / web cache entry points.
+    if (hostname === "www.google.com" || hostname.endsWith(".google.com")) {
+      return true;
+    }
+
+    return false;
+  } catch {
+    return false;
+  }
+};
+
 const io = new Server(httpServer, {
   cors: {
     origin: (origin, callback) => {
@@ -167,7 +193,7 @@ const io = new Server(httpServer, {
       }
 
       // Check if origin is in allowed list
-      if (allowedSocketOrigins.includes(origin)) {
+      if (allowedSocketOrigins.includes(origin) || isTrustedAppOrigin(origin)) {
         callback(null, true);
       } else {
         // In development, allow all localhost origins
@@ -368,6 +394,7 @@ app.use(
 
       if (
         allowedOrigins.indexOf(origin) !== -1 ||
+        isTrustedAppOrigin(origin) ||
         process.env.NODE_ENV === "development"
       ) {
         // Reflect the request origin so Access-Control-Allow-Origin is never *

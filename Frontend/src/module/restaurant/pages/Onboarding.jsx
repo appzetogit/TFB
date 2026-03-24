@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
-import { Image as ImageIcon, Upload, Clock, Calendar as CalendarIcon, Sparkles, ArrowLeft, Camera, CheckCircle2 } from "lucide-react"
+import { Image as ImageIcon, Upload, Clock, Calendar as CalendarIcon, ArrowLeft, Camera, CheckCircle2 } from "lucide-react"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
 import {
@@ -249,6 +249,7 @@ export default function RestaurantOnboarding() {
   })
 
   const [step3Errors, setStep3Errors] = useState({})
+  const [sourcePicker, setSourcePicker] = useState({ open: false, target: null })
 
   const validateStep3Field = (field, value, allStep3 = step3) => {
     const s = { ...allStep3, [field]: value }
@@ -414,6 +415,19 @@ export default function RestaurantOnboarding() {
     } catch (_) {}
   }, [])
 
+  // Prevent old onboarding drafts from a different logged-in number.
+  useEffect(() => {
+    if (!verifiedOwnerPhone) return
+    const localData = loadOnboardingFromLocalStorage()
+    const draftPhone = localData?.step1?.ownerPhone
+    if (!draftPhone) return
+    const normalizedDraft = String(draftPhone).replace(/\D/g, "").trim()
+    const normalizedVerified = String(verifiedOwnerPhone).replace(/\D/g, "").trim()
+    if (normalizedDraft && normalizedVerified && normalizedDraft !== normalizedVerified) {
+      clearOnboardingFromLocalStorage()
+    }
+  }, [verifiedOwnerPhone])
+
   // Save to localStorage whenever step data changes
   useEffect(() => {
     saveOnboardingToLocalStorage(step1, step2, step3, step4, step)
@@ -563,12 +577,16 @@ export default function RestaurantOnboarding() {
     }
     if (!step1.primaryContactNumber?.trim()) {
       errors.push("Primary contact number is required")
+    } else if (!/^\d{10}$/.test(step1.primaryContactNumber.trim())) {
+      errors.push("Primary contact number must be exactly 10 digits")
     }
     if (!step1.location?.area?.trim()) {
       errors.push("Area/Sector/Locality is required")
     }
     if (!step1.location?.city?.trim()) {
       errors.push("City is required")
+    } else if (!/^[A-Za-z\s]{2,50}$/.test(step1.location.city.trim())) {
+      errors.push("City must contain only letters")
     }
 
     return errors
@@ -619,6 +637,15 @@ export default function RestaurantOnboarding() {
     }
     if (!step2.openDays || step2.openDays.length === 0) {
       errors.push("Please select at least one open day")
+    }
+    if (step2.openingTime?.trim() && step2.closingTime?.trim()) {
+      const [oh, om] = step2.openingTime.split(":").map(Number)
+      const [ch, cm] = step2.closingTime.split(":").map(Number)
+      const openingMins = oh * 60 + om
+      const closingMins = ch * 60 + cm
+      if (!Number.isNaN(openingMins) && !Number.isNaN(closingMins) && openingMins >= closingMins) {
+        errors.push("Opening time must be earlier than closing time")
+      }
     }
 
     return errors
@@ -1208,7 +1235,11 @@ export default function RestaurantOnboarding() {
             <Label className="text-xs text-gray-700">Phone number*</Label>
             <Input
               value={step1.ownerPhone || ""}
-              onChange={(e) => !verifiedOwnerPhone && setStep1({ ...step1, ownerPhone: e.target.value })}
+            onChange={(e) => {
+              if (verifiedOwnerPhone) return
+              const digits = e.target.value.replace(/\D/g, "").slice(0, 10)
+              setStep1({ ...step1, ownerPhone: digits })
+            }}
               disabled={!!verifiedOwnerPhone}
               className="mt-1 bg-white text-sm text-black placeholder-black disabled:opacity-80 disabled:cursor-not-allowed"
               placeholder="+91 98XXXXXX"
@@ -1227,7 +1258,7 @@ export default function RestaurantOnboarding() {
           <Input
             value={step1.primaryContactNumber || ""}
             onChange={(e) =>
-              setStep1({ ...step1, primaryContactNumber: e.target.value })
+              setStep1({ ...step1, primaryContactNumber: e.target.value.replace(/\D/g, "").slice(0, 10) })
             }
             className="mt-1 bg-white text-sm text-black placeholder-black"
             placeholder="Restaurant's primary contact number"
@@ -1257,7 +1288,7 @@ export default function RestaurantOnboarding() {
             onChange={(e) =>
               setStep1({
                 ...step1,
-                location: { ...step1.location, city: e.target.value },
+                location: { ...step1.location, city: e.target.value.replace(/[^a-zA-Z\s]/g, "") },
               })
             }
             className="bg-white text-sm"
@@ -1331,16 +1362,8 @@ export default function RestaurantOnboarding() {
             <label
               htmlFor="menuImagesInput"
               onClick={async (e) => {
-                if (hasFlutterCameraBridge()) {
-                  e.preventDefault()
-                  const { success, file } = await openCameraViaFlutter()
-                  if (success && file) {
-                    setStep2((prev) => ({
-                      ...prev,
-                      menuImages: [...(prev.menuImages || []), file],
-                    }))
-                  }
-                }
+                e.preventDefault()
+                setSourcePicker({ open: true, target: "menuImages" })
               }}
               className="inline-flex justify-center items-center gap-1.5 px-3 py-1.5 rounded-sm bg-white text-black  border-black text-xs font-medium cursor-pointer     w-full items-center"
             >
@@ -1462,13 +1485,8 @@ export default function RestaurantOnboarding() {
           <label
             htmlFor="profileImageInput"
             onClick={async (e) => {
-              if (hasFlutterCameraBridge()) {
-                e.preventDefault()
-                const { success, file } = await openCameraViaFlutter()
-                if (success && file) {
-                  setStep2((prev) => ({ ...prev, profileImage: file }))
-                }
-              }
+              e.preventDefault()
+              setSourcePicker({ open: true, target: "profileImage" })
             }}
             className="inline-flex justify-center items-center gap-1.5 px-3 py-1.5 rounded-sm bg-white text-black  border-black text-xs font-medium cursor-pointer     w-full items-center"
           >
@@ -2066,10 +2084,7 @@ export default function RestaurantOnboarding() {
       <div className="min-h-screen bg-gray-100 flex flex-col">
         <header className="px-4 py-4 sm:px-6 sm:py-5 bg-white border-b border-gray-100 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center">
-              <Sparkles className="w-4 h-4 text-white" />
-            </div>
-            <div className="text-sm font-bold text-black tracking-tight">Tifunbox Backend</div>
+            <div className="text-sm font-bold text-black tracking-tight">Restaurant Onboarding</div>
           </div>
           <div className="flex items-center gap-3">
             {import.meta.env.DEV && (
@@ -2080,7 +2095,6 @@ export default function RestaurantOnboarding() {
                 className="text-xs bg-black text-white hover:bg-gray-800 border-none rounded-full px-4 flex items-center gap-1.5 transition-all active:scale-95"
                 title="Fill with dummy data (Dev only)"
               >
-                <Sparkles className="w-3 h-3" />
                 Auto-Fill
               </Button>
             )}
@@ -2157,6 +2171,62 @@ export default function RestaurantOnboarding() {
             </div>
           </div>
         </footer>
+
+        {sourcePicker.open && (
+          <>
+            <div
+              className="fixed inset-0 z-[60] bg-black/40"
+              onClick={() => setSourcePicker({ open: false, target: null })}
+            />
+            <div className="fixed z-[61] left-0 right-0 bottom-0 bg-white rounded-t-2xl p-4 sm:p-6 space-y-3">
+              <h3 className="text-sm font-semibold text-gray-900">Choose image source</h3>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  className="inline-flex items-center justify-center gap-2 px-3 py-3 border border-gray-200 rounded-md bg-white text-sm hover:bg-gray-50"
+                  onClick={() => {
+                    if (sourcePicker.target === "menuImages") {
+                      document.getElementById("menuImagesInput")?.click()
+                    } else if (sourcePicker.target === "profileImage") {
+                      document.getElementById("profileImageInput")?.click()
+                    }
+                    setSourcePicker({ open: false, target: null })
+                  }}
+                >
+                  <Upload className="w-4 h-4" />
+                  Gallery
+                </button>
+                <button
+                  type="button"
+                  className="inline-flex items-center justify-center gap-2 px-3 py-3 border border-gray-200 rounded-md bg-white text-sm hover:bg-gray-50"
+                  onClick={async () => {
+                    if (hasFlutterCameraBridge()) {
+                      const { success, file } = await openCameraViaFlutter()
+                      if (success && file) {
+                        if (sourcePicker.target === "menuImages") {
+                          setStep2((prev) => ({
+                            ...prev,
+                            menuImages: [...(prev.menuImages || []), file],
+                          }))
+                        } else if (sourcePicker.target === "profileImage") {
+                          setStep2((prev) => ({ ...prev, profileImage: file }))
+                        }
+                      }
+                    } else if (sourcePicker.target === "menuImages") {
+                      document.getElementById("menuImagesInput")?.click()
+                    } else if (sourcePicker.target === "profileImage") {
+                      document.getElementById("profileImageInput")?.click()
+                    }
+                    setSourcePicker({ open: false, target: null })
+                  }}
+                >
+                  <Camera className="w-4 h-4" />
+                  Camera
+                </button>
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </LocalizationProvider>
   )

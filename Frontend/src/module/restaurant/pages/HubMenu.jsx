@@ -27,6 +27,15 @@ import { restaurantAPI, uploadAPI } from "@/lib/api"
 import { openCameraViaFlutter, hasFlutterCameraBridge } from "@/lib/utils/cameraBridge"
 import { toast } from "sonner"
 
+const isAddonApproved = (addon) => {
+  const status = String(addon?.approvalStatus || "").trim().toLowerCase()
+  if (status === "approved") return true
+  if (status === "pending" || status === "rejected") return false
+  if (addon?.isApproved === true) return true
+  if (addon?.approvedAt && !addon?.rejectedAt) return true
+  return false
+}
+
 export default function HubMenu() {
   const navigate = useNavigate()
   const [loadingMenu, setLoadingMenu] = useState(true)
@@ -368,7 +377,7 @@ export default function HubMenu() {
       const response = await restaurantAPI.getAddons()
       const data = response?.data?.data?.addons || response?.data?.addons || []
       // Filter to show only approved add-ons
-      const approvedAddons = data.filter(addon => addon.approvalStatus === 'approved')
+      const approvedAddons = data.filter((addon) => isAddonApproved(addon))
       setAddons(approvedAddons)
     } catch (error) {
       console.error('Error fetching add-ons:', error)

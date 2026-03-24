@@ -35,6 +35,34 @@ const deriveBasePriceFromVariations = (rawPrice, variations) => {
     : 0;
 };
 
+// Backward-compatible approval check for public visibility.
+// Supports legacy formats alongside new approvalStatus enum.
+const isPubliclyApproved = (item) => {
+  if (!item || typeof item !== "object") return false;
+
+  const status = String(item.approvalStatus || "")
+    .trim()
+    .toLowerCase();
+
+  if (status === "approved") return true;
+  if (status === "rejected" || status === "pending") return false;
+
+  // Legacy compatibility: previously some records used booleans/timestamps.
+  if (item.isApproved === true) return true;
+  if (item.approvedAt && !item.rejectedAt) return true;
+
+  // Very old items may not have any approval fields; keep previous behavior.
+  if (
+    item.approvalStatus === undefined &&
+    item.isApproved === undefined &&
+    !item.approvedAt
+  ) {
+    return true;
+  }
+
+  return false;
+};
+
 // Get menu for a restaurant
 export const getMenu = asyncHandler(async (req, res) => {
   // Restaurant is attached by authenticate middleware
@@ -621,7 +649,7 @@ export const getMenuByRestaurantId = async (req, res) => {
         // Items where isAvailable is not explicitly false AND approvalStatus is 'approved' should be shown
         const availableItems = (section.items || []).filter(item => {
           const isAvailable = item.isAvailable !== false;
-          const isApproved = item.approvalStatus === 'approved' || !item.approvalStatus; // Include approved or legacy items without approvalStatus
+          const isApproved = isPubliclyApproved(item);
           const shouldShow = isAvailable && isApproved;
           
           // Debug logging for filtered items
@@ -640,7 +668,7 @@ export const getMenuByRestaurantId = async (req, res) => {
           .map(subsection => {
             const availableSubsectionItems = (subsection.items || []).filter(item => {
               const isAvailable = item.isAvailable !== false;
-              const isApproved = item.approvalStatus === 'approved' || !item.approvalStatus; // Include approved or legacy items without approvalStatus
+              const isApproved = isPubliclyApproved(item);
               const shouldShow = isAvailable && isApproved;
               
               // Debug logging for filtered items

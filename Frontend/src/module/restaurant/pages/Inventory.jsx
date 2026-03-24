@@ -23,6 +23,15 @@ import { toast } from "sonner"
 
 const INVENTORY_STORAGE_KEY = "restaurant_inventory_state"
 
+const isAddonApproved = (addon) => {
+  const status = String(addon?.approvalStatus || "").trim().toLowerCase()
+  if (status === "approved") return true
+  if (status === "pending" || status === "rejected") return false
+  if (addon?.isApproved === true) return true
+  if (addon?.approvedAt && !addon?.rejectedAt) return true
+  return false
+}
+
 // Mock data - replace with actual data from API
 const mockCategories = [
   {
@@ -758,7 +767,7 @@ export default function Inventory() {
       const response = await restaurantAPI.getAddons()
       const data = response?.data?.data?.addons || response?.data?.addons || []
       // Filter to show only approved add-ons
-      const approvedAddons = data.filter(addon => addon.approvalStatus === 'approved')
+      const approvedAddons = data.filter((addon) => isAddonApproved(addon))
       setAddons(approvedAddons)
     } catch (error) {
       console.error('Error fetching add-ons:', error)
