@@ -335,7 +335,19 @@ export default function SignupStep1() {
       {/* Header */}
       <div className="bg-white px-4 py-3 flex items-center gap-4 border-b border-gray-200">
         <button
-          onClick={() => navigate(-1)}
+          type="button"
+          onClick={() => {
+            try {
+              const raw = sessionStorage.getItem("deliveryAuthData")
+              if (raw) {
+                navigate("/delivery/otp")
+                return
+              }
+            } catch {
+              /* ignore */
+            }
+            navigate("/delivery/sign-in")
+          }}
           className="p-2 hover:bg-gray-100 rounded-full transition-colors"
         >
           <ArrowLeft className="w-5 h-5" />

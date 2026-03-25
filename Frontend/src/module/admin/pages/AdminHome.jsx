@@ -58,7 +58,9 @@ export default function AdminHome() {
           period: selectedPeriod
         })
         if (response.data?.success && response.data?.data) {
-          setDashboardData(response.data.data)
+          const nextDashboard = response.data.data
+          setDashboardData(nextDashboard)
+          setActivityFeed(buildActivityFeed(nextDashboard))
         } else {
           console.error('❌ Invalid response format:', response.data)
         }
@@ -70,6 +72,27 @@ export default function AdminHome() {
     }
 
     fetchDashboardStats()
+  }, [selectedZone, selectedPeriod])
+
+  // Poll dashboard stats so "Live signals" stays updated without manual refresh.
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        const response = await adminAPI.getDashboardStats({
+          zone: selectedZone,
+          period: selectedPeriod
+        })
+        if (response.data?.success && response.data?.data) {
+          const nextDashboard = response.data.data
+          setDashboardData(nextDashboard)
+          setActivityFeed(buildActivityFeed(nextDashboard))
+        }
+      } catch (err) {
+        console.warn("Polling dashboard stats failed:", err?.message || err)
+      }
+    }, 30000)
+
+    return () => clearInterval(interval)
   }, [selectedZone, selectedPeriod])
 
   // Get order stats from real data
@@ -139,7 +162,39 @@ export default function AdminHome() {
     fill: item.color,
   }))
 
-  const activityFeed = []
+  const [activityFeed, setActivityFeed] = useState([])
+
+  const buildActivityFeed = (data) => {
+    const recent = data?.recentActivity || {}
+    const ordersCount = typeof recent.orders === "number" ? recent.orders : 0
+    const restaurantsCount =
+      typeof recent.restaurants === "number" ? recent.restaurants : 0
+
+    const pendingOrders =
+      data?.orderStats?.pending ??
+      data?.orders?.byStatus?.pending ??
+      0
+
+    const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+
+    return [
+      {
+        title: `${ordersCount} orders in last 24h`,
+        detail: "Recent customer activity",
+        time,
+      },
+      {
+        title: `${restaurantsCount} restaurants updated`,
+        detail: "Service readiness signal",
+        time,
+      },
+      {
+        title: `${pendingOrders} pending orders`,
+        detail: "Ops attention required",
+        time,
+      },
+    ]
+  }
 
   return (
     <div className="px-4 pb-10 lg:px-6 pt-4">

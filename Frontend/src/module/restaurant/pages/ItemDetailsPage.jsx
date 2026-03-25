@@ -281,28 +281,48 @@ export default function ItemDetailsPage() {
     fetchItemData()
   }, [id, isNewItem, location.state, defaultCategory])
 
-  // Fetch categories from restaurant-specific API
+  // Admin-defined categories + menu section names (so picker is never empty when menu has sections)
   useEffect(() => {
     const fetchCategories = async () => {
       try {
         setLoadingCategories(true)
-        const response = await restaurantAPI.getCategories()
-        if (response.data.success && response.data.data.categories) {
-          // Format categories for the UI - flat list, no subcategories
-          const formattedCategories = response.data.data.categories.map(cat => ({
-            id: cat._id || cat.id,
-            name: cat.name
+        const [catRes, menuRes] = await Promise.all([
+          restaurantAPI.getCategories().catch(() => ({ data: {} })),
+          restaurantAPI.getMenu().catch(() => ({ data: {} })),
+        ])
+
+        const fromAdmin = []
+        if (catRes?.data?.success && Array.isArray(catRes?.data?.data?.categories)) {
+          catRes.data.data.categories.forEach((cat) => {
+            if (cat?.name) {
+              fromAdmin.push({
+                id: cat._id || cat.id,
+                name: String(cat.name).trim(),
+              })
+            }
+          })
+        }
+
+        const sections = menuRes?.data?.data?.menu?.sections || []
+        const fromMenu = sections
+          .filter((s) => s?.name && String(s.name).trim())
+          .map((s) => ({
+            id: s.id || s._id || `section-${s.name}`,
+            name: String(s.name).trim(),
           }))
 
-          console.log('Formatted restaurant categories:', formattedCategories)
-          setCategories(formattedCategories)
-        } else {
-          // If no categories exist, show empty array (user can add categories)
-          setCategories([])
+        const byName = new Map()
+        for (const c of fromAdmin) {
+          byName.set(c.name.toLowerCase(), c)
         }
+        for (const c of fromMenu) {
+          const k = c.name.toLowerCase()
+          if (!byName.has(k)) byName.set(k, c)
+        }
+
+        setCategories([...byName.values()])
       } catch (error) {
-        console.error('Error fetching restaurant categories:', error)
-        // Show empty array on error - user can add categories
+        console.error("Error fetching restaurant categories:", error)
         setCategories([])
       } finally {
         setLoadingCategories(false)

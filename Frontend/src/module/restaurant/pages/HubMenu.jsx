@@ -924,9 +924,13 @@ export default function HubMenu() {
     try {
       // Add category to backend
       const response = await restaurantAPI.addSection(newCategoryName.trim())
+      const section = response?.data?.data?.section
+      const ok =
+        response?.data?.success === true &&
+        section &&
+        (section.id != null || section._id != null)
 
-      if (response.data && response.data.success) {
-        // Refresh menu data
+      if (ok) {
         const menuResponse = await restaurantAPI.getMenu()
         if (menuResponse.data && menuResponse.data.success && menuResponse.data.data && menuResponse.data.data.menu) {
           setMenuData(menuResponse.data.data.menu.sections || [])
@@ -934,16 +938,16 @@ export default function HubMenu() {
 
         toast.success('Category added successfully!')
 
-        // Navigate to new item page with new category
+        const sectionId = section.id || section._id
         navigate('/restaurant/hub-menu/item/new', {
           state: {
             category: newCategoryName.trim(),
             isNewCategory: true,
-            sectionId: response.data.data.section.id
+            sectionId
           }
         })
       } else {
-        toast.error(response.data?.message || 'Failed to add category')
+        toast.error(response?.data?.message || 'Failed to add category')
       }
     } catch (error) {
       console.error('Error adding category:', error)
@@ -1488,16 +1492,25 @@ export default function HubMenu() {
               onClick={(e) => e.stopPropagation()}
             >
               <div className="px-4 py-4 border-b border-gray-200">
-                <h2 className="text-lg font-bold text-gray-900 text-center">Add item</h2>
+                <h2 className="text-lg font-bold text-gray-900 text-center">Add</h2>
               </div>
               <div className="px-4 py-4 space-y-2">
                 <button
+                  type="button"
                   onClick={() => {
+                    setIsAddPopupOpen(false)
                     navigate(`/restaurant/hub-menu/item/new`)
                   }}
                   className="w-full py-3 px-4 text-left rounded-lg hover:bg-gray-50 transition-colors"
                 >
                   <span className="text-sm font-medium text-gray-900">Add item</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleOpenAddCategory}
+                  className="w-full py-3 px-4 text-left rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  <span className="text-sm font-medium text-gray-900">Add category</span>
                 </button>
               </div>
             </motion.div>

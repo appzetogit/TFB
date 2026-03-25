@@ -1,10 +1,12 @@
 import { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import { Search, Plus, Pencil, Trash2, ToggleLeft, ToggleRight, X, Loader2 } from "lucide-react";
 import { adminAPI } from "@/lib/api";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 
 export default function DiningCoupons() {
+  const location = useLocation();
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -38,6 +40,15 @@ export default function DiningCoupons() {
   useEffect(() => {
     fetchList();
   }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search || "");
+    const modalParam = params.get("modal");
+    if (modalParam === "create") {
+      openCreate();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.search]);
 
   const openCreate = () => {
     setForm({

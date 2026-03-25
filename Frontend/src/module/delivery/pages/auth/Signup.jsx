@@ -15,6 +15,7 @@ import {
 import loginBg from "@/assets/deliveryloginbanner.png"
 import { useCompanyName } from "@/lib/hooks/useCompanyName"
 import { deliveryAPI } from "@/lib/api"
+import { validateDeliveryPhone } from "@/lib/utils/deliveryPhoneValidation"
 
 // Common country codes
 const countryCodes = [
@@ -62,19 +63,8 @@ export default function DeliverySignup() {
     }
   }, [navigate])
 
-  const validatePhone = (phone) => {
-    if (!phone.trim()) {
-      return "Phone number is required"
-    }
-    const cleanPhone = phone.replace(/\D/g, "")
-    if (formData.countryCode === "+91") {
-      if (!/^\d{10}$/.test(cleanPhone)) return "Indian phone number must be 10 digits"
-      if (!["6", "7", "8", "9"].includes(cleanPhone[0])) return "Invalid Indian mobile number"
-    } else if (!/^\d{7,15}$/.test(cleanPhone)) {
-      return "Phone number must be 7-15 digits"
-    }
-    return ""
-  }
+  const validatePhone = (phone) =>
+    validateDeliveryPhone(phone, formData.countryCode)
 
   const validateName = (name) => {
     if (!name.trim()) {

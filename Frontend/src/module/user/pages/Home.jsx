@@ -740,9 +740,15 @@ export default function Home() {
         const userLng = location?.longitude
 
         // Transform API data to match expected format
-        const transformedRestaurants = restaurantsArray.map((restaurant, index) => {
+        const transformedRestaurants = restaurantsArray
+          .map((restaurant, index) => {
           // Use restaurant data if available, otherwise use defaults
           const deliveryTime = restaurant.estimatedDeliveryTime || "25-30 mins"
+
+          // QA: hide restaurants that have no dish available.
+          // In our data model, a restaurant with no dishes should have an empty/blank `featuredDish`.
+          const rawFeaturedDish = String(restaurant.featuredDish || "").trim()
+          if (!rawFeaturedDish) return null
 
           // Calculate distance from user to restaurant
           let distance = restaurant.distance || "1.2 km"
@@ -840,9 +846,7 @@ export default function Home() {
             image: image,
             images: allImages, // Array of cover images for carousel (separate from menu images)
             priceRange: restaurant.priceRange || "$$", // Use from API or default
-            featuredDish: restaurant.featuredDish || (restaurant.cuisines && restaurant.cuisines.length > 0
-              ? `${restaurant.cuisines[0]} Special`
-              : "Special Dish"),
+            featuredDish: rawFeaturedDish,
             featuredPrice: restaurant.featuredPrice || 249, // Use from API or default
             offer: restaurant.offer || "Flat ₹50 OFF above ₹199", // Use from API or default
             slug: restaurant.slug,
@@ -853,6 +857,7 @@ export default function Home() {
             isPureVeg: isPureVegRestaurant,
           }
         })
+          .filter(Boolean)
 
         // Sort restaurants by distance (nearby first) - only if user location is available
         if (userLat && userLng) {

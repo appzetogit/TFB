@@ -196,10 +196,11 @@ export default function AddMoneyModal({ open, onOpenChange, onSuccess }) {
               </div>
               <Input
                 type="text"
+                inputMode="decimal"
                 value={amount}
                 onChange={handleAmountChange}
                 placeholder="Enter amount"
-                className="pl-10 h-12 text-lg"
+                className="pl-10 h-12 text-lg text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400"
                 disabled={loading || processing}
               />
             </div>

@@ -141,7 +141,7 @@ export default function AdminRouter() {
           <Route index element={<AdminHome />} />
 
 
-          <Route path="/point-of-sale" element={<PointOfSale />} />
+          <Route path="point-of-sale" element={<PointOfSale />} />
 
           {/* Profile */}
           <Route path="/profile" element={<AdminProfile />} />
