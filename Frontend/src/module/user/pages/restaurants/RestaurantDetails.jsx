@@ -44,8 +44,7 @@ import { useProfile } from "../../context/ProfileContext"
 import AddToCartAnimation from "../../components/AddToCartAnimation"
 import { getCompanyNameAsync } from "@/lib/utils/businessSettings"
 import { isModuleAuthenticated } from "@/lib/utils/auth"
-
-
+import { buildRecommendedMenuItems } from "../../utils/buildRecommendedMenuItems"
 
 export default function RestaurantDetails() {
   const { slug } = useParams()
@@ -92,7 +91,7 @@ export default function RestaurantDetails() {
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery)
   const [showMenuOptionsSheet, setShowMenuOptionsSheet] = useState(false)
   const [expandedAddButtons, setExpandedAddButtons] = useState(new Set())
-  const [expandedSections, setExpandedSections] = useState(new Set([0])) // Default: Recommended section is expanded
+  const [expandedSections, setExpandedSections] = useState(new Set([0])) // Default: first menu block expanded
   const [highlightedSection, setHighlightedSection] = useState(null)
   const [filters, setFilters] = useState({
     sortBy: null, // "low-to-high" | "high-to-low"
@@ -113,18 +112,14 @@ export default function RestaurantDetails() {
   const [restaurant, setRestaurant] = useState(null)
   const [loadingRestaurant, setLoadingRestaurant] = useState(true)
   const [restaurantError, setRestaurantError] = useState(null)
-  const fetchedRestaurantRef = useRef(false) // Track if restaurant has been fetched for current slug
-
-  // Fetch restaurant data from API
+  // Load restaurant + menu once per slug. Do not depend on restaurant state, zoneId, or
+  // loadingZone — those retriggered this effect and caused duplicate menu/inventory API calls.
   useEffect(() => {
+    if (!slug) return
+
+    let active = true
+
     const fetchRestaurant = async () => {
-      if (!slug) return
-
-      // Prevent redundant fetches
-      if (fetchedRestaurantRef.current && restaurant && restaurant.slug === slug) {
-        if (zoneId && !loadingZone) return
-      }
-
       try {
         setLoadingRestaurant(true)
         setRestaurantError(null)
@@ -155,6 +150,12 @@ export default function RestaurantDetails() {
         }
 
         if (apiRestaurant) {
+          // Menu documents are keyed to Restaurant; slug may resolve to DiningRestaurant first
+          const menuAndInventoryId =
+            apiRestaurant.menuRestaurantId ||
+            apiRestaurant._id ||
+            apiRestaurant.id
+
           // Normalize base restaurant data
           const baseData = {
             id: apiRestaurant._id || apiRestaurant.id,
@@ -171,45 +172,47 @@ export default function RestaurantDetails() {
             offerText: apiRestaurant.offerText || 'Offers available',
             images: apiRestaurant.images?.length > 0 ? apiRestaurant.images : ["https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800"],
             offers: apiRestaurant.offers || [],
-            restaurantId: apiRestaurant._id || apiRestaurant.id,
+            restaurantId: menuAndInventoryId,
           }
 
-          const restaurantId = baseData.id
-          fetchedRestaurantRef.current = true
-
-          if (restaurantId) {
+          if (menuAndInventoryId) {
             try {
-              console.log('📋 Fetching menu and inventory for:', restaurantId)
+              console.log('📋 Fetching menu and inventory for:', menuAndInventoryId)
               const [menuRes, inventoryRes] = await Promise.allSettled([
-                restaurantAPI.getMenuByRestaurantId(restaurantId),
-                restaurantAPI.getInventoryByRestaurantId(restaurantId)
+                restaurantAPI.getMenuByRestaurantId(menuAndInventoryId),
+                restaurantAPI.getInventoryByRestaurantId(menuAndInventoryId)
               ])
 
               let menuSections = []
               let inventory = []
 
-              // Process Menu
-              if (menuRes.status === 'fulfilled' && menuRes.value.data?.success && menuRes.value.data.data?.menu) {
-                const rawSections = menuRes.value.data.data.menu.sections || []
-                const recommended = []
-                rawSections.forEach(sec => {
-                  if (sec.items) {
-                    sec.items.forEach(item => {
-                      if (item.isRecommended === true && item.isAvailable !== false) recommended.push(item)
-                    })
-                  }
-                  if (sec.subsections) {
-                    sec.subsections.forEach(sub => {
-                      if (sub.items) {
-                        sub.items.forEach(item => {
-                          if (item.isRecommended === true && item.isAvailable !== false) recommended.push(item)
-                        })
-                      }
-                    })
-                  }
-                })
-                menuSections = [{ name: "Recommended for you", items: recommended, subsections: [] }, ...rawSections]
-                setExpandedSections(new Set([0, 1, 2]))
+              // Process Menu (tolerate { data: { menu } } and { menu } response shapes)
+              const menuResBody = menuRes.status === "fulfilled" ? menuRes.value?.data : null
+              const menuPayload =
+                menuResBody?.data?.menu ?? menuResBody?.menu
+              if (
+                menuRes.status === "fulfilled" &&
+                menuResBody?.success !== false &&
+                menuPayload
+              ) {
+                const rawSections = menuPayload.sections || []
+                const recommended = buildRecommendedMenuItems(rawSections)
+                // Only add "Recommended" row when the restaurant flagged items; avoids duplicates and wrong picks
+                menuSections =
+                  recommended.length > 0
+                    ? [
+                        {
+                          name: "Recommended for you",
+                          items: recommended,
+                          subsections: [],
+                          isRecommendedSection: true,
+                        },
+                        ...rawSections,
+                      ]
+                    : rawSections
+                if (active) {
+                  setExpandedSections(new Set([0, 1, 2]))
+                }
               }
 
               // Process Inventory
@@ -231,32 +234,39 @@ export default function RestaurantDetails() {
                 }))
               }
 
-              setRestaurant({ ...baseData, menuSections, inventory })
+              if (active) {
+                setRestaurant({ ...baseData, menuSections, inventory })
+              }
             } catch (err) {
               console.error('Menu/Inventory fetch error:', err)
-              setRestaurant(baseData)
+              if (active) setRestaurant(baseData)
             }
               } else {
-            setRestaurant(baseData)
+            if (active) setRestaurant(baseData)
           }
         } else {
-          setRestaurantError('Restaurant not found')
-          setRestaurant(null)
+          if (active) {
+            setRestaurantError('Restaurant not found')
+            setRestaurant(null)
+          }
         }
       } catch (error) {
         console.error('Fetch error:', error)
+        if (active) {
           setRestaurantError(error.message || 'Failed to load restaurant')
+        }
       } finally {
-        setLoadingRestaurant(false)
+        if (active) {
+          setLoadingRestaurant(false)
+        }
       }
     }
 
-    if (fetchedRestaurantRef.current && restaurant?.slug !== slug) {
-      fetchedRestaurantRef.current = false
+    fetchRestaurant()
+    return () => {
+      active = false
     }
-
-    if (!loadingZone) fetchRestaurant()
-  }, [slug, zoneId, loadingZone, restaurant?.slug])
+  }, [slug])
 
 
   // Track previous values to prevent unnecessary recalculations
@@ -572,11 +582,14 @@ export default function RestaurantDetails() {
     if (!target) return
 
     // Find first section whose title includes the query
-    const index = restaurant.menuSections.findIndex((section, i) => {
-      let title = "recommended for you"
-      if (i > 0) {
-        title = (section?.name || section?.title || "").toString().toLowerCase()
-      }
+    const index = restaurant.menuSections.findIndex((section) => {
+      const title = (
+        section?.isRecommendedSection
+          ? "recommended for you"
+          : (section?.name || section?.title || "")
+      )
+        .toString()
+        .toLowerCase()
       return title.includes(target)
     })
 
@@ -849,18 +862,17 @@ export default function RestaurantDetails() {
       // VegMode filter - when vegMode is ON and no local override is selected,
       // show only Veg items. If user explicitly selects Veg/Non-veg filter,
       // that local choice takes precedence over global vegMode.
+      // Only hide when type is explicitly the opposite (missing foodType stays visible)
       if (vegMode === true && !filters.vegNonVeg) {
-        if (item.foodType !== "Veg") return false
+        if (item.foodType === "Non-Veg") return false
       }
 
       // Veg/Non-veg filter (local filter override - has higher priority)
       if (filters.vegNonVeg === "veg") {
-        // Show only veg items
-        if (item.foodType !== "Veg") return false
+        if (item.foodType === "Non-Veg") return false
       }
       if (filters.vegNonVeg === "non-veg") {
-        // Show only non-veg items
-        if (item.foodType !== "Non-Veg") return false
+        if (item.foodType === "Veg") return false
       }
 
 
@@ -932,7 +944,7 @@ export default function RestaurantDetails() {
     if (!filtered.length) return []
     return filtered.map(({ section, originalIndex }) => {
       let sectionTitle = "Unnamed Section"
-      if (originalIndex === 0) {
+      if (section?.isRecommendedSection) {
         sectionTitle = "Recommended for you"
       } else if (section?.name && typeof section.name === 'string' && section.name.trim()) {
         sectionTitle = section.name.trim()
@@ -1091,7 +1103,7 @@ export default function RestaurantDetails() {
               </button>
             </div>
             <div className="flex flex-col items-end">
-              <Badge className="bg-red-500 text-white mb-1 flex items-center gap-1 px-2 py-1">
+              <Badge className="bg-green-600 text-white mb-1 flex items-center gap-1 px-2 py-1 dark:bg-green-600">
                 <Star className="h-3 w-3 fill-white" />
                 {restaurant?.rating ?? 4.5}
               </Badge>
@@ -1159,7 +1171,7 @@ export default function RestaurantDetails() {
               <Button
                 variant="outline"
                 size="sm"
-                className={`flex items-center gap-1.5 whitespace-nowrap border-gray-300 bg-white rounded-full ${filters.vegNonVeg === "veg" ? "border-red-500 bg-red-50" : ""
+                className={`flex items-center gap-1.5 whitespace-nowrap border-gray-300 bg-white dark:bg-[#1a1a1a] rounded-full ${filters.vegNonVeg === "veg" ? "border-green-600 bg-green-50 dark:bg-green-950/40 dark:border-green-500" : ""
                   }`}
                 onClick={() =>
                   setFilters((prev) => ({
@@ -1168,7 +1180,7 @@ export default function RestaurantDetails() {
                   }))
                 }
               >
-                <div className="h-3 w-3 rounded-full bg-red-500" />
+                <div className="h-3 w-3 rounded-full bg-green-600 dark:bg-green-500" />
                 Veg
                 {filters.vegNonVeg === "veg" && (
                   <X className="h-3 w-3 text-gray-600" />
@@ -1219,9 +1231,10 @@ export default function RestaurantDetails() {
         {restaurant?.menuSections && Array.isArray(restaurant.menuSections) && restaurant.menuSections.length > 0 && (
           <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 lg:px-10 xl:px-12 py-6 sm:py-8 md:py-10 lg:py-12 space-y-6 md:space-y-8 lg:space-y-10">
             {getFilteredSections().map(({ section, originalIndex }, sectionIndex) => {
+              const isRecommendedBlock = section?.isRecommendedSection === true
               // Handle section name - check for valid non-empty string
               let sectionTitle = "Unnamed Section"
-              if (originalIndex === 0) {
+              if (isRecommendedBlock) {
                 sectionTitle = "Recommended for you"
               } else if (section?.name && typeof section.name === 'string' && section.name.trim()) {
                 sectionTitle = section.name.trim()
@@ -1235,7 +1248,7 @@ export default function RestaurantDetails() {
               return (
                 <div key={sectionIndex} id={sectionId} className="space-y-4 scroll-mt-20">
                   {/* Section Header */}
-                  {sectionIndex === 0 && (
+                  {isRecommendedBlock && (
                     <div className="flex items-center justify-between">
                       <h2 className={`text-lg font-bold text-gray-900 dark:text-white ${highlightedSection === originalIndex ? 'bg-amber-50 border-l-4 border-l-red-500 rounded-md px-2 py-1' : ''}`}>
                         Recommended for you
@@ -1262,7 +1275,7 @@ export default function RestaurantDetails() {
                       </button>
                     </div>
                   )}
-                  {sectionIndex > 0 && (
+                  {!isRecommendedBlock && (
                     <div className="flex items-center justify-between">
                       <div className={`space-y-1 ${highlightedSection === originalIndex ? 'bg-amber-50 border-l-4 border-l-red-500 rounded-md px-2 py-1' : ''}`}>
                         <h2 className="text-lg font-bold text-gray-900 dark:text-white">
@@ -1302,24 +1315,12 @@ export default function RestaurantDetails() {
                   )}
 
                   {/* Direct Items */}
-                  {isExpanded && originalIndex === 0 && section.items && section.items.length === 0 && (
-                    <div className="text-center py-8">
-                      <p className="text-gray-500 dark:text-gray-400 text-sm md:text-base">
-                        No dish recommended
-                      </p>
-                    </div>
-                  )}
                   {isExpanded && section.items && section.items.length > 0 && (
                     <div className="space-y-0">
                       {sortMenuItems(filterMenuItems(section.items)).map((item) => {
                         const quantity = quantities[item.id] || 0
                         // Determine veg/non-veg based on foodType
                         const isVeg = item.foodType === "Veg"
-
-                        // Debug: Log preparationTime for troubleshooting
-                        if (item.preparationTime) {
-                          console.log(`[FRONTEND] Item "${item.name}" preparationTime:`, item.preparationTime, 'Type:', typeof item.preparationTime)
-                        }
 
                         return (
                           <div
@@ -1332,8 +1333,8 @@ export default function RestaurantDetails() {
                               {/* Veg Icon & Spicy Indicator */}
                               <div className="flex items-center gap-2 mb-1">
                                 {isVeg ? (
-                                  <div className="w-4 h-4 border-2 border-red-600 flex items-center justify-center rounded-sm flex-shrink-0">
-                                    <div className="w-2 h-2 bg-red-600 rounded-full"></div>
+                                  <div className="w-4 h-4 border-2 border-green-600 dark:border-green-500 flex items-center justify-center rounded-sm flex-shrink-0">
+                                    <div className="w-2 h-2 bg-green-600 dark:bg-green-500 rounded-full"></div>
                                   </div>
                                 ) : (
                                   <div className="w-4 h-4 border-2 border-orange-600 flex items-center justify-center rounded-sm flex-shrink-0">
@@ -1534,11 +1535,6 @@ export default function RestaurantDetails() {
                                   // Determine veg/non-veg based on foodType
                                   const isVeg = item.foodType === "Veg"
 
-                                  // Debug: Log preparationTime for troubleshooting
-                                  if (item.preparationTime) {
-                                    console.log(`[FRONTEND] Subsection item "${item.name}" preparationTime:`, item.preparationTime)
-                                  }
-
                                   return (
                                     <div
                                       key={item.id}
@@ -1550,8 +1546,8 @@ export default function RestaurantDetails() {
                                         {/* Veg Icon & Spicy Indicator */}
                                         <div className="flex items-center gap-2 mb-1">
                                           {isVeg ? (
-                                            <div className="w-4 h-4 border-2 border-red-600 flex items-center justify-center rounded-sm flex-shrink-0">
-                                              <div className="w-2 h-2 bg-red-600 rounded-full"></div>
+                                            <div className="w-4 h-4 border-2 border-green-600 dark:border-green-500 flex items-center justify-center rounded-sm flex-shrink-0">
+                                              <div className="w-2 h-2 bg-green-600 dark:bg-green-500 rounded-full"></div>
                                             </div>
                                           ) : (
                                             <div className="w-4 h-4 border-2 border-orange-600 flex items-center justify-center rounded-sm flex-shrink-0">
@@ -1899,11 +1895,11 @@ export default function RestaurantDetails() {
                             }))
                           }
                           className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border-2 transition-all flex-1 ${filters.vegNonVeg === "veg"
-                            ? "border-red-500 dark:border-red-400 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400"
+                            ? "border-green-600 dark:border-green-500 bg-green-50 dark:bg-green-950/40 text-green-800 dark:text-green-400"
                             : "border-gray-200 dark:border-gray-700 bg-white dark:bg-[#2a2a2a] text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600"
                             }`}
                         >
-                          <div className="h-4 w-4 rounded-full bg-red-500 dark:bg-red-400" />
+                          <div className="h-4 w-4 rounded-full bg-green-600 dark:bg-green-500" />
                           <span className="font-medium">Veg</span>
                         </button>
                         {!vegMode && (
@@ -2065,7 +2061,7 @@ export default function RestaurantDetails() {
                               </div>
                               <div className="flex flex-col items-end gap-0.5">
                                 <div className="flex items-center gap-1">
-                                  <Star className="h-3.5 w-3.5 text-red-600 dark:text-red-400 fill-red-600 dark:fill-red-400" />
+                                  <Star className="h-3.5 w-3.5 text-green-600 dark:text-green-400 fill-green-600 dark:fill-green-400" />
                                   <span className="text-xs font-medium text-gray-900 dark:text-white">
                                     {outlet?.rating ?? 4.5}
                                   </span>
@@ -2400,8 +2396,8 @@ export default function RestaurantDetails() {
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex items-center gap-2 flex-1">
                         {selectedItem && (selectedItem.foodType === "Veg" || selectedItem.isVeg) ? (
-                          <div className="h-5 w-5 rounded border-2 border-red-600 dark:border-red-500 bg-red-50 dark:bg-red-900/20 flex items-center justify-center flex-shrink-0">
-                            <div className="h-2.5 w-2.5 rounded-full bg-red-600 dark:bg-red-500" />
+                          <div className="h-5 w-5 rounded border-2 border-green-600 dark:border-green-500 bg-green-50 dark:bg-green-950/30 flex items-center justify-center flex-shrink-0">
+                            <div className="h-2.5 w-2.5 rounded-full bg-green-600 dark:bg-green-500" />
                           </div>
                         ) : (
                           <div className="h-5 w-5 rounded border-2 border-orange-600 dark:border-orange-500 bg-orange-50 dark:bg-orange-900/20 flex items-center justify-center flex-shrink-0">

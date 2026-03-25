@@ -1,6 +1,20 @@
 import { useState, useEffect, useRef } from "react"
 import { locationAPI, userAPI } from "@/lib/api"
 
+/** Only reverse-geocode + user location DB API after moving at least this far (meters). */
+const MIN_MOVE_METERS_FOR_LOCATION_API = 80
+
+function haversineDistanceMeters(lat1, lon1, lat2, lon2) {
+  const R = 6371000
+  const toRad = (d) => (d * Math.PI) / 180
+  const dLat = toRad(lat2 - lat1)
+  const dLon = toRad(lon2 - lon1)
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2)
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(a)))
+}
+
 export function useLocation() {
   const IS_DEV = import.meta.env.MODE === "development"
   const [location, setLocation] = useState(null)
@@ -11,6 +25,8 @@ export function useLocation() {
   const watchIdRef = useRef(null)
   const updateTimerRef = useRef(null)
   const prevLocationCoordsRef = useRef({ latitude: null, longitude: null })
+  /** Last coords used for reverse geocode / updateLocation API; skip watch churn under MIN_MOVE_METERS. */
+  const lastGeocodeApiCoordsRef = useRef(null)
 
   // Broadcast location so other useLocation instances (e.g. top nav) update instantly
   const dispatchLocationUpdated = (locationData) => {
@@ -836,6 +852,7 @@ export function useLocation() {
                 setPermissionGranted(true)
                 if (showLoading) setLoading(false)
                 setError(null)
+                lastGeocodeApiCoordsRef.current = { latitude, longitude }
                 resolve(coordOnlyLoc)
                 return
               }
@@ -847,6 +864,7 @@ export function useLocation() {
               if (showLoading) setLoading(false)
               setError(null)
               dispatchLocationUpdated(finalLoc)
+              lastGeocodeApiCoordsRef.current = { latitude, longitude }
 
               if (updateDB) {
                 await updateLocationInDB(finalLoc).catch(err => {
@@ -882,6 +900,7 @@ export function useLocation() {
                   if (showLoading) setLoading(false)
                   setError(null)
                   dispatchLocationUpdated(lastResortLoc)
+                  lastGeocodeApiCoordsRef.current = { latitude, longitude }
                   if (updateDB) await updateLocationInDB(lastResortLoc).catch(() => { })
                   resolve(lastResortLoc)
                   return
@@ -1023,10 +1042,29 @@ export function useLocation() {
         async (pos) => {
           try {
             const { latitude, longitude, accuracy } = pos.coords
-            console.log("ðŸ”„ Location updated:", { latitude, longitude, accuracy: `${accuracy}m` })
 
             // Reset retry count on success
             retryCount = 0
+
+            const lastGeo = lastGeocodeApiCoordsRef.current
+            if (
+              lastGeo?.latitude != null &&
+              lastGeo?.longitude != null &&
+              haversineDistanceMeters(lastGeo.latitude, lastGeo.longitude, latitude, longitude) <
+                MIN_MOVE_METERS_FOR_LOCATION_API
+            ) {
+              // Browser still emits many watchPosition events (GPS drift, accuracy refresh).
+              // We intentionally skip reverse geocode + DB until movement ≥ MIN_MOVE_METERS_FOR_LOCATION_API.
+              return
+            }
+
+            if (IS_DEV) {
+              console.log("ðŸ“ Location moved ≥80m (or first fix) — reverse geocoding / APIs:", {
+                latitude,
+                longitude,
+                accuracy: `${accuracy}m`,
+              })
+            }
 
             // Validate coordinates are in India range BEFORE attempting geocoding
             // India: Latitude 6.5Â° to 37.1Â° N, Longitude 68.7Â° to 97.4Â° E
@@ -1145,28 +1183,6 @@ export function useLocation() {
               formattedAddress: completeFormattedAddress // Complete detailed address (NEVER coordinates)
             }
 
-            // STABILITY: Only update if location changed significantly (>10m) OR address improved
-            const currentLoc = location
-            if (currentLoc && currentLoc.latitude && currentLoc.longitude) {
-              // Calculate distance in meters (Haversine formula simplified for small distances)
-              const latDiff = latitude - currentLoc.latitude
-              const lngDiff = longitude - currentLoc.longitude
-              const distanceMeters = Math.sqrt(latDiff * latDiff + lngDiff * lngDiff) * 111320 // ~111320m per degree
-
-              // Check if address is better (more parts = more complete)
-              const currentParts = (currentLoc.formattedAddress || "").split(',').filter(p => p.trim()).length
-              const newParts = completeFormattedAddress.split(',').filter(p => p.trim()).length
-              const addressImproved = newParts > currentParts
-
-              // Only update if moved >10 meters OR address significantly improved
-              if (distanceMeters <= 10 && !addressImproved) {
-                console.log(`ðŸ“ Location unchanged (${distanceMeters.toFixed(1)}m change), keeping stable address`)
-                return // Don't update - keep current stable address
-              }
-
-              console.log(`ðŸ“ Location updated: ${distanceMeters.toFixed(1)}m change, address parts: ${currentParts} â†’ ${newParts}`)
-            }
-
             // Final validation - ensure formattedAddress is never coordinates
             if (loc.formattedAddress && /^-?\d+\.\d+,\s*-?\d+\.\d+$/.test(loc.formattedAddress.trim())) {
               console.error("âŒâŒâŒ CRITICAL: formattedAddress is still coordinates! Replacing with city/area")
@@ -1183,31 +1199,18 @@ export function useLocation() {
 
             if (hasPlaceholder) {
               console.warn("âš ï¸ Skipping live location update - contains placeholder values:", loc)
+              lastGeocodeApiCoordsRef.current = { latitude, longitude }
               return // Don't update location or save to DB
             }
 
-            // Check if coordinates have changed significantly (threshold: ~10 meters)
-            const coordThreshold = 0.0001 // approximately 10 meters
-            const coordsChanged =
-              !prevLocationCoordsRef.current.latitude ||
-              !prevLocationCoordsRef.current.longitude ||
-              Math.abs(prevLocationCoordsRef.current.latitude - loc.latitude) > coordThreshold ||
-              Math.abs(prevLocationCoordsRef.current.longitude - loc.longitude) > coordThreshold
-
-            // Only update location state if coordinates changed significantly
-            if (coordsChanged) {
-              prevLocationCoordsRef.current = { latitude: loc.latitude, longitude: loc.longitude }
-              console.log("ðŸ’¾ Updating live location:", loc)
-              localStorage.setItem("userLocation", JSON.stringify(loc))
-              setLocation(loc)
-              setPermissionGranted(true)
-              setError(null)
-              dispatchLocationUpdated(loc)
-            } else {
-              // Coordinates haven't changed significantly, skip state update to prevent re-renders
-              // Still update localStorage silently for persistence
-              localStorage.setItem("userLocation", JSON.stringify(loc))
-            }
+            prevLocationCoordsRef.current = { latitude: loc.latitude, longitude: loc.longitude }
+            lastGeocodeApiCoordsRef.current = { latitude: loc.latitude, longitude: loc.longitude }
+            console.log("ðŸ’¾ Updating live location:", loc)
+            localStorage.setItem("userLocation", JSON.stringify(loc))
+            setLocation(loc)
+            setPermissionGranted(true)
+            setError(null)
+            dispatchLocationUpdated(loc)
 
             // Debounce DB updates - only update every 5 seconds
             clearTimeout(updateTimerRef.current)
@@ -1328,6 +1331,12 @@ export function useLocation() {
           setPermissionGranted(true)
           setLoading(false) // Set loading to false immediately
           hasInitialLocation = true
+          if (parsedLocation.latitude != null && parsedLocation.longitude != null) {
+            lastGeocodeApiCoordsRef.current = {
+              latitude: parsedLocation.latitude,
+              longitude: parsedLocation.longitude,
+            }
+          }
           console.log("ðŸ“‚ Loaded stored location instantly:", parsedLocation)
 
           // Check if we should refresh in background for better address
@@ -1359,6 +1368,12 @@ export function useLocation() {
             setPermissionGranted(true)
             setLoading(false)
             hasInitialLocation = true
+            if (dbLoc.latitude != null && dbLoc.longitude != null) {
+              lastGeocodeApiCoordsRef.current = {
+                latitude: dbLoc.latitude,
+                longitude: dbLoc.longitude,
+              }
+            }
             console.log("ðŸ“‚ Loaded location from DB:", dbLoc)
 
             // Check if we should refresh for better address
@@ -1548,6 +1563,10 @@ export function useLocation() {
         try {
           if (next.latitude != null && next.longitude != null) {
             localStorage.setItem("userLocation", JSON.stringify(next))
+            lastGeocodeApiCoordsRef.current = {
+              latitude: next.latitude,
+              longitude: next.longitude,
+            }
           }
         } catch {
           // ignore

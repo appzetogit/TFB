@@ -1,6 +1,19 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { zoneAPI } from '@/lib/api'
 
+const MIN_MOVE_METERS_FOR_ZONE_API = 80
+
+function haversineDistanceMeters(lat1, lon1, lat2, lon2) {
+  const R = 6371000
+  const toRad = (d) => (d * Math.PI) / 180
+  const dLat = toRad(lat2 - lat1)
+  const dLon = toRad(lon2 - lon1)
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2)
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(a)))
+}
+
 /**
  * Hook to detect and manage user's zone based on location
  * Automatically detects zone when location is available
@@ -75,13 +88,12 @@ export function useZone(location) {
     const lat = location?.latitude
     const lng = location?.longitude
 
-    // Check if coordinates have changed significantly (threshold: ~10 meters)
-    const coordThreshold = 0.0001 // approximately 10 meters
-    const coordsChanged = 
-      !prevCoordsRef.current.latitude ||
-      !prevCoordsRef.current.longitude ||
-      Math.abs(prevCoordsRef.current.latitude - (lat || 0)) > coordThreshold ||
-      Math.abs(prevCoordsRef.current.longitude - (lng || 0)) > coordThreshold
+    const prev = prevCoordsRef.current
+    const coordsChanged =
+      !prev.latitude ||
+      !prev.longitude ||
+      haversineDistanceMeters(prev.latitude, prev.longitude, lat, lng) >=
+        MIN_MOVE_METERS_FOR_ZONE_API
 
     if (lat && lng) {
       // Only detect zone if coordinates changed significantly

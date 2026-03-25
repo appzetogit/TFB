@@ -178,7 +178,7 @@ function getRestaurantZoneId(restaurantLat, restaurantLng, activeZones) {
 export const getRestaurants = async (req, res) => {
   try {
     const {
-      limit = 50,
+      limit = 100,
       offset = 0,
       sortBy,
       cuisine,
@@ -299,7 +299,9 @@ export const getRestaurants = async (req, res) => {
     }
 
     // Build sort object
-    let sortObj = { createdAt: -1 }; // Default: Latest first
+    // Default: recently updated first so admin-approved outlets (save() bumps updatedAt) surface on home
+    // even when createdAt is old — avoids hiding them behind limit when sorting only by createdAt.
+    let sortObj = { updatedAt: -1, createdAt: -1 };
 
     if (sortBy) {
       switch (sortBy) {

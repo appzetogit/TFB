@@ -92,10 +92,14 @@ export default function DiningRestaurantDetails() {
                 const response = await diningAPI.getRestaurantBySlug(slug)
 
                 if (response.data && response.data.success) {
-                    const apiRestaurant = response.data.data
-                    // Check if this is a dining restaurant with nested restaurant data
-                    const actualRestaurant = apiRestaurant?.restaurant || apiRestaurant
-                    setRestaurant(actualRestaurant)
+                    const raw = response.data.data
+                    const inner = raw?.restaurant || raw
+                    setRestaurant({
+                        ...inner,
+                        ...(raw.menuRestaurantId
+                            ? { menuRestaurantId: raw.menuRestaurantId }
+                            : {}),
+                    })
                 } else {
                     // Fallback: search by name if slug lookup fails directly (though getRestaurantById usually handles slugs)
                     // For now, assuming direct slug work or we might need the search logic from RestaurantDetails.jsx
@@ -153,10 +157,11 @@ export default function DiningRestaurantDetails() {
 
     // Fetch restaurant menu for Menu tab (with images)
     useEffect(() => {
-        if (!restaurant?._id) return
+        const menuId = restaurant?.menuRestaurantId || restaurant?._id
+        if (!menuId) return
         const fetchMenu = async () => {
             try {
-                const res = await restaurantAPI.getMenuByRestaurantId(restaurant._id)
+                const res = await restaurantAPI.getMenuByRestaurantId(menuId)
                 const data = res?.data?.data || res?.data
                 setDiningMenu(data?.menu || data || null)
             } catch {
@@ -164,7 +169,7 @@ export default function DiningRestaurantDetails() {
             }
         }
         fetchMenu()
-    }, [restaurant?._id])
+    }, [restaurant?.menuRestaurantId, restaurant?._id])
 
     if (loading) {
         return (
