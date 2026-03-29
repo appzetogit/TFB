@@ -43,6 +43,7 @@ const RestaurantForgotPassword = lazy(() => import("@/module/restaurant/pages/au
 const RestaurantOTP = lazy(() => import("@/module/restaurant/pages/auth/OTP"))
 const RestaurantGoogleCallback = lazy(() => import("@/module/restaurant/pages/auth/GoogleCallback"))
 const RestaurantWelcome = lazy(() => import("@/module/restaurant/pages/auth/Welcome"))
+const RestaurantOnboardingExperience = lazy(() => import("@/module/restaurant/pages/OnboardingExperience"))
 
 const AdvertisementsPage = lazy(() => import("@/module/restaurant/pages/AdvertisementsPage"))
 const AdDetailsPage = lazy(() => import("@/module/restaurant/pages/AdDetailsPage"))
@@ -150,6 +151,7 @@ export default function App() {
         <Route path="/restaurant/forgot-password" element={<AuthRedirect module="restaurant"><RestaurantForgotPassword /></AuthRedirect>} />
         <Route path="/restaurant/otp" element={<AuthRedirect module="restaurant"><RestaurantOTP /></AuthRedirect>} />
         <Route path="/restaurant/auth/google-callback" element={<AuthRedirect module="restaurant"><RestaurantGoogleCallback /></AuthRedirect>} />
+        <Route path="/restaurant/onboarding-experience" element={<RestaurantOnboardingExperience />} />
 
         {/* Restaurant Protected Routes */}
         <Route
