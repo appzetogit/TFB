@@ -244,13 +244,11 @@ export default function AdminNavbar({ onMenuClick }) {
                     <p className="text-xs text-neutral-500">
                       {adminData?.email
                         ? (() => {
-                          const [local, domain] = adminData.email.split("@");
-                          return (
-                            local[0] +
-                            "*".repeat(Math.min(local.length - 1, 5)) +
-                            "@" +
-                            domain
-                          );
+                          const [local = "", domain = ""] = String(adminData.email).split("@");
+                          if (!local || !domain) return adminData.email;
+                          const maskedCount = Math.max(0, Math.min(local.length - 1, 5));
+                          const firstChar = local.slice(0, 1);
+                          return `${firstChar}${"*".repeat(maskedCount)}@${domain}`;
                         })()
                         : "admin@example.com"}
                     </p>
@@ -291,13 +289,11 @@ export default function AdminNavbar({ onMenuClick }) {
                       <p className="text-xs text-neutral-500">
                         {adminData?.email
                           ? (() => {
-                            const [local, domain] = adminData.email.split("@");
-                            return (
-                              local[0] +
-                              "*".repeat(Math.min(local.length - 1, 5)) +
-                              "@" +
-                              domain
-                            );
+                            const [local = "", domain = ""] = String(adminData.email).split("@");
+                            if (!local || !domain) return adminData.email;
+                            const maskedCount = Math.max(0, Math.min(local.length - 1, 5));
+                            const firstChar = local.slice(0, 1);
+                            return `${firstChar}${"*".repeat(maskedCount)}@${domain}`;
                           })()
                           : "admin@example.com"}
                       </p>

@@ -246,8 +246,10 @@ export default function RestaurantsList() {
   }
 
   const renderStars = (rating) => {
-    const validRating = Math.max(0, Math.min(5, Math.floor(Number(rating) || 0)));
-    return "★".repeat(validRating) + "☆".repeat(5 - validRating);
+    const numericRating = Number(rating)
+    const validRating = Number.isFinite(numericRating) ? Math.max(0, Math.min(5, Math.floor(numericRating))) : 0
+    const emptyRating = Math.max(0, 5 - validRating)
+    return "\u2605".repeat(validRating) + "\u2606".repeat(emptyRating)
   }
 
   const handleSort = (key) => {
@@ -1565,3 +1567,4 @@ export default function RestaurantsList() {
     </div>
   )
 }
+
