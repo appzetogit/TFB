@@ -1576,75 +1576,81 @@ export const updateRestaurantDiningSettings = asyncHandler(async (req, res) => {
       return errorResponse(res, 404, "Restaurant not found");
     }
 
-    const existingDiningSettings =
-      restaurant.diningSettings?.toObject?.() ||
-      restaurant.diningSettings ||
-      {};
+    const updateData = {};
 
-    const normalizedDiningSettings = {
-      isEnabled: !!existingDiningSettings.isEnabled,
-      maxGuests: Number.isFinite(Number(existingDiningSettings.maxGuests))
-        ? Math.max(1, Number(existingDiningSettings.maxGuests))
-        : 6,
-      diningType:
-        typeof existingDiningSettings.diningType === "string" &&
-        existingDiningSettings.diningType.trim()
-          ? existingDiningSettings.diningType.trim()
-          : "family-dining",
-      requestStatus:
-        existingDiningSettings.requestStatus === "pending"
-          ? "pending"
-          : "none",
-      lastRequestAt: existingDiningSettings.lastRequestAt || undefined,
-      lastDecisionAt: existingDiningSettings.lastDecisionAt || undefined,
-      lastDecisionBy: existingDiningSettings.lastDecisionBy || undefined,
-    };
+    if (Object.prototype.hasOwnProperty.call(diningSettings, "isEnabled")) {
+      updateData["diningSettings.isEnabled"] = !!diningSettings.isEnabled;
+      updateData["diningSettings.requestStatus"] = "none";
+      updateData["diningSettings.lastDecisionAt"] = new Date();
+      updateData["diningSettings.lastDecisionBy"] = req.user._id;
+    }
 
-    const allowedUpdateFields = ["isEnabled", "maxGuests", "diningType"];
-    for (const field of allowedUpdateFields) {
-      if (Object.prototype.hasOwnProperty.call(diningSettings, field)) {
-        normalizedDiningSettings[field] = diningSettings[field];
+    if (Object.prototype.hasOwnProperty.call(diningSettings, "maxGuests")) {
+      const maxGuests = Number(diningSettings.maxGuests);
+      if (!Number.isFinite(maxGuests) || maxGuests < 1) {
+        return errorResponse(res, 400, "Max guests must be a number greater than 0");
+      }
+      updateData["diningSettings.maxGuests"] = Math.max(1, Math.floor(maxGuests));
+    }
+
+    if (Object.prototype.hasOwnProperty.call(diningSettings, "diningType")) {
+      const diningType =
+        typeof diningSettings.diningType === "string"
+          ? diningSettings.diningType.trim()
+          : "";
+      if (diningType) {
+        updateData["diningSettings.diningType"] = diningType;
       }
     }
 
     if (Object.prototype.hasOwnProperty.call(diningSettings, "requestStatus")) {
-      normalizedDiningSettings.requestStatus =
+      updateData["diningSettings.requestStatus"] =
         diningSettings.requestStatus === "pending" ? "pending" : "none";
     }
 
     if (Object.prototype.hasOwnProperty.call(diningSettings, "lastRequestAt")) {
-      normalizedDiningSettings.lastRequestAt = diningSettings.lastRequestAt;
+      const parsedDate = new Date(diningSettings.lastRequestAt);
+      if (!Number.isNaN(parsedDate.getTime())) {
+        updateData["diningSettings.lastRequestAt"] = parsedDate;
+      }
     }
 
     if (Object.prototype.hasOwnProperty.call(diningSettings, "lastDecisionAt")) {
-      normalizedDiningSettings.lastDecisionAt = diningSettings.lastDecisionAt;
+      const parsedDate = new Date(diningSettings.lastDecisionAt);
+      if (!Number.isNaN(parsedDate.getTime())) {
+        updateData["diningSettings.lastDecisionAt"] = parsedDate;
+      }
     }
 
     if (Object.prototype.hasOwnProperty.call(diningSettings, "lastDecisionBy")) {
-      normalizedDiningSettings.lastDecisionBy = diningSettings.lastDecisionBy;
+      if (mongoose.Types.ObjectId.isValid(diningSettings.lastDecisionBy)) {
+        updateData["diningSettings.lastDecisionBy"] = diningSettings.lastDecisionBy;
+      }
     }
 
-    restaurant.diningSettings = normalizedDiningSettings;
-
-    // If admin explicitly updates isEnabled, clear any pending request and record decision metadata
-    if (Object.prototype.hasOwnProperty.call(diningSettings, "isEnabled")) {
-      restaurant.diningSettings.isEnabled = !!diningSettings.isEnabled;
-      restaurant.diningSettings.requestStatus = "none";
-      restaurant.diningSettings.lastDecisionAt = new Date();
-      restaurant.diningSettings.lastDecisionBy = req.user._id;
+    if (Object.keys(updateData).length === 0) {
+      return errorResponse(res, 400, "No valid dining settings were provided");
     }
 
-    await restaurant.save();
+    const updatedRestaurant = await Restaurant.findByIdAndUpdate(
+      id,
+      { $set: updateData },
+      { new: true, runValidators: true },
+    ).select("-password");
+
+    if (!updatedRestaurant) {
+      return errorResponse(res, 404, "Restaurant not found");
+    }
 
     logger.info(`Restaurant dining settings updated: ${id}`, {
       updatedBy: req.user._id,
-      diningSettings: restaurant.diningSettings,
+      diningSettings: updateData,
     });
 
     return successResponse(res, 200, "Dining settings updated successfully", {
       restaurant: {
-        id: restaurant._id,
-        diningSettings: restaurant.diningSettings,
+        id: updatedRestaurant._id,
+        diningSettings: updatedRestaurant.diningSettings,
       },
     });
   } catch (error) {

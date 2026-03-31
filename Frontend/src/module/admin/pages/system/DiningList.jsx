@@ -4,6 +4,7 @@ import { Search, Download, ChevronDown, Eye, Settings, ArrowUpDown, Loader2, Sta
 import { adminAPI, restaurantAPI } from "@/lib/api"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { exportRestaurantsToPDF } from "../../components/restaurants/restaurantsExportUtils"
+import { toast } from "sonner"
 
 export default function DiningList() {
     const navigate = useNavigate()
@@ -164,13 +165,19 @@ export default function DiningList() {
             })
             // Could show success toast here
         } catch (error) {
-            console.error("Failed to update dining settings", error)
+            console.error("Failed to update dining settings", {
+                message: error?.response?.data?.message || error?.message,
+                status: error?.response?.status,
+                data: error?.response?.data,
+                error,
+            })
             // Revert on error
             setRestaurants(prev => prev.map(r =>
                 r.id === restaurant.id
                     ? { ...r, diningSettings: { ...r.diningSettings, isEnabled: !newStatus } }
                     : r
             ))
+            toast.error(error?.response?.data?.message || "Failed to update dining settings")
         }
     }
 
@@ -194,7 +201,13 @@ export default function DiningList() {
                 maxGuests: guests
             })
         } catch (error) {
-            console.error("Failed to update max guests", error)
+            console.error("Failed to update max guests", {
+                message: error?.response?.data?.message || error?.message,
+                status: error?.response?.status,
+                data: error?.response?.data,
+                error,
+            })
+            toast.error(error?.response?.data?.message || "Failed to update max guests")
             // Revert would require tracking previous value better
         }
     }
@@ -520,7 +533,13 @@ export default function DiningList() {
                                         setIsEditModalOpen(false)
                                         // toast.success("Settings updated")
                                     } catch (err) {
-                                        console.error("Update failed", err)
+                                        console.error("Update failed", {
+                                            message: err?.response?.data?.message || err?.message,
+                                            status: err?.response?.status,
+                                            data: err?.response?.data,
+                                            error: err,
+                                        })
+                                        toast.error(err?.response?.data?.message || "Failed to save dining settings")
                                     } finally {
                                         setLoading(false)
                                     }
