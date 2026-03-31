@@ -121,6 +121,12 @@ export const authAPI = {
       role,
     });
   },
+  // Login/Register via Apple identity token
+  appleLogin: (identityToken, role = "user", name = null) => {
+    const payload = { identityToken, role };
+    if (name) payload.name = name;
+    return apiClient.post(API_ENDPOINTS.AUTH.APPLE_LOGIN, payload);
+  },
 
   // Refresh token
   refreshToken: () => {
@@ -163,6 +169,11 @@ export const userAPI = {
   // Get user profile
   getProfile: () => {
     return apiClient.get(API_ENDPOINTS.USER.PROFILE);
+  },
+
+  // Get user notifications
+  getNotifications: (params = {}) => {
+    return apiClient.get(API_ENDPOINTS.USER.NOTIFICATIONS, { params });
   },
 
   // Update user profile
@@ -1049,6 +1060,12 @@ export const deliveryAPI = {
     return apiClient.patch(
       API_ENDPOINTS.DELIVERY.ORDER_ACCEPT.replace(":orderId", orderId),
       payload,
+    );
+  },
+  rejectOrder: (orderId, reason = "") => {
+    return apiClient.patch(
+      API_ENDPOINTS.DELIVERY.ORDER_REJECT.replace(":orderId", orderId),
+      { reason },
     );
   },
   confirmReachedPickup: (orderId) => {

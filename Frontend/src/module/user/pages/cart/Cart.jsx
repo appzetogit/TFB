@@ -897,8 +897,12 @@ export default function Cart() {
   const handlePlaceOrder = async () => {
     if (isPlacingOrder) return
 
-    if (!defaultAddress) {
-      alert("Please add a delivery address")
+    if (!defaultAddress || 
+        defaultAddress.formattedAddress === "Select location" || 
+        defaultAddress.address === "Select location" || 
+        defaultAddress.city === "Current Location" ||
+        (!defaultAddress.street && !defaultAddress.formattedAddress && !defaultAddress.address)) {
+      toast.error("Please add a valid delivery address before placing your order")
       return
     }
 

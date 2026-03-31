@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect } from "react"
-import { FileText, Calendar, Package } from "lucide-react"
+import { FileText, Package } from "lucide-react"
 import { adminAPI } from "@/lib/api"
 import { toast } from "sonner"
 import OrdersTopbar from "../../components/orders/OrdersTopbar"
@@ -14,7 +14,6 @@ import { Loader2 } from "lucide-react"
 // Status configuration with titles, colors, and icons
 const statusConfig = {
   "all": { title: "All Orders", color: "rose", icon: FileText },
-  "scheduled": { title: "Scheduled Orders", color: "blue", icon: Calendar },
   "pending": { title: "Pending Orders", color: "amber", icon: Package },
   "accepted": { title: "Accepted Orders", color: "rose", icon: Package },
   "processing": { title: "Processing Orders", color: "orange", icon: Package },

@@ -57,7 +57,8 @@ export default function RestaurantComplaints() {
       }
       if (filters.status && filters.status !== 'all') params.status = filters.status
       if (filters.complaintType && filters.complaintType !== 'all') params.complaintType = filters.complaintType
-      if (filters.search?.trim()) params.search = filters.search.trim()
+      const normalizedSearch = filters.search?.replace(/\s+/g, "").trim()
+      if (normalizedSearch) params.search = normalizedSearch
 
       const response = await adminAPI.getRestaurantComplaints(params)
       if (response?.data?.success) {
@@ -128,7 +129,13 @@ export default function RestaurantComplaints() {
               type="text"
               placeholder="Search by order, Customer, Restaurant name"
               value={filters.search}
-              onChange={(e) => setFilters({ ...filters, search: e.target.value.replace(/^\s+/, ""), page: 1 })}
+              onChange={(e) =>
+                setFilters({
+                  ...filters,
+                  search: e.target.value.replace(/^\s+/, ""),
+                  page: 1
+                })
+              }
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>

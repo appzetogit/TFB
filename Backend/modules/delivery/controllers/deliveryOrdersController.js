@@ -22,6 +22,10 @@ import {
 import { encodePolyline } from "../../../shared/utils/polylineEncoder.js";
 import mongoose from "mongoose";
 import winston from "winston";
+import { findNearestDeliveryBoy } from "../../order/services/deliveryAssignmentService.js";
+import {
+  notifyDeliveryBoyNewOrder,
+} from "../../order/services/deliveryNotificationService.js";
 
 const logger = winston.createLogger({
   level: "info",
@@ -32,6 +36,18 @@ const logger = winston.createLogger({
     }),
   ],
 });
+
+const normalizeId = (id) => {
+  if (!id) return null;
+  if (typeof id === "string") return id;
+  if (id.toString) return id.toString();
+  return String(id);
+};
+
+const getRejectedDeliveryIds = (assignmentInfo = {}) =>
+  (assignmentInfo.rejectedDeliveryPartnerIds || [])
+    .map(normalizeId)
+    .filter(Boolean);
 
 /**
  * Get Delivery Partner Orders
@@ -88,6 +104,9 @@ export const getOrders = asyncHandler(async (req, res) => {
     };
 
     queryParts.push(visibilityFilter);
+    queryParts.push({
+      "assignmentInfo.rejectedDeliveryPartnerIds": { $nin: [currentDeliveryId] },
+    });
 
     const query = queryParts.length === 1 ? queryParts[0] : { $and: queryParts };
 
@@ -161,14 +180,14 @@ export const getOrderDetails = asyncHandler(async (req, res) => {
     // Check if order is assigned to this delivery partner OR if they were notified
     const orderDeliveryPartnerId = order.deliveryPartnerId?.toString();
     const currentDeliveryId = delivery._id.toString();
-
-    // Helper function to normalize ID for comparison (handles ObjectId, string, etc.)
-    const normalizeId = (id) => {
-      if (!id) return null;
-      if (typeof id === "string") return id;
-      if (id.toString) return id.toString();
-      return String(id);
-    };
+    const rejectedDeliveryIds = getRejectedDeliveryIds(order.assignmentInfo);
+    if (rejectedDeliveryIds.includes(currentDeliveryId)) {
+      return errorResponse(
+        res,
+        403,
+        "Order not found or not available for you",
+      );
+    }
 
     // Valid statuses for order acceptance (unassigned orders in these statuses can be viewed by any delivery boy)
     const validAcceptanceStatuses = ["preparing", "ready"];
@@ -291,6 +310,14 @@ export const acceptOrder = asyncHandler(async (req, res) => {
     // Check if order is assigned to this delivery partner
     const orderDeliveryPartnerId = order.deliveryPartnerId?.toString();
     const currentDeliveryId = delivery._id.toString();
+    const rejectedDeliveryIds = getRejectedDeliveryIds(order.assignmentInfo);
+    if (rejectedDeliveryIds.includes(currentDeliveryId)) {
+      return errorResponse(
+        res,
+        403,
+        "You have already rejected this order",
+      );
+    }
 
     // If order is not assigned, check if this delivery boy was notified (priority-based system)
     // Also allow acceptance if order is in valid status (preparing/ready) - more permissive
@@ -904,6 +931,172 @@ export const acceptOrder = asyncHandler(async (req, res) => {
       deliveryId: req.delivery?._id,
     });
     return errorResponse(res, 500, error.message || "Failed to accept order");
+  }
+});
+
+/**
+ * Reject Order and reassign it to another delivery partner
+ * PATCH /api/delivery/orders/:orderId/reject
+ */
+export const rejectOrder = asyncHandler(async (req, res) => {
+  try {
+    const delivery = req.delivery;
+    const { orderId } = req.params;
+    const { reason = "Rejected by delivery partner" } = req.body || {};
+
+    const isValidObjectId = mongoose.Types.ObjectId.isValid(orderId);
+    const orderLookupOr = [{ orderId: orderId }];
+    if (isValidObjectId) {
+      orderLookupOr.unshift({ _id: orderId });
+    }
+
+    let order = await Order.findOne({
+      $or: orderLookupOr,
+    })
+      .populate("restaurantId", "name location address phone ownerPhone")
+      .populate("userId", "name phone")
+      .lean();
+
+    if (!order) {
+      return errorResponse(res, 404, "Order not found");
+    }
+
+    const currentDeliveryId = delivery._id.toString();
+    const orderDeliveryPartnerId = order.deliveryPartnerId?.toString();
+    const rejectedDeliveryIds = getRejectedDeliveryIds(order.assignmentInfo);
+
+    if (rejectedDeliveryIds.includes(currentDeliveryId)) {
+      return errorResponse(
+        res,
+        403,
+        "You have already rejected this order",
+      );
+    }
+
+    if (
+      orderDeliveryPartnerId &&
+      orderDeliveryPartnerId !== currentDeliveryId
+    ) {
+      return errorResponse(
+        res,
+        403,
+        "Order is assigned to another delivery partner",
+      );
+    }
+
+    const validStatuses = ["preparing", "ready"];
+    if (!validStatuses.includes(order.status)) {
+      return errorResponse(
+        res,
+        400,
+        `Order cannot be rejected. Current status: ${order.status}.`,
+      );
+    }
+
+    let restaurantLat;
+    let restaurantLng;
+    try {
+      if (
+        order.restaurantId &&
+        order.restaurantId.location &&
+        order.restaurantId.location.coordinates
+      ) {
+        [restaurantLng, restaurantLat] =
+          order.restaurantId.location.coordinates;
+      } else {
+        const restaurantId = order.restaurantId?._id || order.restaurantId;
+        const restaurant = await Restaurant.findById(restaurantId);
+        if (
+          restaurant &&
+          restaurant.location &&
+          restaurant.location.coordinates
+        ) {
+          [restaurantLng, restaurantLat] = restaurant.location.coordinates;
+        } else {
+          return errorResponse(res, 400, "Restaurant location not found");
+        }
+      }
+
+      if (
+        !restaurantLat ||
+        !restaurantLng ||
+        isNaN(restaurantLat) ||
+        isNaN(restaurantLng)
+      ) {
+        return errorResponse(
+          res,
+          400,
+          "Invalid restaurant location coordinates",
+        );
+      }
+    } catch (locationError) {
+      logger.error(`Error resolving restaurant location: ${locationError.message}`);
+      return errorResponse(res, 500, "Error getting restaurant location");
+    }
+
+    const updatedRejectedIds = Array.from(
+      new Set([...rejectedDeliveryIds, currentDeliveryId]),
+    );
+    const nextDeliveryBoy = await findNearestDeliveryBoy(
+      restaurantLat,
+      restaurantLng,
+      order.restaurantId?._id || order.restaurantId,
+      50,
+      updatedRejectedIds,
+    );
+
+    const assignmentUpdate = {
+      ...(order.assignmentInfo || {}),
+      deliveryPartnerId: nextDeliveryBoy?.deliveryPartnerId || null,
+      assignedAt: new Date(),
+      assignedBy: "nearest_available",
+      rejectedDeliveryPartnerIds: updatedRejectedIds,
+    };
+
+    const updatedOrder = await Order.findOneAndUpdate(
+      {
+        _id: order._id,
+        status: { $in: validStatuses },
+        $or: [
+          { deliveryPartnerId: currentDeliveryId },
+          { deliveryPartnerId: null },
+          { deliveryPartnerId: { $exists: false } },
+        ],
+      },
+      {
+        $set: {
+          deliveryPartnerId: nextDeliveryBoy?.deliveryPartnerId || null,
+          assignmentInfo: assignmentUpdate,
+        },
+      },
+      { new: true },
+    )
+      .populate("restaurantId", "name location address phone ownerPhone")
+      .populate("userId", "name phone")
+      .lean();
+
+    if (!updatedOrder) {
+      return errorResponse(
+        res,
+        409,
+        "Order could not be rejected right now. Please try again.",
+      );
+    }
+
+    if (nextDeliveryBoy?.deliveryPartnerId) {
+      await notifyDeliveryBoyNewOrder(updatedOrder, nextDeliveryBoy.deliveryPartnerId);
+    }
+
+    return successResponse(res, 200, "Order rejected and reassigned successfully", {
+      order: updatedOrder,
+      reassignedTo: nextDeliveryBoy?.deliveryPartnerId || null,
+      reason,
+    });
+  } catch (error) {
+    logger.error(`Error rejecting order: ${error.message}`, {
+      error: error.stack,
+    });
+    return errorResponse(res, 500, "Failed to reject order");
   }
 });
 

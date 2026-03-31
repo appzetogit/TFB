@@ -6,6 +6,7 @@ import {
   getModuleToken,
   clearModuleAuth,
 } from "../utils/auth.js";
+import { normalizeObjectRatings } from "../utils/rating.js";
 
 // Network error tracking to prevent spam
 const networkErrorState = {
@@ -366,6 +367,11 @@ apiClient.interceptors.response.use(
       if (import.meta.env.DEV) {
         console.log("✅ Backend connection restored");
       }
+    }
+
+    // Normalize any rating fields returned by the backend
+    if (response?.data) {
+      normalizeObjectRatings(response.data);
     }
 
     // If response contains new access token, store it for the current module

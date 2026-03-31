@@ -837,12 +837,18 @@ export default function Home() {
           const normalizedRating = (rawRating !== null && rawRating > 0)
             ? Math.round(rawRating * 10) / 10
             : null
+          const ratingInFiveScale = normalizedRating !== null
+            ? Math.min(5, Math.max(0, normalizedRating > 5 ? normalizedRating / 2 : normalizedRating))
+            : null
+          const roundedRating = ratingInFiveScale !== null
+            ? Math.round(ratingInFiveScale * 10) / 10
+            : null
 
           return {
             id: restaurant.restaurantId || restaurant._id,
             name: restaurant.name,
             cuisine: cuisine,
-            rating: normalizedRating,
+            rating: roundedRating,
             totalRatings: restaurant.totalRatings || 0,
             deliveryTime: deliveryTime,
             distance: distance,

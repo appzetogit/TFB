@@ -428,7 +428,7 @@ export default function DeliveryHome() {
   const [unreadNotificationCount, setUnreadNotificationCount] = useState(() => getUnreadDeliveryNotificationCount())
   
   // Delivery notifications hook
-  const { newOrder, clearNewOrder, orderReady, clearOrderReady, isConnected } = useDeliveryNotifications()
+  const { newOrder, clearNewOrder, orderReady, clearOrderReady, bonusNotification, clearBonusNotification, isConnected } = useDeliveryNotifications()
   
   // Default location - will be set from saved location or GPS, not hardcoded
   const [riderLocation, setRiderLocation] = useState(null) // Will be set from GPS or saved location
@@ -649,6 +649,7 @@ export default function DeliveryHome() {
   const countdownTimerRef = useRef(null)
   const [showRejectPopup, setShowRejectPopup] = useState(false)
   const [rejectReason, setRejectReason] = useState("")
+  const [isRejectingOrder, setIsRejectingOrder] = useState(false)
   const alertAudioRef = useRef(null)
   const userInteractedRef = useRef(false) // Track user interaction for autoplay policy
   const newOrderAcceptButtonRef = useRef(null)
@@ -1130,6 +1131,37 @@ export default function DeliveryHome() {
     ? Math.min(earningsGuaranteeCurrentEarnings / earningsGuaranteeTarget, 1) 
     : 0
 
+  const getBestRiderLocation = useCallback(() => {
+    if (riderLocation && riderLocation.length === 2) {
+      return riderLocation
+    }
+    if (lastLocationRef.current && lastLocationRef.current.length === 2) {
+      return lastLocationRef.current
+    }
+
+    try {
+      const savedLocation = localStorage.getItem('deliveryBoyLastLocation')
+      if (savedLocation) {
+        const parsed = JSON.parse(savedLocation)
+        if (Array.isArray(parsed) && parsed.length === 2) {
+          const [lat, lng] = parsed
+          if (
+            typeof lat === 'number' &&
+            typeof lng === 'number' &&
+            !isNaN(lat) &&
+            !isNaN(lng)
+          ) {
+            return parsed
+          }
+        }
+      }
+    } catch (error) {
+      console.warn('⚠️ Could not read saved rider location:', error)
+    }
+
+    return null
+  }, [riderLocation])
+
   const estimatedEarningsDisplay = useMemo(() => {
     const earnings = newOrder?.estimatedEarnings ?? selectedRestaurant?.estimatedEarnings ?? 0
     const normalizedEarnings = getNormalizedEarnings(
@@ -1144,9 +1176,14 @@ export default function DeliveryHome() {
       amountText: normalizedEarnings.amount > 0 ? normalizedEarnings.amount.toFixed(2) : "0.00",
       breakdown: normalizedEarnings.breakdown,
       pickupDistance:
-        newOrder?.pickupDistance || selectedRestaurant?.pickupDistance || "Distance not available",
+        newOrder?.pickupDistance ||
+        selectedRestaurant?.pickupDistance ||
+        selectedRestaurant?.distance ||
+        "Distance not available",
       dropDistance:
-        newOrder?.deliveryDistance || selectedRestaurant?.dropDistance || "Distance not available",
+        newOrder?.deliveryDistance ||
+        selectedRestaurant?.dropDistance ||
+        "Distance not available",
     }
   }, [newOrder, selectedRestaurant])
 
@@ -1569,19 +1606,51 @@ export default function DeliveryHome() {
     setShowRejectPopup(true)
   }
 
-  const handleRejectConfirm = () => {    
-    if (alertAudioRef.current) {
-      alertAudioRef.current.pause()
-      alertAudioRef.current.currentTime = 0
+  const handleRejectConfirm = async () => {
+    const currentOrderId =
+      selectedRestaurant?.orderId ||
+      selectedRestaurant?.id ||
+      newOrder?.orderId ||
+      newOrder?.orderMongoId ||
+      newOrder?._id
+
+    if (!currentOrderId) {
+      console.warn("⚠️ Reject requested but no order id was available")
+      setShowRejectPopup(false)
+      setShowNewOrderPopup(false)
+      return
     }
-    setShowRejectPopup(false)
-    setShowNewOrderPopup(false)
-    setIsNewOrderPopupMinimized(false) // Reset minimized state
-    setNewOrderDragY(0) // Reset drag position
-    setRejectReason("")
-    setCountdownSeconds(300)
-    // Here you would typically send the rejection to your backend
-    console.log("Order rejected with reason:", rejectReason)
+
+    try {
+      setIsRejectingOrder(true)
+      if (alertAudioRef.current) {
+        alertAudioRef.current.pause()
+        alertAudioRef.current.currentTime = 0
+      }
+
+      await deliveryAPI.rejectOrder(currentOrderId, rejectReason)
+
+      if (selectedRestaurant?.id || selectedRestaurant?.orderId) {
+        acceptedOrderIdsRef.current.add(currentOrderId)
+      }
+
+      clearNewOrder()
+      setSelectedRestaurant(null)
+      setShowRejectPopup(false)
+      setShowNewOrderPopup(false)
+      setIsNewOrderPopupMinimized(false)
+      setNewOrderDragY(0)
+      setRejectReason("")
+      setCountdownSeconds(300)
+    } catch (error) {
+      console.error("Error rejecting order:", error)
+      alert(
+        error?.response?.data?.message ||
+          "Failed to reject order. Please try again.",
+      )
+    } finally {
+      setIsRejectingOrder(false)
+    }
   }
 
   const handleRejectCancel = () => {
@@ -4311,6 +4380,12 @@ export default function DeliveryHome() {
       } else if (newOrder.restaurantAddress) {
         restaurantAddress = newOrder.restaurantAddress;
       }
+      const restaurantLat = newOrder.restaurantLocation?.latitude ?? newOrder.restaurantLat;
+      const restaurantLng = newOrder.restaurantLocation?.longitude ?? newOrder.restaurantLng;
+      const customerLat = newOrder.customerLocation?.latitude ?? newOrder.customerLat;
+      const customerLng = newOrder.customerLocation?.longitude ?? newOrder.customerLng;
+      const customerAddress =
+        newOrder.customerLocation?.address || newOrder.customerAddress || 'Customer address';
       
       // Extract earnings from notification - backend now calculates and sends estimatedEarnings
       const deliveryFee = newOrder.deliveryFee ?? 0;
@@ -4338,9 +4413,7 @@ export default function DeliveryHome() {
       let pickupDistance = newOrder.pickupDistance;
       if (!pickupDistance || pickupDistance === '0 km') {
         // Try to calculate from driver's current location to restaurant
-        const currentLocation = riderLocation || lastLocationRef.current;
-        const restaurantLat = newOrder.restaurantLocation?.latitude;
-        const restaurantLng = newOrder.restaurantLocation?.longitude;
+        const currentLocation = getBestRiderLocation();
         
         if (currentLocation && currentLocation.length === 2 && 
             restaurantLat && restaurantLng && 
@@ -4362,25 +4435,51 @@ export default function DeliveryHome() {
       if (!pickupDistance || pickupDistance === '0 km') {
         pickupDistance = 'Distance not available';
       }
+      let dropDistance = newOrder.deliveryDistance;
+      if (!dropDistance || dropDistance === 'Calculating...') {
+        if (
+          restaurantLat &&
+          restaurantLng &&
+          customerLat &&
+          customerLng &&
+          !isNaN(restaurantLat) &&
+          !isNaN(restaurantLng) &&
+          !isNaN(customerLat) &&
+          !isNaN(customerLng)
+        ) {
+          const distanceInMeters = calculateDistance(
+            restaurantLat,
+            restaurantLng,
+            customerLat,
+            customerLng,
+          );
+          const distanceInKm = distanceInMeters / 1000;
+          dropDistance = `${distanceInKm.toFixed(2)} km`;
+          console.log('Ã°Å¸â€œÂ Calculated drop distance:', dropDistance);
+        }
+      }
+      if (!dropDistance || dropDistance === '0 km' || dropDistance === 'Calculating...') {
+        dropDistance = 'Distance not available';
+      }
 
       const restaurantData = {
         id: newOrder.orderMongoId || newOrder.orderId,
         orderId: newOrder.orderId,
         name: newOrder.restaurantName || 'Restaurant',
         address: restaurantAddress || 'Restaurant address',
-        lat: newOrder.restaurantLocation?.latitude,
-        lng: newOrder.restaurantLocation?.longitude,
+        lat: restaurantLat,
+        lng: restaurantLng,
         distance: pickupDistance,
         timeAway: pickupDistance !== 'Distance not available' ? calculateTimeAway(pickupDistance) : 'Distance not available',
-        dropDistance: newOrder.deliveryDistance || 'Distance not available',
+        dropDistance: dropDistance,
         pickupDistance: pickupDistance,
         estimatedEarnings: effectiveEarnings,
         deliveryFee,
         amount: normalizedNotificationEarnings.amount,
         customerName: newOrder.customerName,
-        customerAddress: newOrder.customerLocation?.address || 'Customer address',
-        customerLat: newOrder.customerLocation?.latitude,
-        customerLng: newOrder.customerLocation?.longitude,
+        customerAddress,
+        customerLat,
+        customerLng,
         items: newOrder.items || [],
         total: newOrder.total || 0
       }
@@ -4389,7 +4488,7 @@ export default function DeliveryHome() {
       setShowNewOrderPopup(true)
       setCountdownSeconds(300) // Reset countdown to 5 minutes
     }
-  }, [newOrder, calculateTimeAway, riderLocation])
+  }, [newOrder, calculateTimeAway, getBestRiderLocation])
 
   // Recalculate distance when rider location becomes available
   useEffect(() => {
@@ -4401,7 +4500,7 @@ export default function DeliveryHome() {
       return // Distance already calculated
     }
     
-    const currentLocation = riderLocation || lastLocationRef.current
+    const currentLocation = getBestRiderLocation()
     const restaurantLat = selectedRestaurant.lat
     const restaurantLng = selectedRestaurant.lng
     
@@ -4427,7 +4526,7 @@ export default function DeliveryHome() {
         timeAway: calculateTimeAway(pickupDistance)
       }))
     }
-  }, [riderLocation, selectedRestaurant, showNewOrderPopup, calculateTimeAway])
+  }, [getBestRiderLocation, selectedRestaurant, showNewOrderPopup, calculateTimeAway])
 
   // Fetch restaurant address if missing when selectedRestaurant is set
   useEffect(() => {
@@ -4669,6 +4768,8 @@ export default function DeliveryHome() {
 
     try {
       console.log('ðŸ“¦ Fetching assigned orders from API...')
+      const freshOrderWindowMs = 15 * 60 * 1000
+      const now = Date.now()
       const response = await deliveryAPI.getOrders({
         limit: 50, // Get up to 50 pending orders
         page: 1,
@@ -4684,6 +4785,8 @@ export default function DeliveryHome() {
           const orderStatus = order.status
           const deliveryPhase = order.deliveryState?.currentPhase
           const orderId = order.orderId || order._id?.toString()
+          const orderTime = order.assignmentInfo?.assignedAt || order.createdAt
+          const orderAgeMs = orderTime ? now - new Date(orderTime).getTime() : Number.POSITIVE_INFINITY
 
           // Skip if this order was completed locally (avoid reopening same order)
           if (orderId && isOrderIdCompleted(orderId)) {
@@ -4697,6 +4800,10 @@ export default function DeliveryHome() {
             deliveryPhase === 'completed' ||
             order.deliveryState?.status === 'completed'
           ) {
+            return false
+          }
+
+          if (!Number.isFinite(orderAgeMs) || orderAgeMs > freshOrderWindowMs) {
             return false
           }
           
@@ -4751,13 +4858,15 @@ export default function DeliveryHome() {
           
           // Calculate pickup distance if not provided
           let pickupDistance = null;
+          const restaurantLat = firstOrder.restaurantId?.location?.coordinates?.[1] ?? firstOrder.restaurantLat;
+          const restaurantLng = firstOrder.restaurantId?.location?.coordinates?.[0] ?? firstOrder.restaurantLng;
+          const customerLat = firstOrder.address?.location?.coordinates?.[1] ?? firstOrder.customerLat;
+          const customerLng = firstOrder.address?.location?.coordinates?.[0] ?? firstOrder.customerLng;
           if (firstOrder.assignmentInfo?.distance) {
             pickupDistance = `${firstOrder.assignmentInfo.distance.toFixed(2)} km`;
           } else {
             // Try to calculate from driver's current location to restaurant
-            const currentLocation = riderLocation || lastLocationRef.current;
-            const restaurantLat = firstOrder.restaurantId?.location?.coordinates?.[1];
-            const restaurantLng = firstOrder.restaurantId?.location?.coordinates?.[0];
+            const currentLocation = getBestRiderLocation();
             
             if (currentLocation && currentLocation.length === 2 && 
                 restaurantLat && restaurantLng && 
@@ -4779,19 +4888,42 @@ export default function DeliveryHome() {
           if (!pickupDistance || pickupDistance === '0 km') {
             pickupDistance = 'Distance not available';
           }
+
+          let dropDistance = firstOrder.deliveryDistance;
+          if (!dropDistance || dropDistance === 'Calculating...') {
+            if (
+              restaurantLat &&
+              restaurantLng &&
+              customerLat &&
+              customerLng &&
+              !isNaN(restaurantLat) &&
+              !isNaN(restaurantLng) &&
+              !isNaN(customerLat) &&
+              !isNaN(customerLng)
+            ) {
+              const distanceInMeters = calculateDistance(
+                restaurantLat,
+                restaurantLng,
+                customerLat,
+                customerLng,
+              );
+              dropDistance = `${(distanceInMeters / 1000).toFixed(2)} km`;
+            }
+          }
+          if (!dropDistance || dropDistance === '0 km' || dropDistance === 'Calculating...') {
+            dropDistance = 'Distance not available';
+          }
           
           const restaurantData = {
             id: firstOrder._id?.toString() || firstOrder.orderId,
             orderId: firstOrder.orderId,
             name: firstOrder.restaurantId?.name || 'Restaurant',
             address: restaurantAddress,
-            lat: firstOrder.restaurantId?.location?.coordinates?.[1],
-            lng: firstOrder.restaurantId?.location?.coordinates?.[0],
+            lat: firstOrder.restaurantId?.location?.coordinates?.[1] ?? firstOrder.restaurantLat,
+            lng: firstOrder.restaurantId?.location?.coordinates?.[0] ?? firstOrder.restaurantLng,
             distance: pickupDistance,
             timeAway: pickupDistance !== 'Distance not available' ? calculateTimeAway(pickupDistance) : 'Distance not available',
-            dropDistance: firstOrder.address?.location?.coordinates 
-              ? 'Distance not available' 
-              : '0 km',
+            dropDistance: dropDistance,
             pickupDistance: pickupDistance,
             estimatedEarnings: firstOrder.pricing?.deliveryFee || 0,
             deliveryFee: firstOrder.pricing?.deliveryFee || 0,
@@ -4801,8 +4933,8 @@ export default function DeliveryHome() {
                            (firstOrder.address?.street 
                              ? `${firstOrder.address.street}, ${firstOrder.address.city || ''}, ${firstOrder.address.state || ''}`.trim()
                              : 'Customer address'),
-            customerLat: firstOrder.address?.location?.coordinates?.[1],
-            customerLng: firstOrder.address?.location?.coordinates?.[0],
+            customerLat: firstOrder.address?.location?.coordinates?.[1] ?? firstOrder.customerLat,
+            customerLng: firstOrder.address?.location?.coordinates?.[0] ?? firstOrder.customerLng,
             items: firstOrder.items || [],
             total: firstOrder.pricing?.total || 0,
             payment: firstOrder.payment?.method || 'COD'
@@ -4822,7 +4954,7 @@ export default function DeliveryHome() {
       console.error('âŒ Error fetching assigned orders:', error)
       // Don't show error to user, just log it
     }
-  }, [isOnline, calculateTimeAway])
+  }, [isOnline, calculateTimeAway, getBestRiderLocation])
 
   // Fetch assigned orders when delivery person goes online
   useEffect(() => {
@@ -5916,7 +6048,7 @@ export default function DeliveryHome() {
         
         // Get current LIVE location (delivery boy) - prioritize riderLocation which is updated in real-time
         // Use rider location or last known location, don't use default
-        const currentLocation = riderLocation || lastLocationRef.current;
+        const currentLocation = getBestRiderLocation();
         if (!currentLocation) {
           console.warn('âš ï¸ No location available for navigation')
           return
@@ -6423,7 +6555,7 @@ export default function DeliveryHome() {
     }
 
     const currentDirectionsResponse = directionsResponseRef.current;
-    const currentRiderLocation = riderLocation || lastLocationRef.current;
+    const currentRiderLocation = getBestRiderLocation();
 
     // If we have a directions response and rider location, but no polyline, create it
     if (currentDirectionsResponse && 
@@ -6446,7 +6578,7 @@ export default function DeliveryHome() {
         liveTrackingPolylineShadowRef.current.setMap(window.deliveryMapInstance);
       }
     }
-  }, [selectedRestaurant, riderLocation, updateLiveTrackingPolyline]);
+  }, [selectedRestaurant, getBestRiderLocation, updateLiveTrackingPolyline]);
 
   // Clear any default/mock routes on mount if there's no active order
   useEffect(() => {
@@ -6765,6 +6897,17 @@ export default function DeliveryHome() {
 
     clearOrderReady()
   }, [orderReady, selectedRestaurant])
+
+  useEffect(() => {
+    if (!bonusNotification) return
+
+    toast.success(bonusNotification.title || 'Bonus added', {
+      description: bonusNotification.message || 'Your wallet was updated with a bonus.',
+      duration: 5000
+    })
+
+    clearBonusNotification()
+  }, [bonusNotification, clearBonusNotification])
 
   // Fetch order details when Reached Pickup popup is shown to ensure we have restaurant address
   useEffect(() => {
@@ -9512,14 +9655,16 @@ export default function DeliveryHome() {
                   </button>
                   <button
                     onClick={handleRejectConfirm}
-                    disabled={!rejectReason}
+                    disabled={isRejectingOrder || !rejectReason}
                     className={`flex-1 py-3 rounded-lg font-semibold text-sm transition-colors ${
-                      rejectReason
+                      isRejectingOrder
+                        ? "bg-gray-300 text-gray-500 cursor-wait"
+                        : rejectReason
                         ? "!bg-black !text-white"
                         : "bg-gray-200 text-gray-400 cursor-not-allowed"
                     }`}
                   >
-                    Confirm
+                    {isRejectingOrder ? "Rejecting..." : "Confirm"}
                   </button>
                 </div>
               </motion.div>

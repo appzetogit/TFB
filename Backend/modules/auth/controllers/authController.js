@@ -2,6 +2,7 @@ import User from "../models/User.js";
 import otpService from "../services/otpService.js";
 import jwtService from "../services/jwtService.js";
 import googleAuthService from "../services/googleAuthService.js";
+import appleAuthService from "../services/appleAuthService.js";
 import firebaseAuthService from "../services/firebaseAuthService.js";
 import {
   successResponse,
@@ -12,6 +13,7 @@ import {
   getRefreshTokenCookieOptions,
   getClearRefreshTokenCookieOptions,
 } from "../../../config/refreshCookie.js";
+import { getEnvVar } from "../../../shared/utils/envService.js";
 import winston from "winston";
 
 const logger = winston.createLogger({
@@ -982,6 +984,221 @@ export const firebaseGoogleLogin = asyncHandler(async (req, res) => {
       error.message || "Firebase Google authentication failed",
     );
   }
+});
+
+/**
+ * Login / register using Apple identity token
+ * POST /api/auth/apple
+ */
+export const appleLogin = asyncHandler(async (req, res) => {
+  const { identityToken, role = "user", name } = req.body;
+
+  if (!identityToken) {
+    return errorResponse(res, 400, "Apple identity token is required");
+  }
+
+  const allowedRoles = ["user", "restaurant", "delivery"];
+  const userRole = role || "user";
+  if (!allowedRoles.includes(userRole)) {
+    return errorResponse(
+      res,
+      400,
+      `Invalid role. Allowed roles: ${allowedRoles.join(", ")}`,
+    );
+  }
+
+  const clientId = (await getEnvVar("APPLE_CLIENT_ID")) || process.env.APPLE_CLIENT_ID;
+  if (!clientId) {
+    return errorResponse(
+      res,
+      500,
+      "Apple Sign-In is not configured. Please set APPLE_CLIENT_ID in backend .env",
+    );
+  }
+
+  let applePayload;
+  try {
+    applePayload = await appleAuthService.verifyIdentityToken(
+      identityToken,
+      clientId,
+    );
+  } catch (error) {
+    logger.error("Apple login failed during token verification", {
+      message: error.message,
+    });
+    return errorResponse(res, 400, error.message);
+  }
+
+  const appleId = applePayload?.sub;
+  if (!appleId) {
+    return errorResponse(
+      res,
+      400,
+      "Apple user identifier (sub) is missing from the identity token",
+    );
+  }
+
+  const normalizedEmail = applePayload?.email
+    ? applePayload.email.toLowerCase().trim()
+    : null;
+
+  const lookupConditions = [{ appleId }];
+  if (normalizedEmail) {
+    lookupConditions.push({ email: normalizedEmail, role: userRole });
+  }
+
+  let user = await User.findOne({ $or: lookupConditions });
+
+  if (user && user.role !== userRole) {
+    return errorResponse(
+      res,
+      403,
+      `This account is registered as ${user.role}, not ${userRole}`,
+    );
+  }
+
+  if (user) {
+    let shouldSave = false;
+    if (!user.appleId) {
+      user.appleId = appleId;
+      shouldSave = true;
+    }
+    if (normalizedEmail && !user.email) {
+      user.email = normalizedEmail;
+      shouldSave = true;
+    }
+    if (!user.signupMethod) {
+      user.signupMethod = "apple";
+      shouldSave = true;
+    }
+    if (user.authProvider !== "apple") {
+      user.authProvider = "apple";
+      shouldSave = true;
+    }
+    if (shouldSave) {
+      await user.save();
+      logger.info("Linked Apple account to existing user", {
+        userId: user._id,
+        email: user.email,
+      });
+    } else {
+      logger.info("Existing Apple user logged in", {
+        userId: user._id,
+        email: user.email,
+      });
+    }
+  } else {
+    const trimmedName = name?.trim();
+    const fallbackName =
+      trimmedName ||
+      normalizedEmail?.split("@")[0] ||
+      "Apple User";
+
+    const newUserData = {
+      name: fallbackName,
+      appleId,
+      role: userRole,
+      signupMethod: "apple",
+      authProvider: "apple",
+      isActive: true,
+    };
+    if (normalizedEmail) {
+      newUserData.email = normalizedEmail;
+    }
+
+    try {
+      user = await User.create(newUserData);
+      logger.info("New user registered via Apple login", {
+        userId: user._id,
+        email: user.email,
+        role: user.role,
+      });
+    } catch (createError) {
+      if (createError.code === 11000) {
+        logger.warn("Duplicate key during Apple registration, retrying lookup", {
+          error: createError.message,
+          email: normalizedEmail,
+        });
+        const fallbackQuery = { $or: [{ appleId }] };
+        if (normalizedEmail) {
+          fallbackQuery.$or.push({ email: normalizedEmail, role: userRole });
+        }
+        user = await User.findOne(fallbackQuery);
+        if (!user) {
+          logger.error(
+            "Apple user not found after duplicate key error",
+            { email: normalizedEmail, role: userRole },
+          );
+          throw createError;
+        }
+        let shouldSave = false;
+        if (!user.appleId) {
+          user.appleId = appleId;
+          shouldSave = true;
+        }
+        if (!user.signupMethod) {
+          user.signupMethod = "apple";
+          shouldSave = true;
+        }
+        if (user.authProvider !== "apple") {
+          user.authProvider = "apple";
+          shouldSave = true;
+        }
+        if (normalizedEmail && !user.email) {
+          user.email = normalizedEmail;
+          shouldSave = true;
+        }
+        if (shouldSave) {
+          await user.save();
+        }
+      } else {
+        throw createError;
+      }
+    }
+  }
+
+  if (!user) {
+    return errorResponse(res, 500, "Unable to process Apple user");
+  }
+
+  if (!user.isActive) {
+    logger.warn("Inactive user attempted Apple login", {
+      userId: user._id,
+    });
+    return errorResponse(
+      res,
+      403,
+      "Your account has been deactivated. Please contact support.",
+    );
+  }
+
+  const tokens = jwtService.generateTokens({
+    userId: user._id.toString(),
+    role: user.role,
+    email: user.email,
+  });
+
+  res.cookie("refreshToken", tokens.refreshToken, getRefreshTokenCookieOptions());
+
+  return successResponse(
+    res,
+    200,
+    "Apple authentication successful",
+    {
+      accessToken: tokens.accessToken,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        phoneVerified: user.phoneVerified,
+        role: user.role,
+        profileImage: user.profileImage,
+        signupMethod: user.signupMethod,
+        authProvider: user.authProvider,
+      },
+    },
+  );
 });
 
 /**

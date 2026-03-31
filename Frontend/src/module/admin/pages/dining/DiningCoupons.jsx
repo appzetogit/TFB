@@ -28,7 +28,8 @@ export default function DiningCoupons() {
   const fetchList = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await adminAPI.getDiningCoupons({ search: search.trim() || undefined, limit: 100 });
+      const normalizedSearch = search.replace(/\s+/g, "").trim();
+      const res = await adminAPI.getDiningCoupons({ search: normalizedSearch || undefined, limit: 100 });
       if (res.data?.success && res.data?.data?.data) setList(res.data.data.data);
     } catch (err) {
       toast.error(err.response?.data?.message || "Failed to load coupons");

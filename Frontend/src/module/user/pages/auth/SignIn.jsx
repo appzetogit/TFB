@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react"
 import { useNavigate, useSearchParams, Link } from "react-router-dom"
-import { Mail, Phone, AlertCircle, Loader2 } from "lucide-react"
+import { Mail, Phone, AlertCircle, Loader2, Apple } from "lucide-react"
 import AnimatedPage from "../../components/AnimatedPage"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -66,9 +66,19 @@ export default function SignIn() {
   const [isLoading, setIsLoading] = useState(false)
   const [apiError, setApiError] = useState("")
   const redirectHandledRef = useRef(false)
+  const appleInitRef = useRef(false)
+  const [isAppleLoading, setIsAppleLoading] = useState(false)
+  const [appleError, setAppleError] = useState("")
+  const [appleSdkReady, setAppleSdkReady] = useState(false)
+  const [appleSdkError, setAppleSdkError] = useState("")
   const isIOSBrowser = /iPad|iPhone|iPod/i.test(
     typeof navigator !== "undefined" ? navigator.userAgent : "",
   )
+  const appleClientId = import.meta.env.VITE_APPLE_CLIENT_ID?.trim()
+  const appleRedirectUri =
+    import.meta.env.VITE_APPLE_REDIRECT_URI?.trim() ||
+    (typeof window !== "undefined" ? window.location.origin : "")
+  const appleConfigAvailable = Boolean(appleClientId)
 
   // Prefill phone when user comes back from OTP screen
   useEffect(() => {
@@ -89,6 +99,66 @@ export default function SignIn() {
       }
     } catch (_) {}
   }, [])
+
+  // Load Apple JS SDK when configuration is available
+  useEffect(() => {
+    if (!appleConfigAvailable || typeof window === "undefined") {
+      return
+    }
+
+    if (window.AppleID) {
+      setAppleSdkReady(true)
+      return
+    }
+
+    const existingScript = document.getElementById("appleid-sdk")
+    if (existingScript) {
+      if (window.AppleID) {
+        setAppleSdkReady(true)
+      }
+      return
+    }
+
+    const script = document.createElement("script")
+    script.id = "appleid-sdk"
+    script.src = "https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js"
+    script.async = true
+    script.defer = true
+    script.onload = () => {
+      setAppleSdkReady(true)
+      setAppleSdkError("")
+    }
+    script.onerror = () => {
+      setAppleSdkError("Apple Sign-In could not be loaded. Please try again shortly.")
+    }
+    document.body.appendChild(script)
+  }, [appleConfigAvailable])
+
+  useEffect(() => {
+    if (!appleConfigAvailable || !appleSdkReady || appleInitRef.current) {
+      return
+    }
+
+    if (typeof window === "undefined" || !window.AppleID?.auth?.init) {
+      setAppleSdkError("Apple Sign-In is not supported in this browser.")
+      return
+    }
+
+    try {
+      window.AppleID.auth.init({
+        clientId: appleClientId,
+        scope: "name email",
+        redirectURI: appleRedirectUri || window.location.origin,
+        usePopup: true,
+      })
+      appleInitRef.current = true
+      setAppleSdkError("")
+    } catch (error) {
+      console.error("Apple SDK initialization failed:", error)
+      setAppleSdkError("Apple Sign-In is currently unavailable. Please try again later.")
+    }
+  }, [appleClientId, appleConfigAvailable, appleRedirectUri, appleSdkReady])
+
 
   // Helper function to process signed-in user
   const processSignedInUser = async (user, source = "unknown") => {
@@ -167,6 +237,28 @@ export default function SignIn() {
       }
       setApiError(errorMessage)
     }
+  }
+
+  const finalizeSocialLogin = async (payload, source = "social-login") => {
+    const accessToken = payload?.accessToken
+    const appUser = payload?.user
+
+    if (!accessToken || !appUser) {
+      throw new Error("Invalid response from server while processing social login")
+    }
+
+    setAuthData("user", accessToken, appUser)
+    window.dispatchEvent(new Event("userAuthChanged"))
+
+    registerFcmTokenForLoggedInUser().catch(() => {})
+
+    const hasHash = window.location.hash.length > 0
+    const hasQueryParams = window.location.search.length > 0
+    if (hasHash || hasQueryParams) {
+      window.history.replaceState({}, document.title, window.location.pathname)
+    }
+
+    navigate("/user", { replace: true })
   }
 
   // Handle Firebase redirect result on component mount and URL changes
@@ -449,24 +541,9 @@ export default function SignIn() {
           const response = await authAPI.firebaseGoogleLogin(idToken, "user")
           const data = response?.data?.data || {}
 
-          const accessToken = data.accessToken
-          const appUser = data.user
-
-          if (accessToken && appUser) {
+          if (data.accessToken && data.user) {
             redirectHandledRef.current = true
-            setAuthData("user", accessToken, appUser)
-            window.dispatchEvent(new Event("userAuthChanged"))
-
-            registerFcmTokenForLoggedInUser().catch(() => {})
-
-            // Clear any URL hash or params
-            const hasHash = window.location.hash.length > 0
-            const hasQueryParams = window.location.search.length > 0
-            if (hasHash || hasQueryParams) {
-              window.history.replaceState({}, document.title, window.location.pathname)
-            }
-
-            navigate("/user", { replace: true })
+            await finalizeSocialLogin(data, "flutter-google")
             return
           }
 
@@ -533,6 +610,67 @@ export default function SignIn() {
       }
 
       setApiError(message)
+    }
+  }
+
+  const handleAppleSignIn = async () => {
+    setAppleError("")
+    if (!appleConfigAvailable) {
+      setAppleError("Apple Sign-In is not configured for this environment.")
+      return
+    }
+
+    if (typeof window === "undefined" || !window.AppleID?.auth?.signIn) {
+      setAppleError("Apple Sign-In is not available in this browser.")
+      return
+    }
+
+    if (!appleSdkReady) {
+      setAppleError("Apple Sign-In is still loading. Please wait a moment.")
+      return
+    }
+
+    setIsAppleLoading(true)
+
+    try {
+      const result = await window.AppleID.auth.signIn()
+      const identityToken = result?.authorization?.id_token
+
+      if (!identityToken) {
+        throw new Error("Apple did not return an identity token.")
+      }
+
+      const rawName = result?.user?.name
+      const appleFullName = [
+        rawName?.firstName,
+        rawName?.lastName,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .trim() || rawName?.nickname || null
+
+      const response = await authAPI.appleLogin(
+        identityToken,
+        "user",
+        appleFullName,
+      )
+      const data = response?.data?.data || {}
+      await finalizeSocialLogin(data, "apple")
+    } catch (error) {
+      console.error("Apple sign-in failed:", error)
+      let message = "Apple sign-in failed. Please try again."
+
+      if (error?.error === "popup_closed_by_user" || error?.code === "popup_closed_by_user") {
+        message = "Apple sign-in was cancelled."
+      } else if (error?.response?.data?.message) {
+        message = error.response.data.message
+      } else if (error?.message) {
+        message = error.message
+      }
+
+      setAppleError(message)
+    } finally {
+      setIsAppleLoading(false)
     }
   }
 
@@ -713,7 +851,7 @@ export default function SignIn() {
                 onCheckedChange={(checked) =>
                   setFormData({ ...formData, rememberMe: checked === true })
                 }
-                className="w-4 h-4 border-2 border-gray-300 rounded data-[state=checked]:bg-[#671E1F] data-[state=checked]:border-[#671E1F] flex items-center justify-center"
+                className="w-4 h-4 border-2 border-gray-300 rounded data-[state=checked]:bg-[#671E1F] data-[state=checked]:border-[#671E1F] flex items-center justify-center text-white"
               />
               <label
                 htmlFor="rememberMe"
@@ -753,45 +891,79 @@ export default function SignIn() {
             </div>
           </div>
 
-          {/* Social Login Icons */}
-          <div className="flex justify-center gap-4 md:gap-6">
-            {/* Google Login */}
-            <button
-              type="button"
-              onClick={handleGoogleSignIn}
-              className="w-12 h-12 md:w-14 md:h-14 rounded-full border border-gray-300 dark:border-gray-700 flex items-center justify-center hover:bg-gray-50 dark:hover:bg-gray-800 transition-all hover:shadow-md active:scale-95"
-              aria-label="Sign in with Google"
-            >
-              <svg className="h-6 w-6" viewBox="0 0 24 24">
-                <path
-                  fill="#4285F4"
-                  d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                />
-                <path
-                  fill="#34A853"
-                  d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                />
-                <path
-                  fill="#FBBC05"
-                  d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-                />
-                <path
-                  fill="#EA4335"
-                  d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                />
-              </svg>
-            </button>
+          {/* Social Login Controls */}
+            <div className="flex justify-center items-center gap-4 md:gap-6">
+              {/* Apple Login */}
+              <div className="relative group">
+                <button
+                  type="button"
+                  onClick={handleAppleSignIn}
+                  disabled={isAppleLoading || !appleConfigAvailable || !!appleSdkError || !appleSdkReady}
+                  className="w-12 h-12 md:w-14 md:h-14 rounded-full bg-black flex items-center justify-center hover:bg-gray-900 transition-all hover:shadow-md active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                  aria-label="Sign in with Apple"
+                  aria-busy={isAppleLoading ? "true" : undefined}
+                >
+                  {isAppleLoading ? (
+                    <Loader2 className="h-5 w-5 animate-spin text-white" />
+                  ) : (
+                    <Apple className="h-6 w-6 text-white" />
+                  )}
+                </button>
+                {/* Status Tooltips */}
+                {!appleConfigAvailable && (
+                  <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 w-max px-2 py-1 bg-gray-800 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                    Not configured
+                  </div>
+                )}
+              </div>
 
-            {/* Email Login */}
-            <button
-              type="button"
-              onClick={handleLoginMethodChange}
-              className="w-12 h-12 md:w-14 md:h-14 rounded-full border border-[#671E1F] flex items-center justify-center hover:opacity-90 transition-all hover:shadow-md active:scale-95 bg-[#671E1F]"
-              aria-label="Sign in with Email"
-            >
-              {authMethod == "phone" ? <Mail className="h-5 w-5 md:h-6 md:w-6 text-white" /> : <Phone className="h-5 w-5 md:h-6 md:w-6 text-white" />}
-            </button>
-          </div>
+              {/* Google Login */}
+              <button
+                type="button"
+                onClick={handleGoogleSignIn}
+                className="w-12 h-12 md:w-14 md:h-14 rounded-full border border-gray-300 dark:border-gray-700 flex items-center justify-center hover:bg-gray-50 dark:hover:bg-gray-800 transition-all hover:shadow-md active:scale-95"
+                aria-label="Sign in with Google"
+              >
+                <svg className="h-6 w-6" viewBox="0 0 24 24">
+                  <path
+                    fill="#4285F4"
+                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                  />
+                  <path
+                    fill="#34A853"
+                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                  />
+                  <path
+                    fill="#FBBC05"
+                    d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+                  />
+                  <path
+                    fill="#EA4335"
+                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                  />
+                </svg>
+              </button>
+
+              {/* Email/Phone Toggle Login */}
+              <button
+                type="button"
+                onClick={handleLoginMethodChange}
+                className="w-12 h-12 md:w-14 md:h-14 rounded-full border border-[#671E1F] flex items-center justify-center hover:opacity-90 transition-all hover:shadow-md active:scale-95 bg-[#671E1F]"
+                aria-label="Sign in with Email"
+              >
+                {authMethod === "phone" ? (
+                  <Mail className="h-5 w-5 md:h-6 md:w-6 text-white" />
+                ) : (
+                  <Phone className="h-5 w-5 md:h-6 md:w-6 text-white" />
+                )}
+              </button>
+            </div>
+
+            {/* Social Login Error Messages */}
+            <div className="text-center space-y-1">
+              {appleSdkError && <p className="text-xs text-amber-600 font-medium">{appleSdkError}</p>}
+              {appleError && <p className="text-xs text-red-600 font-medium">{appleError}</p>}
+            </div>
 
           {/* Legal Disclaimer */}
           <div className="text-center text-xs md:text-sm text-gray-500 dark:text-gray-400 pt-4 md:pt-6">

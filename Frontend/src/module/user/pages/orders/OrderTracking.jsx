@@ -522,11 +522,14 @@ export default function OrderTracking() {
     if (confirmed) {
       const timer1 = setTimeout(() => {
         setShowConfirmation(false)
-        setOrderStatus('preparing')
+        const latestStatus = String(order?.status || "").toLowerCase()
+        if (latestStatus !== "cancelled" && latestStatus !== "restaurant_cancelled" && latestStatus !== "user_cancelled") {
+          setOrderStatus('preparing')
+        }
       }, 3000)
       return () => clearTimeout(timer1)
     }
-  }, [confirmed])
+  }, [confirmed, order?.status])
 
   // Countdown timer
   useEffect(() => {
@@ -544,6 +547,9 @@ export default function OrderTracking() {
       console.log('📢 Order status notification received:', { message, status });
 
       // Update order status in UI
+      if (status === 'cancelled') {
+        setOrderStatus('cancelled');
+      }
       if (status === 'out_for_delivery') {
         setOrderStatus('on_way');
       }

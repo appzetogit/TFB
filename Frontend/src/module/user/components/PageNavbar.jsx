@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom"
 import { useState, useEffect } from "react"
-import { ChevronDown, ShoppingCart, Wallet } from "lucide-react"
+import { ChevronDown, ShoppingCart, Wallet, Bell } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useLocation } from "../hooks/useLocation"
 import { useCart } from "../context/CartContext"
@@ -836,17 +836,16 @@ export default function PageNavbar({
                 Loading...
               </span>
             ) : (
-              <div className="flex flex-col items-start min-w-0">
-                <div className="flex items-center gap-1.5">
-
-                  <span className={`text-md sm:text-lg font-bold ${textColorClass} whitespace-nowrap ${textColor === "white" ? "drop-shadow-lg" : ""}`}>
+              <div className="flex flex-col items-start min-w-0 max-w-[210px] sm:max-w-[260px]">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className={`text-md sm:text-lg font-bold ${textColorClass} truncate ${textColor === "white" ? "drop-shadow-lg" : ""}`}>
                     {mainLocationName}
                   </span>
                   <ChevronDown className={`h-4 w-4 sm:h-5 sm:w-5 ${textColorClass} flex-shrink-0 ${textColor === "white" ? "drop-shadow-lg" : ""}`} strokeWidth={2.5} />
                 </div>
                 {/* Show sub location (city, state) in second line */}
                 {subLocationName && (
-                  <span className={`text-xs font-bold ${textColorClass}${textColor === "white" ? "/90" : ""} whitespace-nowrap mt-0.5 ${textColor === "white" ? "drop-shadow-md" : ""}`}>
+                  <span className={`text-xs font-bold ${textColorClass}${textColor === "white" ? "/90" : ""} truncate mt-0.5 ${textColor === "white" ? "drop-shadow-md" : ""}`}>
                     {subLocationName}
                   </span>
                 )}
@@ -872,6 +871,20 @@ export default function PageNavbar({
 
         {/* Right: Actions - Hidden on desktop, shown on mobile */}
         <div className="flex md:hidden items-center gap-2 sm:gap-3 flex-shrink-0">
+          {/* Notifications Icon */}
+          <Link to="/notifications">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 sm:h-9 sm:w-9 rounded-full p-0 hover:opacity-80 transition-opacity"
+              title="Notifications"
+            >
+              <div className={`h-full w-full rounded-full bg-white/20 flex items-center justify-center ring-2 ${ringColor}`}>
+                <Bell className="h-4 w-4 sm:h-5 sm:w-5 text-gray-800" strokeWidth={2} />
+              </div>
+            </Button>
+          </Link>
+
           {/* Wallet Icon */}
           <Link to="/user/wallet">
             <Button

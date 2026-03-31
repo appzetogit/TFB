@@ -236,6 +236,11 @@ export async function notifyDeliveryBoyNewOrder(order, deliveryPartnerId) {
       orderMongoId: order._id.toString(),
       restaurantId: order.restaurantId,
       restaurantName: order.restaurantName,
+      restaurantAddress:
+        restaurant?.address ||
+        restaurant?.location?.formattedAddress ||
+        restaurant?.location?.address ||
+        "Restaurant address",
       restaurantLocation: restaurant?.location
         ? {
             latitude: restaurant.location.coordinates[1],
@@ -246,6 +251,8 @@ export async function notifyDeliveryBoyNewOrder(order, deliveryPartnerId) {
               "Restaurant address",
           }
         : null,
+      restaurantLat: restaurant?.location?.coordinates?.[1],
+      restaurantLng: restaurant?.location?.coordinates?.[0],
       customerLocation: {
         latitude: order.address.location.coordinates[1],
         longitude: order.address.location.coordinates[0],
@@ -254,6 +261,12 @@ export async function notifyDeliveryBoyNewOrder(order, deliveryPartnerId) {
           `${order.address.street}, ${order.address.city}` ||
           "Customer address",
       },
+      customerAddress:
+        order.address.formattedAddress ||
+        `${order.address.street}, ${order.address.city}` ||
+        "Customer address",
+      customerLat: order.address.location.coordinates?.[1],
+      customerLng: order.address.location.coordinates?.[0],
       items: order.items.map((item) => ({
         name: item.name,
         quantity: item.quantity,
@@ -270,6 +283,7 @@ export async function notifyDeliveryBoyNewOrder(order, deliveryPartnerId) {
       pickupDistance: pickupDistance
         ? `${pickupDistance.toFixed(2)} km`
         : "Distance not available",
+      pickupDistanceRaw: pickupDistance || 0,
       deliveryDistance: deliveryDistance
         ? `${deliveryDistance.toFixed(2)} km`
         : "Calculating...",
@@ -750,6 +764,12 @@ export async function broadcastNewOrderToAllDeliveryBoys(order, phase = "priorit
               restaurantAddress,
           }
         : null,
+      restaurantLat:
+        restaurantLocation?.coordinates?.[1] ||
+        orderWithUser.restaurantId?.location?.coordinates?.[1],
+      restaurantLng:
+        restaurantLocation?.coordinates?.[0] ||
+        orderWithUser.restaurantId?.location?.coordinates?.[0],
       customerName: orderWithUser.userId?.name || "Customer",
       customerPhone: orderWithUser.userId?.phone || "",
       deliveryAddress:
@@ -765,6 +785,17 @@ export async function broadcastNewOrderToAllDeliveryBoys(order, phase = "priorit
               orderWithUser.address.address,
           }
         : null,
+      customerAddress:
+        orderWithUser.address?.formattedAddress ||
+        orderWithUser.address?.address ||
+        orderWithUser.address?.location?.address ||
+        "Customer address",
+      customerLat:
+        orderWithUser.address?.location?.coordinates?.[1] ||
+        orderWithUser.address?.location?.latitude,
+      customerLng:
+        orderWithUser.address?.location?.coordinates?.[0] ||
+        orderWithUser.address?.location?.longitude,
       totalAmount: orderWithUser.pricing?.total || 0,
       deliveryFee: deliveryFeeFromOrder,
       estimatedEarnings,
@@ -772,6 +803,7 @@ export async function broadcastNewOrderToAllDeliveryBoys(order, phase = "priorit
         deliveryDistance > 0
           ? `${deliveryDistance.toFixed(2)} km`
           : "Calculating...",
+      deliveryDistanceRaw: deliveryDistance || 0,
       paymentMethod: orderWithUser.payment?.method || "cash",
       message: `New order available: ${orderWithUser.orderId || orderWithUser._id}`,
       timestamp: new Date().toISOString(),

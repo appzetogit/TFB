@@ -137,7 +137,8 @@ export default function DiningList() {
     }
 
     const renderStars = (rating) => {
-        return "★".repeat(Math.floor(rating)) + "☆".repeat(5 - Math.floor(rating))
+        const validRating = Math.max(0, Math.min(5, Math.floor(Number(rating) || 0)));
+        return "★".repeat(validRating) + "☆".repeat(5 - validRating);
     }
 
     const handleDiningToggle = async (restaurant) => {

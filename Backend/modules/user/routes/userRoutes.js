@@ -15,6 +15,7 @@ import { authenticate } from '../../auth/middleware/auth.js';
 import { uploadMiddleware } from '../../../shared/utils/cloudinaryService.js';
 import userWalletRoutes from './userWalletRoutes.js';
 import complaintRoutes from './complaintRoutes.js';
+import { getUserNotifications } from '../controllers/notificationController.js';
 
 const router = express.Router();
 
@@ -47,6 +48,9 @@ router.delete('/addresses/:id', deleteUserAddress);
 
 // Wallet routes
 router.use('/wallet', userWalletRoutes);
+
+// Notifications
+router.get('/notifications', getUserNotifications);
 
 // Complaint routes
 router.use('/complaints', complaintRoutes);

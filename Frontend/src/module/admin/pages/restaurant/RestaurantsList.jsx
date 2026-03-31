@@ -246,7 +246,8 @@ export default function RestaurantsList() {
   }
 
   const renderStars = (rating) => {
-    return "★".repeat(rating) + "☆".repeat(5 - rating)
+    const validRating = Math.max(0, Math.min(5, Math.floor(Number(rating) || 0)));
+    return "★".repeat(validRating) + "☆".repeat(5 - validRating);
   }
 
   const handleSort = (key) => {

@@ -93,12 +93,12 @@ export default function PushNotification() {
       return
     }
     const sendToMap = {
-      Customer: "customer",
-      "Delivery Man": "delivery",
-      Restaurant: "restaurant",
-      All: "all",
+      Customer: "Customer",
+      "Delivery Man": "Delivery Man",
+      Restaurant: "Restaurant",
+      All: "All",
     }
-    const normalizedSendTo = sendToMap[formData.sendTo] || "customer"
+    const normalizedSendTo = sendToMap[formData.sendTo] || "Customer"
 
     try {
       const res = await adminAPI.sendPushNotification({
@@ -169,7 +169,7 @@ export default function PushNotification() {
     setFormData({
       title: notification.title || "",
       zone: notification.zone || "All",
-      sendTo: notification.target || "Customer",
+      sendTo: notification.sendTo || notification.target || "Customer",
       description: notification.description || "",
     })
   }

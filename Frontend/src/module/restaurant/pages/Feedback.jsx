@@ -773,9 +773,6 @@ export default function Feedback() {
         {/* Top row - restaurant label + icons */}
         <div className="sticky bg-white top-0 z-40 px-4 py-3 border-b border-gray-200 flex items-center justify-between mb-2">
           <div>
-            <p className="text-[10px] tracking-[0.12em] text-gray-500 uppercase">
-              Showing data for
-            </p>
             <p className="text-md font-semibold text-gray-900 mt-0.5">
               {isLoadingRestaurant ? "Loading..." : (restaurantData?.name || "Restaurant")}
             </p>

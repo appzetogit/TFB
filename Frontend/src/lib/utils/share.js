@@ -6,6 +6,36 @@ const buildWhatsAppShareUrl = ({ title, text, url }) => {
   return `https://wa.me/?text=${encodeURIComponent(message)}`
 }
 
+const copyTextFallback = async (text) => {
+  if (!text) return false
+
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text)
+      return true
+    } catch {
+      // Fall through to legacy copy.
+    }
+  }
+
+  try {
+    const textarea = document.createElement("textarea")
+    textarea.value = text
+    textarea.setAttribute("readonly", "true")
+    textarea.style.position = "fixed"
+    textarea.style.opacity = "0"
+    textarea.style.left = "-9999px"
+    document.body.appendChild(textarea)
+    textarea.select()
+    textarea.setSelectionRange(0, textarea.value.length)
+    const copied = document.execCommand("copy")
+    document.body.removeChild(textarea)
+    return copied
+  } catch {
+    return false
+  }
+}
+
 export const shareContent = async ({ title, text, url }) => {
   const shareData = {}
   if (title) shareData.title = title
@@ -27,14 +57,9 @@ export const shareContent = async ({ title, text, url }) => {
     }
   }
 
-  // Try clipboard first - this works even if popup blockers block new windows.
-  if (navigator.clipboard?.writeText && fallbackMessage) {
-    try {
-      await navigator.clipboard.writeText(fallbackMessage)
-      return { method: "clipboard" }
-    } catch {
-      // continue to whatsapp fallbacks
-    }
+  // Try clipboard first, then a legacy copy fallback that works on more browsers.
+  if (await copyTextFallback(fallbackMessage)) {
+    return { method: "clipboard" }
   }
 
   const whatsappUrl = buildWhatsAppShareUrl({ title, text, url })
@@ -46,8 +71,18 @@ export const shareContent = async ({ title, text, url }) => {
 
   // Last-resort fallback for aggressive popup blockers.
   if (whatsappUrl) {
-    window.location.assign(whatsappUrl)
+    const link = document.createElement("a")
+    link.href = whatsappUrl
+    link.target = "_blank"
+    link.rel = "noopener noreferrer"
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
     return { method: "whatsapp" }
+  }
+
+  if (fallbackMessage) {
+    return { method: "clipboard" }
   }
 
   throw new Error("Share is not supported on this device")

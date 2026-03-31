@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import io from 'socket.io-client';
 import { API_BASE_URL } from '@/lib/api/config';
 import { deliveryAPI } from '@/lib/api';
+import { addDeliveryNotification } from '../utils/deliveryNotifications';
 import alertSound from '@/assets/audio/alert.mp3';
 import originalSound from '@/assets/audio/original.mp3';
 
@@ -17,6 +18,7 @@ export const useDeliveryNotifications = () => {
   // Step 2: All state hooks (unconditional)
   const [newOrder, setNewOrder] = useState(null);
   const [orderReady, setOrderReady] = useState(null);
+  const [bonusNotification, setBonusNotification] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
   const [deliveryPartnerId, setDeliveryPartnerId] = useState(null);
   const [deliveryStatus, setDeliveryStatus] = useState(null);
@@ -359,6 +361,23 @@ export const useDeliveryNotifications = () => {
       playNotificationSound();
     });
 
+    socketRef.current.on('delivery_bonus', (bonusData) => {
+      const amount = Number(bonusData?.amount || 0);
+      const notification = addDeliveryNotification({
+        type: 'bonus',
+        title: bonusData?.title || 'Bonus added',
+        message: bonusData?.body || `You received a bonus of Rs. ${amount.toFixed(2)}`,
+        amount,
+        reference: bonusData?.reference || null,
+        transactionId: bonusData?.transactionId || null,
+        createdAt: bonusData?.createdAt || new Date().toISOString(),
+        read: false,
+      });
+
+      setBonusNotification(notification);
+      playNotificationSound();
+    });
+
     return () => {
       if (socketRef.current) {
         socketRef.current.disconnect();
@@ -381,12 +400,22 @@ export const useDeliveryNotifications = () => {
     setOrderReady(null);
   };
 
+  const clearBonusNotification = () => {
+    setBonusNotification(null);
+  };
+
   return {
     newOrder,
     clearNewOrder,
     orderReady,
     clearOrderReady,
+    bonusNotification,
+    clearBonusNotification,
     isConnected,
     playNotificationSound
   };
 };
+
+
+
+
