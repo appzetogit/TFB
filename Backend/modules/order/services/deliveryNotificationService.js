@@ -51,6 +51,43 @@ async function checkDeliveryPartnerConnection(deliveryPartnerId) {
   }
 }
 
+async function isDeliveryPartnerOnline(deliveryPartnerId) {
+  try {
+    const partner = await Delivery.findById(deliveryPartnerId)
+      .select("availability.isOnline status isActive")
+      .lean();
+
+    return Boolean(
+      partner &&
+        partner.isActive &&
+        ["approved", "active"].includes(partner.status) &&
+        partner.availability?.isOnline,
+    );
+  } catch (error) {
+    console.error("Error checking delivery partner online status:", error);
+    return false;
+  }
+}
+
+async function filterOnlineDeliveryPartnerIds(deliveryPartnerIds) {
+  if (!Array.isArray(deliveryPartnerIds) || deliveryPartnerIds.length === 0) {
+    return [];
+  }
+
+  const uniqueIds = [...new Set(deliveryPartnerIds.map((id) => id?.toString?.() || String(id || "")).filter(Boolean))];
+  const partners = await Delivery.find({
+    _id: { $in: uniqueIds },
+    isActive: true,
+    status: { $in: ["approved", "active"] },
+    "availability.isOnline": true,
+  })
+    .select("_id")
+    .lean();
+
+  const onlineIdSet = new Set(partners.map((partner) => partner._id.toString()));
+  return uniqueIds.filter((id) => onlineIdSet.has(id));
+}
+
 /**
  * Redact sensitive PII from order data for broad notifications
  * @param {Object} data - Notification data
@@ -137,17 +174,16 @@ export async function notifyDeliveryBoyNewOrder(order, deliveryPartnerId) {
       return;
     }
 
-    // Verify delivery partner is online and active
-    if (!deliveryPartner.availability?.isOnline) {
+    // Verify delivery partner is online and active before notifying
+    if (
+      !deliveryPartner.isActive ||
+      !["approved", "active"].includes(deliveryPartner.status) ||
+      !deliveryPartner.availability?.isOnline
+    ) {
       console.warn(
-        `⚠️ Delivery partner ${deliveryPartnerId} (${deliveryPartner.name}) is not online. Notification may not be received.`,
+        `⚠️ Delivery partner ${deliveryPartnerId} (${deliveryPartner.name}) is offline or inactive. Skipping order notification.`,
       );
-    }
-
-    if (!deliveryPartner.isActive) {
-      console.warn(
-        `⚠️ Delivery partner ${deliveryPartnerId} (${deliveryPartner.name}) is not active.`,
-      );
+      return { success: false, reason: "delivery_partner_offline" };
     }
 
     if (
@@ -400,6 +436,12 @@ export async function notifyMultipleDeliveryBoys(
     }
 
     const deliveryNamespace = io.of("/delivery");
+    const onlineDeliveryPartnerIds = await filterOnlineDeliveryPartnerIds(
+      deliveryPartnerIds,
+    );
+    if (onlineDeliveryPartnerIds.length === 0) {
+      return { success: false, notified: 0 };
+    }
     let notifiedCount = 0;
 
     // Populate userId if needed
@@ -594,7 +636,7 @@ export async function notifyMultipleDeliveryBoys(
     // REDACT PII for broad notifications
     const orderNotification = redactPII(orderNotificationRaw);
     // Notify each delivery partner
-    for (const deliveryPartnerId of deliveryPartnerIds) {
+    for (const deliveryPartnerId of onlineDeliveryPartnerIds) {
       try {
         const normalizedId = deliveryPartnerId?.toString() || deliveryPartnerId;
         const roomVariations = [
@@ -674,6 +716,20 @@ export async function broadcastNewOrderToAllDeliveryBoys(order, phase = "priorit
     }
 
     const deliveryNamespace = io.of("/delivery");
+    const onlineDeliveryPartnerIds = await filterOnlineDeliveryPartnerIds(
+      await Delivery.find({
+        isActive: true,
+        status: { $in: ["approved", "active"] },
+        "availability.isOnline": true,
+      })
+        .select("_id")
+        .lean()
+        .then((docs) => docs.map((doc) => doc._id.toString())),
+    );
+
+    if (onlineDeliveryPartnerIds.length === 0) {
+      return;
+    }
 
     let orderWithUser = order;
     if (order.userId && typeof order.userId === "object" && order.userId._id) {
@@ -824,13 +880,23 @@ export async function broadcastNewOrderToAllDeliveryBoys(order, phase = "priorit
 
     const orderNotification = redactPII(orderNotificationRaw);
 
-    deliveryNamespace.emit("new_order_available", orderNotification);
-    deliveryNamespace.emit("play_notification_sound", {
-      type: "new_order_available",
-      orderId: order.orderId,
-      message: `New order available: ${order.orderId}`,
-      phase,
-    });
+    for (const deliveryPartnerId of onlineDeliveryPartnerIds) {
+      const roomVariations = [
+        `delivery:${deliveryPartnerId}`,
+        ...(mongoose.Types.ObjectId.isValid(deliveryPartnerId)
+          ? [`delivery:${new mongoose.Types.ObjectId(deliveryPartnerId).toString()}`]
+          : []),
+      ];
+      for (const room of roomVariations) {
+        deliveryNamespace.to(room).emit("new_order_available", orderNotification);
+        deliveryNamespace.to(room).emit("play_notification_sound", {
+          type: "new_order_available",
+          orderId: order.orderId,
+          message: `New order available: ${order.orderId}`,
+          phase,
+        });
+      }
+    }
   } catch (error) {
     console.error("❌ Error broadcasting to all delivery boys:", error);
   }
@@ -855,6 +921,19 @@ export async function notifyDeliveryBoyOrderReady(order, deliveryPartnerId) {
     const deliveryNamespace = io.of("/delivery");
     const normalizedDeliveryPartnerId =
       deliveryPartnerId?.toString() || deliveryPartnerId;
+
+    const isOnline = await isDeliveryPartnerOnline(normalizedDeliveryPartnerId);
+    if (!isOnline) {
+      console.warn(
+        `⚠️ Delivery partner ${normalizedDeliveryPartnerId} is offline or inactive. Skipping order_ready notification.`,
+      );
+      return {
+        success: false,
+        reason: "delivery_partner_offline",
+        deliveryPartnerId: normalizedDeliveryPartnerId,
+        orderId: order.orderId,
+      };
+    }
 
     // Prepare order ready notification
     const coords = order.restaurantId?.location?.coordinates;
