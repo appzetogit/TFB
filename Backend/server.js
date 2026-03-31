@@ -728,23 +728,23 @@ function initializeScheduledTasks() {
       console.error("❌ Failed to initialize menu schedule service:", error);
     });
 
-  // Import auto-ready service
-  import("./modules/order/services/autoReadyService.js")
-    .then(({ processAutoReadyOrders }) => {
-      // Run every 30 seconds to check for orders that should be marked as ready
-      cron.schedule("*/30 * * * * *", async () => {
-        try {
-          const result = await processAutoReadyOrders();
-          if (result.processed > 0) {
-          }
-        } catch (error) {
-          console.error("[Auto Ready Cron] Error:", error);
-        }
-      });
-    })
-    .catch((error) => {
-      console.error("❌ Failed to initialize auto-ready service:", error);
-    });
+  // Import auto-ready service - DISABLED: Orders should only be marked ready manually by restaurant
+  // import("./modules/order/services/autoReadyService.js")
+  //   .then(({ processAutoReadyOrders }) => {
+  //     // Run every 30 seconds to check for orders that should be marked as ready
+  //     cron.schedule("*/30 * * * * *", async () => {
+  //       try {
+  //         const result = await processAutoReadyOrders();
+  //         if (result.processed > 0) {
+  //         }
+  //       } catch (error) {
+  //         console.error("[Auto Ready Cron] Error:", error);
+  //       }
+  //     });
+  //   })
+  //   .catch((error) => {
+  //     console.error("❌ Failed to initialize auto-ready service:", error);
+  //   });
 
   // Import auto-reject service
   import("./modules/order/services/autoRejectService.js")
