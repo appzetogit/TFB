@@ -49,6 +49,20 @@ export default function SignIn() {
   const [searchParams] = useSearchParams()
   const isSignUp = searchParams.get("mode") === "signup"
 
+  const PENDING_PROVIDER_KEY = "pendingSocialProvider"
+  const setPendingProvider = (provider) => {
+    if (typeof sessionStorage === "undefined" || !provider) return
+    sessionStorage.setItem(PENDING_PROVIDER_KEY, provider)
+  }
+  const getPendingProvider = () => {
+    if (typeof sessionStorage === "undefined") return null
+    return sessionStorage.getItem(PENDING_PROVIDER_KEY)
+  }
+  const clearPendingProvider = () => {
+    if (typeof sessionStorage === "undefined") return
+    sessionStorage.removeItem(PENDING_PROVIDER_KEY)
+  }
+
   const [authMethod, setAuthMethod] = useState("phone") // "phone" or "email"
   const [formData, setFormData] = useState({
     phone: "",
@@ -112,8 +126,10 @@ export default function SignIn() {
     try {
       // Force refresh so backend always gets a valid token (avoids expired/stale token 400)
       const idToken = await user.getIdToken(true)
+      const pendingProvider = getPendingProvider()
       const socialProvider =
         providerOverride ||
+        pendingProvider ||
         (user.providerData || []).find((providerData) =>
           ["google.com", "apple.com"].includes(providerData?.providerId),
         )?.providerId?.replace(".com", "") ||
@@ -133,6 +149,7 @@ export default function SignIn() {
       const appUser = data.user
 
       if (accessToken && appUser) {
+        clearPendingProvider()
         setAuthData("user", accessToken, appUser)
         window.dispatchEvent(new Event("userAuthChanged"))
 
@@ -429,6 +446,7 @@ export default function SignIn() {
   const handleGoogleSignIn = async () => {
     setApiError("")
     setIsLoading(true)
+    setPendingProvider("google")
     redirectHandledRef.current = false // Reset flag when starting new sign-in
 
     try {
@@ -554,6 +572,7 @@ export default function SignIn() {
   const handleAppleSignIn = async () => {
     setAppleError("")
     setIsAppleLoading(true)
+    setPendingProvider("apple")
 
     try {
       await ensureFirebaseInitialized()
