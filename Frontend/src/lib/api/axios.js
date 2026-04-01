@@ -134,6 +134,35 @@ function getAuthContextForPath(pathname) {
   };
 }
 
+function isProtectedUserPath(pathname) {
+  const path = pathname || "";
+
+  return (
+    path.startsWith("/cart") ||
+    path.startsWith("/orders") ||
+    path.startsWith("/profile") ||
+    path.startsWith("/notifications") ||
+    path.startsWith("/wallet") ||
+    path.startsWith("/bookings") ||
+    path.startsWith("/complaints/submit") ||
+    path.startsWith("/gift-card/checkout") ||
+    path.startsWith("/collections/") ||
+    path.startsWith("/dining/book-confirmation") ||
+    path.startsWith("/dining/book-success") ||
+    path.startsWith("/user/cart") ||
+    path.startsWith("/user/orders") ||
+    path.startsWith("/user/profile") ||
+    path.startsWith("/user/notifications") ||
+    path.startsWith("/user/wallet") ||
+    path.startsWith("/user/bookings") ||
+    path.startsWith("/user/complaints/submit") ||
+    path.startsWith("/user/gift-card/checkout") ||
+    path.startsWith("/user/collections/") ||
+    path.startsWith("/user/dining/book-confirmation") ||
+    path.startsWith("/user/dining/book-success")
+  );
+}
+
 /**
  * Get the appropriate module token based on the current route
  * @returns {string|null} - Access token for the current module or null
@@ -521,7 +550,11 @@ apiClient.interceptors.response.use(
           } else {
             clearModuleAuth("user");
             localStorage.removeItem("accessToken");
-            window.location.href = "/user/auth/sign-in";
+            // Public user pages and auth callbacks should not bounce to sign-in
+            // if a background profile/refresh request fails during login completion.
+            if (isProtectedUserPath(currentPath)) {
+              window.location.href = "/user/auth/sign-in";
+            }
           }
         }
 
