@@ -581,10 +581,20 @@ export default function SignIn() {
         throw new Error("Firebase Auth is not initialized. Please check your Firebase configuration.")
       }
 
-      const { OAuthProvider, signInWithPopup, signInWithRedirect } = await import("firebase/auth")
+      const {
+        OAuthProvider,
+        browserLocalPersistence,
+        setPersistence,
+        signInWithPopup,
+        signInWithRedirect,
+      } = await import("firebase/auth")
       const appleProvider = new OAuthProvider("apple.com")
       appleProvider.addScope("email")
       appleProvider.addScope("name")
+
+      // Apple often falls back to a full-page redirect on mobile/Safari, so we
+      // force persistent auth storage before starting the OAuth flow.
+      await setPersistence(firebaseAuth, browserLocalPersistence)
 
       if (isIOSBrowser) {
         await signInWithRedirect(firebaseAuth, appleProvider)
@@ -608,10 +618,16 @@ export default function SignIn() {
         message = "Apple sign-in is disabled in Firebase Console."
       } else if (error?.code === "auth/popup-blocked") {
         try {
-          const { OAuthProvider, signInWithRedirect } = await import("firebase/auth")
+          const {
+            OAuthProvider,
+            browserLocalPersistence,
+            setPersistence,
+            signInWithRedirect,
+          } = await import("firebase/auth")
           const appleProvider = new OAuthProvider("apple.com")
           appleProvider.addScope("email")
           appleProvider.addScope("name")
+          await setPersistence(firebaseAuth, browserLocalPersistence)
           await signInWithRedirect(firebaseAuth, appleProvider)
           return
         } catch (_) {}
