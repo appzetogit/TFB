@@ -6,6 +6,8 @@ import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/com
 import { Button } from "@/components/ui/button"
 import { setAuthData } from "@/lib/utils/auth"
 import { registerFcmTokenForLoggedInUser } from "@/lib/notifications/fcmWeb"
+import { authAPI } from "@/lib/api"
+import { firebaseAuth, ensureFirebaseInitialized } from "@/lib/firebase"
 
 export default function AuthCallback() {
   const navigate = useNavigate()
@@ -37,6 +39,49 @@ export default function AuthCallback() {
               : "Authentication failed. Please try again."
           )
           return
+        }
+
+        // Complete Firebase redirect flows for Apple/Google when the provider
+        // sends the browser to this callback route.
+        try {
+          const { getRedirectResult } = await import("firebase/auth")
+          await ensureFirebaseInitialized()
+
+          let firebaseUser = null
+
+          if (firebaseAuth) {
+            const result = await Promise.race([
+              getRedirectResult(firebaseAuth),
+              new Promise((resolve) => setTimeout(() => resolve(null), 3000)),
+            ])
+            firebaseUser = result?.user || firebaseAuth.currentUser || null
+          }
+
+          if (firebaseUser) {
+            const idToken = await firebaseUser.getIdToken(true)
+            const response = await authAPI.firebaseSocialLogin(
+              idToken,
+              "user",
+              providerParam,
+            )
+            const data = response?.data?.data || {}
+
+            if (!data.accessToken || !data.user) {
+              throw new Error("Invalid response from server while completing social login")
+            }
+
+            setAuthData("user", data.accessToken, data.user)
+            window.dispatchEvent(new Event("userAuthChanged"))
+            registerFcmTokenForLoggedInUser().catch(() => {})
+
+            setStatus("success")
+            setTimeout(() => {
+              navigate("/user", { replace: true })
+            }, 800)
+            return
+          }
+        } catch (firebaseError) {
+          console.error("Firebase callback completion failed:", firebaseError)
         }
 
         // Check for direct token from backend (Backend OAuth flow)
