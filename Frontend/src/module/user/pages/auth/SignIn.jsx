@@ -56,6 +56,16 @@ const logAppleDebug = (message, details = null) => {
   console.log(`[AppleAuth] ${message}`)
 }
 
+const normalizeBackendAuthPayload = (response) => {
+  // Backend normally responds: { success, message, data: { accessToken, user } }
+  // But some deployments/proxies return: { success, message, accessToken, user }.
+  const top = response?.data || {}
+  const nested = top?.data && typeof top.data === "object" ? top.data : null
+  const payload = nested || top
+  if (!payload || typeof payload !== "object") return {}
+  return payload
+}
+
 export default function SignIn() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -165,10 +175,12 @@ export default function SignIn() {
       console.log(`✅ Got fresh ID token from ${source}, calling backend...`)
 
       const response = await authAPI.firebaseSocialLogin(idToken, "user", socialProvider)
-      const data = response?.data?.data || {}
+      const data = normalizeBackendAuthPayload(response)
       if (socialProvider === "apple") {
         logAppleDebug("Received backend social login response", {
           source,
+          success: response?.data?.success,
+          message: response?.data?.message,
           hasAccessToken: !!data.accessToken,
           hasUser: !!data.user,
           role: data.user?.role || null,

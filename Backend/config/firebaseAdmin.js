@@ -22,8 +22,16 @@ export async function ensureFirebaseAdminInitialized() {
       let clientEmail = creds.clientEmail || process.env.FIREBASE_CLIENT_EMAIL;
       let privateKey = creds.privateKey || process.env.FIREBASE_PRIVATE_KEY;
 
-      if (privateKey && privateKey.includes("\\n")) {
-        privateKey = privateKey.replace(/\\n/g, "\n");
+      if (privateKey) {
+        privateKey = String(privateKey).trim();
+        if (
+          (privateKey.startsWith('"') && privateKey.endsWith('"')) ||
+          (privateKey.startsWith("'") && privateKey.endsWith("'"))
+        ) {
+          privateKey = privateKey.slice(1, -1);
+        }
+        if (privateKey.includes("\\n")) privateKey = privateKey.replace(/\\n/g, "\n");
+        privateKey = privateKey.replace(/\r\n/g, "\n").trim();
       }
 
       if (!projectId || !clientEmail || !privateKey) {

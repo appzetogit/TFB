@@ -85,8 +85,16 @@ class FirebaseAuthService {
       }
 
       // Handle escaped newlines in private key
-      if (privateKey.includes("\\n")) {
-        privateKey = privateKey.replace(/\\n/g, "\n");
+      if (privateKey) {
+        privateKey = String(privateKey).trim();
+        if (
+          (privateKey.startsWith('"') && privateKey.endsWith('"')) ||
+          (privateKey.startsWith("'") && privateKey.endsWith("'"))
+        ) {
+          privateKey = privateKey.slice(1, -1);
+        }
+        if (privateKey.includes("\\n")) privateKey = privateKey.replace(/\\n/g, "\n");
+        privateKey = privateKey.replace(/\r\n/g, "\n").trim();
       }
 
       try {

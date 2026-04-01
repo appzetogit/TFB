@@ -30,8 +30,16 @@ function getCredentialsSync() {
   let clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
   let privateKey = process.env.FIREBASE_PRIVATE_KEY;
 
-  if (privateKey && privateKey.includes("\\n")) {
-    privateKey = privateKey.replace(/\\n/g, "\n");
+  if (privateKey) {
+    privateKey = String(privateKey).trim();
+    if (
+      (privateKey.startsWith('"') && privateKey.endsWith('"')) ||
+      (privateKey.startsWith("'") && privateKey.endsWith("'"))
+    ) {
+      privateKey = privateKey.slice(1, -1);
+    }
+    if (privateKey.includes("\\n")) privateKey = privateKey.replace(/\\n/g, "\n");
+    privateKey = privateKey.replace(/\r\n/g, "\n").trim();
   }
 
   if (projectId && clientEmail && privateKey) {
@@ -58,8 +66,16 @@ function getCredentialsSync() {
         projectId = projectId || json.project_id;
         clientEmail = clientEmail || json.client_email;
         privateKey = privateKey || json.private_key;
-        if (privateKey && privateKey.includes("\\n")) {
-          privateKey = privateKey.replace(/\\n/g, "\n");
+        if (privateKey) {
+          privateKey = String(privateKey).trim();
+          if (
+            (privateKey.startsWith('"') && privateKey.endsWith('"')) ||
+            (privateKey.startsWith("'") && privateKey.endsWith("'"))
+          ) {
+            privateKey = privateKey.slice(1, -1);
+          }
+          if (privateKey.includes("\\n")) privateKey = privateKey.replace(/\\n/g, "\n");
+          privateKey = privateKey.replace(/\r\n/g, "\n").trim();
         }
         if (projectId && clientEmail && privateKey) {
           return { projectId, clientEmail, privateKey };
