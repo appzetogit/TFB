@@ -1,7 +1,10 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { GoogleMap, LoadScript, Marker, Polyline } from '@react-google-maps/api';
 import { ArrowLeft, Share2, RefreshCcw, Home, UtensilsCrossed, ChevronRight, Shield, Phone } from 'lucide-react';
+import { shareContent } from '@/lib/utils/share';
+import { getCompanyNameAsync } from '@/lib/utils/businessSettings';
+import { toast } from 'sonner';
 
 // --- 1. Google Map Styles (Light Theme - as shown in image) ---
 const lightMapStyle = [
@@ -57,6 +60,30 @@ const center = { lat: 22.735, lng: 75.875 };
 
 const TrackingPage = () => {
   const navigate = useNavigate();
+  const { orderId } = useParams();
+
+  const handleShare = async () => {
+    try {
+      const companyName = await getCompanyNameAsync()
+      const title = "Track my order"
+      const text = `I'm tracking my order on ${companyName}. Check it out!`
+      const url = window.location.href
+      
+      const result = await shareContent({ title, text, url })
+      
+      if (result.method !== "cancelled") {
+        toast.success(
+          result.method === "native" 
+            ? "Shared" 
+            : result.method === "whatsapp" 
+              ? "Opening WhatsApp" 
+              : "Link copied to clipboard"
+        )
+      }
+    } catch (error) {
+      console.error("Share failed:", error)
+    }
+  }
 
   return (
     <div className="relative min-h-screen bg-gray-900 font-sans overflow-hidden">
@@ -64,11 +91,11 @@ const TrackingPage = () => {
       {/* --- 2. Floating Header (Green) --- */}
       <div className="absolute top-0 left-0 right-0 z-20 bg-[#23633F] p-4 pt-4 rounded-b-2xl shadow-lg">
         <div className="flex items-center justify-between text-white mb-3">
-          <ArrowLeft className="w-6 h-6 cursor-pointer" />
+          <ArrowLeft className="w-6 h-6 cursor-pointer" onClick={() => navigate(-1)} />
           <div className="flex items-center gap-2">
             <span className="font-semibold text-lg">Sagar Restaurant</span>
           </div>
-          <Share2 className="w-5 h-5 cursor-pointer" />
+          <Share2 className="w-5 h-5 cursor-pointer" onClick={handleShare} />
         </div>
         
         <div className="text-center text-white">
