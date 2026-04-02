@@ -1,5 +1,19 @@
 import { Navigate } from "react-router-dom"
+import { useSyncExternalStore } from "react"
 import { isModuleAuthenticated } from "@/lib/utils/auth"
+import Loader from "@/components/Loader"
+import { useFirebaseUserSession } from "@/lib/firebaseUserSession"
+
+const subscribeToAuthChanges = (listener) => {
+  const events = ["storage", "userAuthChanged", "userLogout"]
+  events.forEach((eventName) => window.addEventListener(eventName, listener))
+
+  return () => {
+    events.forEach((eventName) => window.removeEventListener(eventName, listener))
+  }
+}
+
+const getAuthSnapshot = (module) => isModuleAuthenticated(module)
 
 /**
  * AuthRedirect Component
@@ -12,8 +26,21 @@ import { isModuleAuthenticated } from "@/lib/utils/auth"
  * @param {string} props.redirectTo - Path to redirect to if authenticated (optional, defaults to module home)
  */
 export default function AuthRedirect({ children, module, redirectTo = null }) {
-  // Check if user is authenticated for this module
-  const isAuthenticated = isModuleAuthenticated(module)
+  const firebaseUserSession = useFirebaseUserSession()
+  const isAuthenticated = useSyncExternalStore(
+    subscribeToAuthChanges,
+    () => getAuthSnapshot(module),
+    () => getAuthSnapshot(module),
+  )
+
+  const shouldWaitForFirebaseRestore =
+    module === "user" &&
+    firebaseUserSession.isRestoring &&
+    !!(
+      firebaseUserSession.pendingProvider ||
+      firebaseUserSession.currentUser ||
+      firebaseUserSession.redirectResultUser
+    )
 
   // Define default home pages for each module
   const moduleHomePages = {
@@ -21,6 +48,10 @@ export default function AuthRedirect({ children, module, redirectTo = null }) {
     restaurant: "/restaurant",
     delivery: "/delivery",
     admin: "/admin",
+  }
+
+  if (shouldWaitForFirebaseRestore) {
+    return <Loader />
   }
 
   // If authenticated, redirect to module home page
@@ -32,4 +63,3 @@ export default function AuthRedirect({ children, module, redirectTo = null }) {
   // If not authenticated, show the auth page
   return <>{children}</>
 }
-
