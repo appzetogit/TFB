@@ -260,12 +260,25 @@ export const sidebarMenuData = [
         icon: "FileText",
       },
       {
+        type: "link",
+        label: "Expense Report",
+        path: "/admin/expense-report",
+        icon: "FileText",
+      },
+      {
         type: "expandable",
-        label: "Restaurant Report",
+        label: "Disbursement Report",
         icon: "FileText",
         subItems: [
-          { label: "Restaurant Report", path: "/admin/restaurant-report" },
+          { label: "Restaurants", path: "/admin/disbursement-report/restaurants" },
+          { label: "Deliverymen", path: "/admin/disbursement-report/deliverymen" },
         ],
+      },
+      {
+        type: "link",
+        label: "Restaurant Report",
+        path: "/admin/restaurant-report",
+        icon: "FileText",
       },
       {
         type: "expandable",
@@ -277,6 +290,18 @@ export const sidebarMenuData = [
             path: "/admin/customer-report/feedback-experience",
           },
         ],
+      },
+      {
+        type: "link",
+        label: "Tax Report",
+        path: "/admin/tax-report",
+        icon: "FileText",
+      },
+      {
+        type: "link",
+        label: "Restaurant VAT Report",
+        path: "/admin/restaurant-vat-report",
+        icon: "FileText",
       },
     ],
   },

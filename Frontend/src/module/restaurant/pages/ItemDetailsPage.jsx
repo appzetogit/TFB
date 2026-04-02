@@ -996,8 +996,17 @@ export default function ItemDetailsPage() {
                 />
                 <button
                   type="button"
-                  onClick={() => {
-                    // Always open gallery/file picker for this action.
+                  onClick={async () => {
+                    if (hasFlutterCameraBridge()) {
+                      const { success, file } = await openCameraViaFlutter({
+                        source: "gallery",
+                      })
+                      if (success && file) {
+                        handleImageAdd({ target: { files: [file] } })
+                      }
+                      return
+                    }
+                    // Browser fallback
                     fileInputRef.current?.click()
                   }}
                   className="flex-1 flex items-center justify-center gap-2 px-6 py-3.5 bg-gradient-to-r from-gray-900 to-gray-800 text-white rounded-xl text-sm font-semibold cursor-pointer hover:from-gray-800 hover:to-gray-700 transition-all shadow-md hover:shadow-lg active:scale-95"
@@ -1011,7 +1020,7 @@ export default function ItemDetailsPage() {
                     if (hasFlutterCameraBridge()) {
                       const { success, file } = await openCameraViaFlutter()
                       if (success && file) {
-                        await handleImageAdd({ target: { files: [file] } })
+                        handleImageAdd({ target: { files: [file] } })
                       }
                     } else {
                       cameraInputRef.current?.click()

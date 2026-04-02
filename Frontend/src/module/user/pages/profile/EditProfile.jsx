@@ -480,7 +480,23 @@ export default function EditProfile() {
               </button>
               <button
                 type="button"
-                onClick={() => fileInputRef.current?.click()}
+                onClick={async () => {
+                  if (isUploadingImage) return
+                  if (hasFlutterCameraBridge()) {
+                    try {
+                      const { success, file } = await openCameraViaFlutter({
+                        source: "gallery",
+                      })
+                      if (success && file) {
+                        await handleImageSelect({ target: { files: [file] } })
+                      }
+                      return
+                    } catch (err) {
+                      console.error("Gallery bridge failed:", err)
+                    }
+                  }
+                  fileInputRef.current?.click()
+                }}
                 disabled={isUploadingImage}
                 className="w-8 h-8 bg-red-600 rounded-full flex items-center justify-center shadow-lg border-2 border-white hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 title="Choose from gallery"

@@ -40,34 +40,95 @@ import { sidebarMenuData } from "../data/sidebarMenu";
 const flattenAdminNavigation = () => {
   const items = [];
 
+  const synonymMap = {
+    "users": ["customers", "clients", "people"],
+    "products": ["foods", "items", "menu", "dishes"],
+    "revenue": ["transaction", "earnings", "gross", "income"],
+    "earnings": ["revenue", "withdraw", "wallet"],
+    "settings": ["business setup", "configuration", "theme", "pages"],
+    "zones": ["location", "service area", "maps"],
+    "notifications": ["bell", "push", "alerts"],
+    "gst": ["tax", "tax report", "vat"],
+    "tax": ["gst", "vat", "fees"],
+  };
+
   sidebarMenuData.forEach((section) => {
+    const sectionLabel = section.label.toLowerCase();
+    
     if (section.type === "link") {
+      const keywords = [sectionLabel];
+      // Apply synonyms
+      Object.entries(synonymMap).forEach(([syn, targets]) => {
+        if (targets.some(t => sectionLabel.includes(t)) || sectionLabel.includes(syn)) {
+          keywords.push(syn);
+        }
+      });
+
       items.push({
         label: section.label,
         path: section.path,
         section: "Quick Access",
+        keywords,
       });
       return;
     }
 
     section.items?.forEach((item) => {
+      const itemLabel = item.label.toLowerCase();
+      const keywords = [itemLabel, sectionLabel];
+
+      // Apply synonyms
+      Object.entries(synonymMap).forEach(([syn, targets]) => {
+        if (targets.some(t => itemLabel.includes(t) || sectionLabel.includes(t)) || 
+            itemLabel.includes(syn) || sectionLabel.includes(syn)) {
+          keywords.push(syn);
+        }
+      });
+
       if (item.type === "link") {
         items.push({
           label: item.label,
           path: item.path,
           section: section.label,
+          keywords,
         });
         return;
       }
 
       item.subItems?.forEach((subItem) => {
+        const subLabel = subItem.label.toLowerCase();
+        const subKeywords = [...keywords, subLabel];
+
+        // Apply synonyms to subItems too
+        Object.entries(synonymMap).forEach(([syn, targets]) => {
+          if (targets.some(t => subLabel.includes(t)) || subLabel.includes(syn)) {
+            subKeywords.push(syn);
+          }
+        });
+
         items.push({
           label: subItem.label,
           path: subItem.path,
           section: `${section.label} / ${item.label}`,
+          keywords: subKeywords,
         });
       });
     });
+  });
+
+  // Ensure the 4 specific Quick Action words always return their primary targets
+  const quickActions = [
+    { label: "Orders", path: "/admin/orders/all", section: "Quick Access", keywords: ["orders", "all orders"] },
+    { label: "Users", path: "/admin/customers", section: "Quick Access", keywords: ["users", "customers", "clients"] },
+    { label: "Products", path: "/admin/foods", section: "Quick Access", keywords: ["products", "foods", "items"] },
+    { label: "Reports", path: "/admin/transaction-report", section: "Quick Access", keywords: ["reports", "transaction", "revenue"] },
+  ];
+
+  // Add them if they don't already exist or as high-priority matches
+  quickActions.forEach(qa => {
+    if (!items.find(i => i.path === qa.path)) {
+      items.push(qa);
+    }
   });
 
   return items;
@@ -87,7 +148,8 @@ export default function AdminNavbar({ onMenuClick }) {
     return (
       item.label.toLowerCase().includes(query) ||
       item.section.toLowerCase().includes(query) ||
-      item.path.toLowerCase().includes(query)
+      item.path.toLowerCase().includes(query) ||
+      item.keywords?.some(k => k.includes(query))
     );
   });
 
@@ -428,7 +490,7 @@ export default function AdminNavbar({ onMenuClick }) {
                   {[
                     { icon: Package, label: "Orders", path: "/admin/orders/all" },
                     { icon: Users, label: "Users", path: "/admin/customers" },
-                    { icon: UtensilsCrossed, label: "Products", path: "/admin/food/list" },
+                    { icon: UtensilsCrossed, label: "Products", path: "/admin/foods" },
                     { icon: FileText, label: "Reports", path: "/admin/transaction-report" },
                   ].map((action, idx) => (
                     <button

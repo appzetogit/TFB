@@ -62,11 +62,23 @@ function DocumentUpload({
     }
   }
 
-  const handleGallery = (e) => {
+  const handleGallery = async (e) => {
     e.preventDefault()
     e.stopPropagation()
     if (isUploading) return
-    galleryInputRef.current?.click()
+
+    if (hasFlutterCameraBridge()) {
+      try {
+        const result = await openCameraViaFlutter({ source: "gallery" })
+        if (result?.success && result.file) {
+          await onFileSelect(docType, result.file)
+        }
+      } catch (err) {
+        galleryInputRef.current?.click()
+      }
+    } else {
+      galleryInputRef.current?.click()
+    }
   }
 
   const handleFileChange = (e) => {

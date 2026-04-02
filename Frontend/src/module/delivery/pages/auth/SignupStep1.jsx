@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom"
 import { ArrowLeft } from "lucide-react"
 import { deliveryAPI } from "@/lib/api"
 import { toast } from "sonner"
+import { clearModuleAuth } from "@/lib/utils/auth"
 
 const INDIAN_STATES = [
   "Andhra Pradesh",
@@ -105,8 +106,7 @@ export default function SignupStep1() {
     let nextValue = value
 
     if (name === "city") {
-      // Allow only alphabets and spaces
-      nextValue = value.replace(/[^a-zA-Z\s]/g, "")
+      nextValue = value
     }
 
     if (name === "vehicleNumber") {
@@ -338,13 +338,17 @@ export default function SignupStep1() {
           type="button"
           onClick={() => {
             try {
+              // Clear current auth session before going back so the Guard
+              // doesn't force a redirect to home.
+              clearModuleAuth("delivery")
+              
               const raw = sessionStorage.getItem("deliveryAuthData")
               if (raw) {
                 navigate("/delivery/otp")
                 return
               }
-            } catch {
-              /* ignore */
+            } catch (e) {
+              console.warn("Failed to clear auth session on back:", e)
             }
             navigate("/delivery/sign-in")
           }}

@@ -1262,7 +1262,7 @@ export default function RestaurantOnboarding() {
             onChange={(e) =>
               setStep1({
                 ...step1,
-                location: { ...step1.location, city: e.target.value.replace(/[^a-zA-Z\s]/g, "") },
+                location: { ...step1.location, city: e.target.value },
               })
             }
             className="bg-white text-sm"
@@ -1362,7 +1362,18 @@ export default function RestaurantOnboarding() {
 
           </div>
           <div className="flex w-full gap-2 mt-2">
-            <label className="inline-flex flex-1 justify-center items-center gap-1.5 px-3 py-2 border border-black rounded-sm bg-white text-black hover:bg-gray-50 text-xs font-medium cursor-pointer">
+            <label
+              className="inline-flex flex-1 justify-center items-center gap-1.5 px-3 py-2 border border-black rounded-sm bg-white text-black hover:bg-gray-50 text-xs font-medium cursor-pointer"
+              onClick={async (e) => {
+                if (hasFlutterCameraBridge()) {
+                  e.preventDefault()
+                  const { success, file } = await openCameraViaFlutter({ source: "gallery" })
+                  if (success && file) {
+                    setStep2((prev) => ({ ...prev, profileImage: file }))
+                  }
+                }
+              }}
+            >
               <Upload className="w-4 h-4" />
               <span>Gallery</span>
               <input
@@ -1628,7 +1639,19 @@ export default function RestaurantOnboarding() {
               {step3Errors.gstAddress && <p className="text-xs text-red-500 mt-1">{step3Errors.gstAddress}</p>}
             </div>
             <div className="flex flex-wrap gap-2">
-              <label className="inline-flex items-center gap-1.5 px-3 py-2 border border-gray-200 rounded-md bg-white text-sm cursor-pointer hover:bg-gray-50">
+              <label
+                className="inline-flex items-center gap-1.5 px-3 py-2 border border-gray-200 rounded-md bg-white text-sm cursor-pointer hover:bg-gray-50"
+                onClick={async (e) => {
+                  if (hasFlutterCameraBridge()) {
+                    e.preventDefault()
+                    const { success, file } = await openCameraViaFlutter({ source: "gallery" })
+                    if (success && file) {
+                      setStep3({ ...step3, gstImage: file })
+                      setStep3Errors((p) => ({ ...p, gstImage: null }))
+                    }
+                  }
+                }}
+              >
                 <Upload className="w-4 h-4" />
                 <span>Gallery</span>
                 <Input
@@ -1718,7 +1741,19 @@ export default function RestaurantOnboarding() {
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          <label className="inline-flex items-center gap-1.5 px-3 py-2 border border-gray-200 rounded-md bg-white text-sm cursor-pointer hover:bg-gray-50">
+          <label
+            className="inline-flex items-center gap-1.5 px-3 py-2 border border-gray-200 rounded-md bg-white text-sm cursor-pointer hover:bg-gray-50"
+            onClick={async (e) => {
+              if (hasFlutterCameraBridge()) {
+                e.preventDefault()
+                const { success, file } = await openCameraViaFlutter({ source: "gallery" })
+                if (success && file) {
+                  setStep3({ ...step3, fssaiImage: file })
+                  setStep3Errors((p) => ({ ...p, fssaiImage: null }))
+                }
+              }
+            }}
+          >
             <Upload className="w-4 h-4" />
             <span>Gallery</span>
             <Input

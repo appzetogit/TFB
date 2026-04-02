@@ -332,7 +332,7 @@ export default function AdminSignup() {
                       disabled={isLoading}
                       autoComplete="new-password"
                       required
-                      className="h-12 pl-10 pr-10 text-base [&::-ms-reveal]:hidden [&::-ms-clear]:hidden"
+                      className="h-12 pl-10 pr-10 text-base [&::-ms-reveal]:hidden [&::-ms-clear]:hidden [&::-webkit-password-toggle]:hidden [&::-webkit-reveal]:hidden"
                     />
                     <button
                       type="button"
@@ -364,7 +364,7 @@ export default function AdminSignup() {
                       disabled={isLoading}
                       autoComplete="new-password"
                       required
-                      className="h-12 pl-10 pr-10 text-base [&::-ms-reveal]:hidden [&::-ms-clear]:hidden"
+                      className="h-12 pl-10 pr-10 text-base [&::-ms-reveal]:hidden [&::-ms-clear]:hidden [&::-webkit-password-toggle]:hidden [&::-webkit-reveal]:hidden"
                     />
                     <button
                       type="button"

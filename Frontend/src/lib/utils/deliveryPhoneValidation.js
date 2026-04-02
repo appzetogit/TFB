@@ -56,5 +56,23 @@ export function validateDeliveryPhone(phone, countryCode) {
     return `Phone number must be ${min}-${max} digits for this country`
   }
 
+  // Basic prefix validation for common non-India countries
+  if (countryCode === "+1") {
+    // US Area code cannot start with 0 or 1
+    if (["0", "1"].includes(digitsOnly[0])) {
+      return "Invalid US/Canada phone number"
+    }
+  } else if (countryCode === "+44") {
+    // UK Mobile numbers start with 7
+    if (digitsOnly[0] !== "7") {
+      return "Invalid UK mobile number (must start with 7)"
+    }
+  } else if (countryCode === "+971") {
+    // UAE Mobile numbers start with 5
+    if (digitsOnly[0] !== "5") {
+      return "Invalid UAE mobile number (must start with 5)"
+    }
+  }
+
   return ""
 }
