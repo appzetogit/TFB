@@ -11,6 +11,7 @@ export default function ProtectedRoute({ children, requiredRole, loginPath }) {
   const location = useLocation();
   const firebaseUserSession = useFirebaseUserSession()
   const shouldWaitForFirebaseRestore =
+    !isModuleAuthenticated(requiredRole) &&
     firebaseUserSession.isRestoring &&
     !!(
       firebaseUserSession.pendingProvider ||
@@ -25,6 +26,13 @@ export default function ProtectedRoute({ children, requiredRole, loginPath }) {
   }
 
   if (requiredRole === "user" && shouldWaitForFirebaseRestore) {
+    console.log("[ProtectedRoute] Waiting for Firebase restore", {
+      requiredRole,
+      isRestoring: firebaseUserSession.isRestoring,
+      hasCurrentUser: !!firebaseUserSession.currentUser,
+      hasRedirectUser: !!firebaseUserSession.redirectResultUser,
+      pendingProvider: firebaseUserSession.pendingProvider || null,
+    })
     return <Loader />
   }
 

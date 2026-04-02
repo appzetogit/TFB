@@ -1,5 +1,5 @@
-import { Navigate } from "react-router-dom"
-import { useSyncExternalStore } from "react"
+import { useEffect, useSyncExternalStore } from "react"
+import { useNavigate } from "react-router-dom"
 import { isModuleAuthenticated } from "@/lib/utils/auth"
 import Loader from "@/components/Loader"
 import { useFirebaseUserSession } from "@/lib/firebaseUserSession"
@@ -26,6 +26,7 @@ const getAuthSnapshot = (module) => isModuleAuthenticated(module)
  * @param {string} props.redirectTo - Path to redirect to if authenticated (optional, defaults to module home)
  */
 export default function AuthRedirect({ children, module, redirectTo = null }) {
+  const navigate = useNavigate()
   const firebaseUserSession = useFirebaseUserSession()
   const isAuthenticated = useSyncExternalStore(
     subscribeToAuthChanges,
@@ -35,6 +36,7 @@ export default function AuthRedirect({ children, module, redirectTo = null }) {
 
   const shouldWaitForFirebaseRestore =
     module === "user" &&
+    !isAuthenticated &&
     firebaseUserSession.isRestoring &&
     !!(
       firebaseUserSession.pendingProvider ||
@@ -50,16 +52,50 @@ export default function AuthRedirect({ children, module, redirectTo = null }) {
     admin: "/admin",
   }
 
+  useEffect(() => {
+    console.log("[AuthRedirect] State update", {
+      module,
+      isAuthenticated,
+      isRestoring: firebaseUserSession.isRestoring,
+      hasCurrentUser: !!firebaseUserSession.currentUser,
+      hasRedirectUser: !!firebaseUserSession.redirectResultUser,
+      loadingScreen: shouldWaitForFirebaseRestore,
+    })
+  }, [
+    firebaseUserSession.currentUser,
+    firebaseUserSession.isRestoring,
+    firebaseUserSession.redirectResultUser,
+    isAuthenticated,
+    module,
+    shouldWaitForFirebaseRestore,
+  ])
+
+  useEffect(() => {
+    if (shouldWaitForFirebaseRestore || !isAuthenticated) return
+
+    const homePath = redirectTo || moduleHomePages[module] || "/"
+    console.log("[AuthRedirect] Navigating authenticated user", {
+      module,
+      homePath,
+      isRestoring: firebaseUserSession.isRestoring,
+    })
+    navigate(homePath, { replace: true })
+  }, [
+    firebaseUserSession.isRestoring,
+    isAuthenticated,
+    module,
+    navigate,
+    redirectTo,
+    shouldWaitForFirebaseRestore,
+  ])
+
   if (shouldWaitForFirebaseRestore) {
     return <Loader />
   }
 
-  // If authenticated, redirect to module home page
   if (isAuthenticated) {
-    const homePath = redirectTo || moduleHomePages[module] || "/"
-    return <Navigate to={homePath} replace />
+    return <Loader />
   }
 
-  // If not authenticated, show the auth page
   return <>{children}</>
 }

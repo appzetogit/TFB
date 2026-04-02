@@ -5,7 +5,8 @@ import { getModuleToken, setAuthData } from "@/lib/utils/auth"
 
 const PENDING_PROVIDER_KEY = "pendingSocialProvider"
 const APPLE_REDIRECT_IN_PROGRESS_KEY = "appleRedirectInProgress"
-const RESTORE_TIMEOUT_MS = 4000
+const DEFAULT_RESTORE_TIMEOUT_MS = 4000
+const IOS_SAFARI_RESTORE_TIMEOUT_MS = 2500
 
 const listeners = new Set()
 
@@ -35,6 +36,22 @@ const setState = (partial) => {
   Object.assign(state, partial)
   emit()
 }
+
+const isIOSSafariBrowser = () => {
+  if (typeof navigator === "undefined") return false
+
+  const userAgent = navigator.userAgent || ""
+  const isIOS = /iPad|iPhone|iPod/i.test(userAgent)
+  const isWebKit = /WebKit/i.test(userAgent)
+  const isCriOS = /CriOS/i.test(userAgent)
+  const isFxiOS = /FxiOS/i.test(userAgent)
+
+  return isIOS && isWebKit && !isCriOS && !isFxiOS
+}
+
+const getRestoreTimeoutMs = () => (
+  isIOSSafariBrowser() ? IOS_SAFARI_RESTORE_TIMEOUT_MS : DEFAULT_RESTORE_TIMEOUT_MS
+)
 
 const safeLocalGet = (key) => {
   try {
@@ -193,6 +210,8 @@ export async function startFirebaseUserSessionBootstrap() {
       lastError: null,
     })
 
+    const restoreTimeoutMs = getRestoreTimeoutMs()
+
     console.log("[FirebaseUserSession] Starting bootstrap", {
       path: window.location.pathname,
       search: window.location.search,
@@ -200,16 +219,21 @@ export async function startFirebaseUserSessionBootstrap() {
       redirectInProgress:
         safeSessionGet(APPLE_REDIRECT_IN_PROGRESS_KEY) === "true" ||
         safeLocalGet(APPLE_REDIRECT_IN_PROGRESS_KEY) === "true",
+      restoreTimeoutMs,
+      isIOSSafari: isIOSSafariBrowser(),
     })
 
     restoreTimeoutId = window.setTimeout(() => {
-      console.warn("[FirebaseUserSession] Restore bootstrap timed out; allowing app to continue")
+      console.warn("[FirebaseUserSession] Restore bootstrap timed out; allowing app to continue", {
+        pendingProvider: getPendingProvider(),
+        hasCurrentUser: !!firebaseAuth?.currentUser,
+      })
       setState({
         initialized: true,
         isRestoring: false,
       })
       restoreTimeoutId = null
-    }, RESTORE_TIMEOUT_MS)
+    }, restoreTimeoutMs)
 
     await ensureFirebaseInitialized()
 
@@ -261,6 +285,12 @@ export async function startFirebaseUserSessionBootstrap() {
         setState({
           currentUser: user || null,
           pendingProvider: getPendingProvider(),
+        })
+
+        console.log("[FirebaseUserSession] Auth state applied", {
+          isRestoring: state.isRestoring,
+          hasUser: !!user,
+          hasUserToken: !!getModuleToken("user"),
         })
 
         if (!user) return
@@ -317,6 +347,13 @@ export async function startFirebaseUserSessionBootstrap() {
       setState({
         initialized: true,
         isRestoring: false,
+        pendingProvider: getPendingProvider(),
+      })
+      console.log("[FirebaseUserSession] Bootstrap resolved", {
+        isRestoring: false,
+        hasCurrentUser: !!(state.currentUser || firebaseAuth?.currentUser),
+        hasRedirectUser: !!state.redirectResultUser,
+        hasUserToken: !!getModuleToken("user"),
         pendingProvider: getPendingProvider(),
       })
     }
