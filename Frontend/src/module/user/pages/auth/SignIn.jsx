@@ -154,6 +154,12 @@ export default function SignIn() {
     typeof navigator !== "undefined" ? navigator.userAgent : "",
   )
   const firebaseUserSession = useFirebaseUserSession()
+  const hostname = typeof window !== "undefined" ? window.location.hostname : ""
+  const shouldUsePopupForGoogle =
+    hostname === "localhost" ||
+    hostname === "127.0.0.1" ||
+    hostname.endsWith(".local")
+  const shouldUsePopupForApple = true
 
   useEffect(() => {
     if (typeof sessionStorage === "undefined") return
@@ -737,29 +743,35 @@ export default function SignIn() {
         path: window.location.pathname,
         origin: window.location.origin,
         isIOSBrowser,
+        shouldUsePopupForGoogle,
       })
       await setPersistence(firebaseAuth, browserLocalPersistence)
       console.log("[GoogleAuth] Configured Firebase persistence for Google sign-in", {
         persistence: "browserLocalPersistence",
       })
 
+      if (shouldUsePopupForGoogle) {
+        console.log("[GoogleAuth] Using Google popup flow", {
+          reason: "Local development cannot reliably restore cross-domain redirect auth",
+        })
+        const result = await signInWithPopup(firebaseAuth, googleProvider)
+
+        console.log("✅ Popup sign-in successful:", {
+          user: result?.user?.email,
+          operationType: result?.operationType,
+        })
+
+        if (result?.user) {
+          await processSignedInUser(result.user, "popup-result", "google")
+          return
+        }
+      }
+
       console.log("[GoogleAuth] Using Google redirect flow", {
         reason: "Firebase Hosting auth flow standardized on redirect",
       })
       await signInWithRedirect(firebaseAuth, googleProvider)
       return
-
-      // Use popup for better UX and error handling
-      const result = await signInWithPopup(firebaseAuth, googleProvider)
-
-      console.log("✅ Popup sign-in successful:", {
-        user: result?.user?.email,
-        operationType: result.operationType
-      })
-
-      if (result && result.user) {
-        await processSignedInUser(result.user, "popup-result")
-      }
     } catch (error) {
       console.error("❌ Google sign-in redirect error:", error)
       console.error("Error code:", error?.code)
@@ -811,6 +823,7 @@ export default function SignIn() {
       path: window.location.pathname,
       origin: window.location.origin,
       isIOSBrowser,
+      shouldUsePopupForApple,
     })
 
     try {
@@ -838,8 +851,20 @@ export default function SignIn() {
         persistence: "browserLocalPersistence",
       })
 
-      logAppleDebug("Using Apple redirect flow", {
-        reason: "Firebase Hosting auth flow standardized on redirect",
+      if (shouldUsePopupForApple) {
+        logAppleDebug("Using Apple popup flow", {
+          reason: "Prefer popup first in production to avoid redirect restore stalls",
+        })
+
+        const result = await signInWithPopup(firebaseAuth, appleProvider)
+        if (result?.user) {
+          await processSignedInUser(result.user, "apple-popup-result", "apple")
+          return
+        }
+      }
+
+      logAppleDebug("Using Apple redirect fallback", {
+        reason: "Popup did not return a Firebase user",
       })
       await signInWithRedirect(firebaseAuth, appleProvider)
       return
@@ -867,6 +892,9 @@ export default function SignIn() {
           appleProvider.addScope("email")
           appleProvider.addScope("name")
           await setPersistence(firebaseAuth, browserLocalPersistence)
+          logAppleDebug("Falling back to Apple redirect after popup issue", {
+            code: error?.code || error?.error || null,
+          })
           await signInWithRedirect(firebaseAuth, appleProvider)
           return
         } catch (_) {}

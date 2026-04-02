@@ -5,6 +5,7 @@ import { getModuleToken, setAuthData } from "@/lib/utils/auth"
 
 const PENDING_PROVIDER_KEY = "pendingSocialProvider"
 const APPLE_REDIRECT_IN_PROGRESS_KEY = "appleRedirectInProgress"
+const RESTORE_TIMEOUT_MS = 4000
 
 const listeners = new Set()
 
@@ -24,6 +25,7 @@ let startPromise = null
 let unsubscribeAuthListener = null
 let lastCompletedUid = null
 let completionPromise = null
+let restoreTimeoutId = null
 
 const emit = () => {
   listeners.forEach((listener) => listener())
@@ -179,6 +181,11 @@ export async function startFirebaseUserSessionBootstrap() {
   if (startPromise) return startPromise
 
   startPromise = (async () => {
+    if (restoreTimeoutId) {
+      clearTimeout(restoreTimeoutId)
+      restoreTimeoutId = null
+    }
+
     setState({
       initialized: false,
       isRestoring: true,
@@ -194,6 +201,15 @@ export async function startFirebaseUserSessionBootstrap() {
         safeSessionGet(APPLE_REDIRECT_IN_PROGRESS_KEY) === "true" ||
         safeLocalGet(APPLE_REDIRECT_IN_PROGRESS_KEY) === "true",
     })
+
+    restoreTimeoutId = window.setTimeout(() => {
+      console.warn("[FirebaseUserSession] Restore bootstrap timed out; allowing app to continue")
+      setState({
+        initialized: true,
+        isRestoring: false,
+      })
+      restoreTimeoutId = null
+    }, RESTORE_TIMEOUT_MS)
 
     await ensureFirebaseInitialized()
 
@@ -294,6 +310,10 @@ export async function startFirebaseUserSessionBootstrap() {
         lastError: error,
       })
     } finally {
+      if (restoreTimeoutId) {
+        clearTimeout(restoreTimeoutId)
+        restoreTimeoutId = null
+      }
       setState({
         initialized: true,
         isRestoring: false,

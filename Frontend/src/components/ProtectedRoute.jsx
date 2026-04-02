@@ -10,6 +10,13 @@ import { useFirebaseUserSession } from "@/lib/firebaseUserSession";
 export default function ProtectedRoute({ children, requiredRole, loginPath }) {
   const location = useLocation();
   const firebaseUserSession = useFirebaseUserSession()
+  const shouldWaitForFirebaseRestore =
+    firebaseUserSession.isRestoring &&
+    !!(
+      firebaseUserSession.pendingProvider ||
+      firebaseUserSession.currentUser ||
+      firebaseUserSession.redirectResultUser
+    )
 
   // Check if user is authenticated for the required module using module-specific token
   if (!requiredRole) {
@@ -17,7 +24,7 @@ export default function ProtectedRoute({ children, requiredRole, loginPath }) {
     return children;
   }
 
-  if (requiredRole === "user" && firebaseUserSession.isRestoring) {
+  if (requiredRole === "user" && shouldWaitForFirebaseRestore) {
     return <Loader />
   }
 
