@@ -9,6 +9,10 @@ import { createServer } from "http";
 import { Server } from "socket.io";
 import cron from "node-cron";
 import mongoose from "mongoose";
+import dns from "dns";
+
+// Set custom DNS servers
+dns.setServers(["8.8.8.8", "8.8.4.4", "1.1.1.1"]);
 
 // Load environment variables
 dotenv.config();
