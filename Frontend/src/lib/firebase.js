@@ -99,7 +99,9 @@ const fetchFirebaseConfig = async () => {
 let app;
 let firebaseAuth;
 let googleProvider;
-const FIREBASE_HOSTING_AUTH_DOMAIN = "tifunbox.firebaseapp.com";
+//const FIREBASE_HOSTING_AUTH_DOMAIN = "tifunbox.firebaseapp.com";
+
+const FIREBASE_HOSTING_AUTH_DOMAIN = "app.tifunbox.com";
 let appleProvider;
 
 // Function to ensure Firebase is initialized
