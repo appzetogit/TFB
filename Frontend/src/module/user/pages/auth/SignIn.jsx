@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { authAPI } from "@/lib/api"
-import { firebaseAuth, googleProvider, ensureFirebaseInitialized } from "@/lib/firebase"
+import * as firebaseLib from "@/lib/firebase"
 import { hasFlutterGoogleBridge, nativeGoogleSignIn } from "@/lib/utils/flutterGoogleAuthBridge"
 import { setAuthData } from "@/lib/utils/auth"
 import { registerFcmTokenForLoggedInUser } from "@/lib/notifications/fcmWeb"
@@ -654,10 +654,10 @@ export default function SignIn() {
 
     try {
       // Ensure Firebase is initialized before use
-      await ensureFirebaseInitialized()
+      await firebaseLib.ensureFirebaseInitialized()
 
       // Validate Firebase Auth instance
-      if (!firebaseAuth) {
+      if (!firebaseLib.firebaseAuth) {
         throw new Error("Firebase Auth is not initialized. Please check your Firebase configuration.")
       }
 
@@ -682,7 +682,7 @@ export default function SignIn() {
         try {
           const { GoogleAuthProvider, signInWithCredential } = await import("firebase/auth")
           const credential = GoogleAuthProvider.credential(idToken)
-          const userCredential = await signInWithCredential(firebaseAuth, credential)
+          const userCredential = await signInWithCredential(firebaseLib.firebaseAuth, credential)
 
           if (userCredential?.user) {
             await processSignedInUser(userCredential.user, "flutter-webview")
@@ -727,7 +727,7 @@ export default function SignIn() {
         isIOSBrowser,
         shouldUsePopupForGoogle,
       })
-      await setPersistence(firebaseAuth, browserLocalPersistence)
+      await setPersistence(firebaseLib.firebaseAuth, browserLocalPersistence)
       console.log("[GoogleAuth] Configured Firebase persistence for Google sign-in", {
         persistence: "browserLocalPersistence",
       })
@@ -736,7 +736,7 @@ export default function SignIn() {
         console.log("[GoogleAuth] Using Google popup flow", {
           reason: "Local development cannot reliably restore cross-domain redirect auth",
         })
-        const result = await signInWithPopup(firebaseAuth, googleProvider)
+        const result = await signInWithPopup(firebaseLib.firebaseAuth, firebaseLib.googleProvider)
 
         console.log("✅ Popup sign-in successful:", {
           user: result?.user?.email,
@@ -752,7 +752,7 @@ export default function SignIn() {
       console.log("[GoogleAuth] Using Google redirect flow", {
         reason: "Firebase Hosting auth flow standardized on redirect",
       })
-      await signInWithRedirect(firebaseAuth, googleProvider)
+      await signInWithRedirect(firebaseLib.firebaseAuth, firebaseLib.googleProvider)
       return
     } catch (error) {
       console.error("❌ Google sign-in redirect error:", error)
@@ -773,7 +773,7 @@ export default function SignIn() {
       } else if (errorCode === "auth/popup-blocked") {
         try {
           const { signInWithRedirect } = await import("firebase/auth")
-          await signInWithRedirect(firebaseAuth, googleProvider)
+          await signInWithRedirect(firebaseLib.firebaseAuth, firebaseLib.googleProvider)
           return
         } catch (_) {}
         message = "Popup was blocked. Please allow popups and try again."
@@ -807,9 +807,9 @@ export default function SignIn() {
     })
 
     try {
-      await ensureFirebaseInitialized()
+      await firebaseLib.ensureFirebaseInitialized()
 
-      if (!firebaseAuth) {
+      if (!firebaseLib.firebaseAuth) {
         throw new Error("Firebase Auth is not initialized. Please check your Firebase configuration.")
       }
 
@@ -818,6 +818,7 @@ export default function SignIn() {
         browserLocalPersistence,
         setPersistence,
         signInWithPopup,
+        signInWithRedirect,
       } = await import("firebase/auth")
       const appleProvider = new OAuthProvider("apple.com")
       appleProvider.addScope("email")
@@ -825,7 +826,7 @@ export default function SignIn() {
 
       // Apple often falls back to a full-page redirect on mobile/Safari, so we
       // force persistent auth storage before starting the OAuth flow.
-      await setPersistence(firebaseAuth, browserLocalPersistence)
+      await setPersistence(firebaseLib.firebaseAuth, browserLocalPersistence)
       logAppleDebug("Configured Firebase persistence for Apple sign-in", {
         persistence: "browserLocalPersistence",
       })
@@ -835,7 +836,7 @@ export default function SignIn() {
           reason: "Prefer popup on all browsers to avoid iOS redirect restore stalls",
         })
 
-        const result = await signInWithPopup(firebaseAuth, appleProvider)
+        const result = await signInWithPopup(firebaseLib.firebaseAuth, appleProvider)
         if (result?.user) {
           await processSignedInUser(result.user, "apple-popup-result", "apple")
           return
@@ -847,8 +848,7 @@ export default function SignIn() {
       logAppleDebug("Using Apple redirect flow", {
         reason: "Prefer redirect on some mobile browsers where popups remain stuck in tabs",
       })
-      const { signInWithRedirect } = await import("firebase/auth")
-      await signInWithRedirect(firebaseAuth, appleProvider)
+      await signInWithRedirect(firebaseLib.firebaseAuth, appleProvider)
       return
 
     } catch (error) {

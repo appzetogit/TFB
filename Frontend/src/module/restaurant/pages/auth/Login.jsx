@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import { restaurantAPI } from "@/lib/api"
-import { firebaseAuth, googleProvider, appleProvider, ensureFirebaseInitialized } from "@/lib/firebase"
+import * as firebaseLib from "@/lib/firebase"
 import { hasFlutterGoogleBridge, nativeGoogleSignIn } from "@/lib/utils/flutterGoogleAuthBridge"
 import { useCompanyName } from "@/lib/hooks/useCompanyName"
 
@@ -421,11 +421,11 @@ export default function RestaurantLogin() {
 
       // iOS browsers are more reliable with redirect auth flow.
       if (isIOSBrowser) {
-        await signInWithRedirect(firebaseAuth, googleProvider)
+        await signInWithRedirect(firebaseLib.firebaseAuth, firebaseLib.googleProvider)
         return
       }
 
-      const result = await signInWithPopup(firebaseAuth, googleProvider)
+      const result = await signInWithPopup(firebaseLib.firebaseAuth, firebaseLib.googleProvider)
       if (result?.user) {
         await processSignedInUser(result.user, "popup-result")
       }
@@ -435,7 +435,7 @@ export default function RestaurantLogin() {
       if (error?.code === "auth/popup-blocked") {
         try {
           const { signInWithRedirect } = await import("firebase/auth")
-          await signInWithRedirect(firebaseAuth, googleProvider)
+          await signInWithRedirect(firebaseLib.firebaseAuth, firebaseLib.googleProvider)
           return
         } catch (_) {}
       }
@@ -451,28 +451,30 @@ export default function RestaurantLogin() {
     redirectHandledRef.current = false
 
     try {
-      await ensureFirebaseInitialized()
+      // Ensure Firebase is initialized before use
+      await firebaseLib.ensureFirebaseInitialized()
 
-      if (!firebaseAuth || !appleProvider) {
-        throw new Error("Firebase is not configured correctly for Apple login")
+      // Validate Firebase Auth instance
+      if (!firebaseLib.firebaseAuth) {
+        throw new Error("Firebase Auth is not initialized. Please check your Firebase configuration.")
       }
 
       const {
         browserLocalPersistence,
         setPersistence,
         signInWithPopup,
+        signInWithRedirect,
       } = await import("firebase/auth")
 
-      await setPersistence(firebaseAuth, browserLocalPersistence)
+      await setPersistence(firebaseLib.firebaseAuth, browserLocalPersistence)
 
       // iOS browsers have trouble with cross-tab communication after popup cancel
       if (isIOSBrowser) {
-        const { signInWithRedirect } = await import("firebase/auth")
-        await signInWithRedirect(firebaseAuth, appleProvider)
+        await signInWithRedirect(firebaseLib.firebaseAuth, firebaseLib.appleProvider)
         return
       }
 
-      const result = await signInWithPopup(firebaseAuth, appleProvider)
+      const result = await signInWithPopup(firebaseLib.firebaseAuth, firebaseLib.appleProvider)
       if (result?.user) {
         await processSignedInUser(result.user, "apple-popup-result", "apple")
         return
