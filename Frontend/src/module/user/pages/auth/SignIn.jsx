@@ -201,7 +201,7 @@ export default function SignIn() {
   const isWebView =
     typeof window !== "undefined" &&
     (window.flutter_inappwebview ||
-      /wv|Version\/[\d\.]+.*Safari/.test(navigator.userAgent) ||
+      /wv/.test(navigator.userAgent) ||
       (isIOSBrowser && !isIOSSafari))
   const shouldUsePopupForApple = !isWebView
   const shouldUsePopupForGoogle =
