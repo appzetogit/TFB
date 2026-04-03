@@ -6,18 +6,18 @@ import { toast } from "sonner"
 export default function SystemAddons() {
   const [isLoading, setIsLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
-  
+
   // Form state for all environment variables
   const [envData, setEnvData] = useState({
     // Razorpay
     RAZORPAY_API_KEY: "",
     RAZORPAY_SECRET_KEY: "",
-    
+
     // Cloudinary
     CLOUDINARY_CLOUD_NAME: "",
     CLOUDINARY_API_KEY: "",
     CLOUDINARY_API_SECRET: "",
-    
+
     // Firebase
     FIREBASE_API_KEY: "",
     FIREBASE_AUTH_DOMAIN: "",
@@ -30,24 +30,36 @@ export default function SystemAddons() {
     FIREBASE_PRIVATE_KEY: "",
     FIREBASE_VAPID_KEY: "",
     FIREBASE_DATABASE_URL: "",
-    
+
     // SMTP
     SMTP_HOST: "",
     SMTP_PORT: "",
     SMTP_USER: "",
     SMTP_PASS: "",
-    
+
     // SMS Hub India
     SMSINDIAHUB_API_KEY: "",
     SMSINDIAHUB_SENDER_ID: "",
-    
+
     // Google Maps
     VITE_GOOGLE_MAPS_API_KEY: "",
-    
+
     // Apple Sign-In
-    APPLE_CLIENT_ID: "",
-    APPLE_REDIRECT_URI: "",
+    // APPLE_CLIENT_ID: "",
+    // APPLE_REDIRECT_URI: "",
+
+    APPLE_CLIENT_ID: "app.tifunbox.com",
+    APPLE_REDIRECT_URI: "https://tifunbox.firebaseapp.com/__/auth/handler",
+
+
+
+
+
+
   })
+
+
+
 
   // Load environment variables on component mount
   useEffect(() => {
@@ -88,7 +100,7 @@ export default function SystemAddons() {
       const response = await adminAPI.saveEnvVariables(envData)
       if (response.data.success) {
         toast.success("Environment variables saved successfully")
-        
+
         // Clear Google Maps API key cache after saving
         try {
           const { clearGoogleMapsApiKeyCache } = await import('@/lib/utils/googleMapsApiKey.js');
@@ -231,16 +243,16 @@ export default function SystemAddons() {
                 />
               </div>
               <div className="md:col-span-2">
-                <InputField 
-                  label="Firebase VAPID Key (Web Push)" 
-                  fieldKey="FIREBASE_VAPID_KEY" 
+                <InputField
+                  label="Firebase VAPID Key (Web Push)"
+                  fieldKey="FIREBASE_VAPID_KEY"
                   placeholder="Public key from Firebase Console → Cloud Messaging → Web Push certificates (Key pair)"
                 />
               </div>
               <div className="md:col-span-2">
-                <InputField 
-                  label="Firebase Private Key" 
-                  fieldKey="FIREBASE_PRIVATE_KEY" 
+                <InputField
+                  label="Firebase Private Key"
+                  fieldKey="FIREBASE_PRIVATE_KEY"
                   type="textarea"
                   placeholder="Enter Firebase Private Key (can be multiline)"
                 />
