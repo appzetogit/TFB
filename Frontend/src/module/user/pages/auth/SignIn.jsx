@@ -169,6 +169,62 @@ export default function SignIn() {
     preload()
   }, [])
 
+  // Optimized Apple sign-in handler for Safari/Web
+  const triggerApplePopup = () => {
+    const auth = firebaseAuth
+    const lib = firebaseAuthLibRef.current
+    const provider = appleProviderRef.current
+
+    if (!auth || !lib || !provider) {
+      // Fallback if not ready, but this will likely be blocked by Safari
+      handleAppleSignIn() 
+      return
+    }
+
+    setAppleError("")
+    setIsAppleLoading(true)
+    setPendingProvider("apple")
+    safeSessionSet(APPLE_SIGNIN_STARTED_KEY, "1")
+    safeSessionSet(APPLE_REDIRECT_IN_PROGRESS_KEY, "true")
+    safeLocalSet(APPLE_REDIRECT_IN_PROGRESS_KEY, "true")
+
+    logAppleDebug("Triggering Apple popup (DIRECT CLICK)")
+
+    // NO await before this call to preserve user gesture for Safari
+    lib.signInWithPopup(auth, provider)
+      .then(async (result) => {
+        if (result?.user) {
+          await processSignedInUser(result.user, "apple-popup-result", "apple")
+        } else {
+          logAppleDebug("Apple popup completed with no user result")
+          setIsAppleLoading(false)
+        }
+      })
+      .catch((error) => {
+        if (isAppleCancelError(error)) {
+          logAppleDebug("Apple popup was cancelled by user")
+          clearPendingProvider()
+          setIsAppleLoading(false)
+          setAppleError("") // Stay silent or show brief message
+          return
+        }
+
+        // Check if it was blocked, then try redirect
+        if (error?.code === "auth/popup-blocked" || error?.code === "auth/cancelled-popup-request") {
+          logAppleDebug("Apple popup blocked/failed, falling back to redirect")
+          lib.signInWithRedirect(auth, provider).catch(err => {
+            console.error("Apple redirect fallback failed:", err)
+            setIsAppleLoading(false)
+            setAppleError("Redirect failed. Please try again.")
+          })
+        } else {
+          console.error("Apple popup error:", error)
+          setAppleError(error?.message || "Apple sign-in failed.")
+          setIsAppleLoading(false)
+        }
+      })
+  }
+
   const [authMethod, setAuthMethod] = useState("phone") // "phone" or "email"
   const [formData, setFormData] = useState({
     phone: "",
@@ -1247,7 +1303,7 @@ export default function SignIn() {
               <div className="relative group">
                 <button
                   type="button"
-                  onClick={handleAppleSignIn}
+                  onClick={triggerApplePopup}
                   disabled={isAppleLoading}
                   className="w-12 h-12 md:w-14 md:h-14 rounded-full bg-black flex items-center justify-center hover:bg-gray-900 transition-all hover:shadow-md active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                   aria-label="Sign in with Apple"
