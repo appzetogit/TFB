@@ -153,11 +153,22 @@ export default function SignIn() {
   )
   const firebaseUserSession = useFirebaseUserSession()
   const hostname = typeof window !== "undefined" ? window.location.hostname : ""
+  const isIOSSafari =
+    isIOSBrowser &&
+    /AppleWebKit/i.test(navigator.userAgent) &&
+    !/CriOS/i.test(navigator.userAgent) &&
+    !/FxiOS/i.test(navigator.userAgent)
+  const isWebView =
+    typeof window !== "undefined" &&
+    (window.flutter_inappwebview ||
+      /wv|Version\/[\d\.]+.*Safari/.test(navigator.userAgent) ||
+      (isIOSBrowser && !isIOSSafari))
+  const shouldUsePopupForApple = !isWebView
   const shouldUsePopupForGoogle =
-    hostname === "localhost" ||
-    hostname === "127.0.0.1" ||
-    hostname.endsWith(".local")
-  const shouldUsePopupForApple = true
+    shouldUsePopupForApple &&
+    (hostname === "localhost" ||
+      hostname === "127.0.0.1" ||
+      hostname.endsWith(".local"))
 
   useEffect(() => {
     if (typeof sessionStorage === "undefined") return
@@ -777,10 +788,12 @@ export default function SignIn() {
           return
         } catch (_) {}
         message = "Popup was blocked. Please allow popups and try again."
-      } else if (errorCode === "auth/popup-closed-by-user") {
-        message = "Sign-in was cancelled. Please try again."
+      } else if (errorCode === "auth/popup-closed-by-user" || errorCode === "auth/cancelled-popup-request") {
+        message = "Sign-in was cancelled."
+        clearPendingProvider()
       } else if (errorCode === "auth/network-request-failed") {
         message = "Network error. Please check your connection and try again."
+        clearPendingProvider()
       } else if (errorMessage) {
         message = errorMessage
       } else if (error?.response?.data?.message) {
@@ -832,17 +845,46 @@ export default function SignIn() {
 
       if (shouldUsePopupForApple) {
         logAppleDebug("Using Apple popup flow", {
-          reason: "Prefer popup on all browsers to avoid iOS redirect restore stalls",
+          reason: "Prefer popup on desktop/standard browsers",
         })
 
-        const result = await signInWithPopup(firebaseAuth, appleProvider)
-        if (result?.user) {
-          await processSignedInUser(result.user, "apple-popup-result", "apple")
-          return
+        try {
+          const result = await signInWithPopup(firebaseAuth, appleProvider)
+          if (result?.user) {
+            await processSignedInUser(result.user, "apple-popup-result", "apple")
+            return
+          }
+        } catch (popupError) {
+          if (popupError?.code === "auth/popup-blocked") {
+            logAppleDebug("Apple popup blocked, falling back to redirect")
+          } else if (
+            popupError?.code === "auth/popup-closed-by-user" ||
+            popupError?.code === "auth/cancelled-popup-request"
+          ) {
+            logAppleDebug("Apple popup closed by user")
+            throw popupError // Let the main catch block handle it
+          } else {
+            logAppleDebug("Apple popup failed, trying redirect fallback", {
+              code: popupError?.code,
+              message: popupError?.message,
+            })
+          }
+          // Fall through to redirect
         }
-
-        throw new Error("Apple popup completed without returning a Firebase user.")
       }
+
+      const { signInWithRedirect } = await import("firebase/auth")
+      logAppleDebug("Using Apple redirect flow", {
+        reason: isWebView ? "WebView detected" : "Popup failed or blocked",
+      })
+
+      // Set these only for redirect, so simple popup cancel doesn't trigger "stuck loader" on reload
+      setPendingProvider("apple")
+      safeSessionSet(APPLE_REDIRECT_IN_PROGRESS_KEY, "true")
+      safeLocalSet(APPLE_REDIRECT_IN_PROGRESS_KEY, "true")
+
+      await signInWithRedirect(firebaseAuth, appleProvider)
+      return
 
     } catch (error) {
       console.error("Apple sign-in failed:", error)
@@ -850,16 +892,23 @@ export default function SignIn() {
         code: error?.code || error?.error || null,
         message: error?.response?.data?.message || error?.message || "Unknown error",
       })
+
       let message = "Apple sign-in failed. Please try again."
 
-      if (error?.code === "auth/configuration-not-found") {
+      if (
+        error?.code === "auth/popup-closed-by-user" ||
+        error?.code === "auth/cancelled-popup-request" ||
+        error?.error === "popup_closed_by_user"
+      ) {
+        message = "Apple sign-in was cancelled."
+        // Clear pending flags so user doesn't see a loader if they refresh
+        clearPendingProvider()
+      } else if (error?.code === "auth/configuration-not-found") {
         message = "Firebase Apple sign-in is not configured for this domain. Enable Apple in Firebase Console and authorize this domain."
       } else if (error?.code === "auth/operation-not-allowed") {
         message = "Apple sign-in is disabled in Firebase Console."
       } else if (error?.code === "auth/popup-blocked") {
         message = "Popup was blocked. Please allow popups and try again."
-      } else if (error?.error === "popup_closed_by_user" || error?.code === "popup_closed_by_user" || error?.code === "auth/popup-closed-by-user") {
-        message = "Apple sign-in was cancelled."
       } else if (error?.response?.data?.message) {
         message = error.response.data.message
       } else if (error?.message) {
