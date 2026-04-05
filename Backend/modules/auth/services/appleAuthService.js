@@ -65,6 +65,12 @@ class AppleAuthService {
    * Generates a signed JWT client_secret for Apple OAuth
    */
   async getClientSecret() {
+    console.log("DEBUG: Apple Config (Signing)", {
+      teamId: process.env.APPLE_TEAM_ID,
+      keyId: process.env.APPLE_KEY_ID,
+      clientId: process.env.APPLE_CLIENT_ID,
+    });
+    
     console.log("DEBUG: getClientSecret started");
     const rawKey = process.env.APPLE_PRIVATE_KEY;
     console.log("DEBUG: Key format check:", { 
@@ -97,6 +103,7 @@ class AppleAuthService {
       return token;
     } catch (error) {
       logger.error("Failed to sign Apple Client Secret", { message: error.message });
+      console.log("ERROR: ES256 Signing failed. Check if private key is a valid asymmetric PEM.");
       throw error;
     }
   }
@@ -105,17 +112,19 @@ class AppleAuthService {
    * Exchanges authorization code for Apple tokens (id_token, access_token, refresh_token)
    */
   async exchangeCode(code, redirectUri) {
-    const clientId = (await getEnvVar("APPLE_CLIENT_ID") || process.env.APPLE_CLIENT_ID || "").toString().trim().replace(/^"|"$/g, "");
+    const rawClientId = (await getEnvVar("APPLE_CLIENT_ID") || process.env.APPLE_CLIENT_ID || "").toString();
+    const clientId = rawClientId.trim().replace(/^"|"$/g, "");
+    
     const rawRedirectUri = (redirectUri || await getEnvVar("APPLE_REDIRECT_URI") || process.env.APPLE_REDIRECT_URI || "").toString();
     const finalRedirectUri = rawRedirectUri.trim().replace(/^"|"$/g, "");
-    const clientSecret = await this.getClientSecret();
 
-    console.log("DEBUG: Apple exchange params", {
+    console.log("DEBUG: Apple Exchange Params", {
       clientId,
       finalRedirectUri,
-      teamId: process.env.APPLE_TEAM_ID,
-      keyId: process.env.APPLE_KEY_ID
+      code: code ? code.substring(0, 10) + '...' : null
     });
+
+    const clientSecret = await this.getClientSecret();
 
     logger.info("Apple code exchange parameters", { 
       clientId, 
