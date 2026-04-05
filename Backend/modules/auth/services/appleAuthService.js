@@ -65,44 +65,31 @@ class AppleAuthService {
    * Generates a signed JWT client_secret for Apple OAuth
    */
   async getClientSecret() {
-    const teamId = (await getEnvVar("APPLE_TEAM_ID") || process.env.APPLE_TEAM_ID || "").toString().trim().replace(/^"|"$/g, "");
-    const keyId = (await getEnvVar("APPLE_KEY_ID") || process.env.APPLE_KEY_ID || "").toString().trim().replace(/^"|"$/g, "");
-    const clientId = (await getEnvVar("APPLE_CLIENT_ID") || process.env.APPLE_CLIENT_ID || "").toString().trim().replace(/^"|"$/g, "");
-    
-    // Improved private key parsing for asymmetric key detection
-    const rawPrivateKey = (await getEnvVar("APPLE_PRIVATE_KEY") || process.env.APPLE_PRIVATE_KEY || "").toString();
-    const privateKey = rawPrivateKey
-      .trim()
-      .replace(/^"|"$/g, "") // Remove potential outer double quotes
-      .replace(/\\n/g, "\n"); // Replace literal \n with actual newlines
+    const privateKey = process.env.APPLE_PRIVATE_KEY
+      ?.replace(/\\n/g, "\n")
+      .trim();
 
-    console.log("PRIVATE KEY:", privateKey);
-
-    if (!teamId || !keyId || !clientId || !privateKey) {
-      logger.error("Apple Auth configuration missing", { 
-        teamId: !!teamId, 
-        keyId: !!keyId, 
-        clientId: !!clientId, 
-        privateKey: !!privateKey 
-      });
-      throw new Error("Apple Auth environment variables are not properly configured");
+    if (!privateKey || !privateKey.includes("BEGIN PRIVATE KEY")) {
+      logger.error("❌ Apple private key missing or invalid");
+      throw new Error("❌ Apple private key missing or invalid");
     }
 
-    const payload = {
-      iss: teamId,
-      iat: Math.floor(Date.now() / 1000) - 60, // 60 seconds in the past for clock drift
-      exp: Math.floor(Date.now() / 1000) + 3600, // 1 hour (Apple allows up to 6 months, but 1 hour is safer)
-      aud: "https://appleid.apple.com",
-      sub: clientId,
-    };
+    try {
+      const token = jwt.sign({}, privateKey, {
+        algorithm: "ES256",
+        expiresIn: "1h",
+        issuer: process.env.APPLE_TEAM_ID,
+        audience: "https://appleid.apple.com",
+        subject: process.env.APPLE_CLIENT_ID,
+        keyid: process.env.APPLE_KEY_ID,
+      });
 
-    return jwt.sign(payload, privateKey, {
-      algorithm: "ES256",
-      header: {
-        alg: "ES256",
-        kid: keyId,
-      },
-    });
+      console.log("✅ Apple Client Secret Generated");
+      return token;
+    } catch (error) {
+      logger.error("Failed to sign Apple Client Secret", { message: error.message });
+      throw error;
+    }
   }
 
   /**
@@ -113,11 +100,11 @@ class AppleAuthService {
     const clientSecret = await this.getClientSecret();
     const finalRedirectUri = (redirectUri || await getEnvVar("APPLE_REDIRECT_URI") || process.env.APPLE_REDIRECT_URI || "").toString().trim().replace(/^"|"$/g, "");
 
-    logger.info("Sending code exchange request to Apple", { 
-      clientId, 
-      redirectUri: finalRedirectUri, 
+    logger.info("Sending code exchange request to Apple", {
+      clientId,
+      redirectUri: finalRedirectUri,
       hasClientSecret: !!clientSecret,
-      code: code ? code.substring(0, 10) + '...' : null 
+      code: code ? code.substring(0, 10) + '...' : null
     });
 
     try {
