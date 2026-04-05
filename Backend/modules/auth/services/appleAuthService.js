@@ -65,6 +65,14 @@ class AppleAuthService {
    * Generates a signed JWT client_secret for Apple OAuth
    */
   async getClientSecret() {
+    console.log("DEBUG: getClientSecret started");
+    const rawKey = process.env.APPLE_PRIVATE_KEY;
+    console.log("DEBUG: Key format check:", { 
+      hasKey: !!rawKey, 
+      startsWithHeader: rawKey?.includes("BEGIN PRIVATE KEY"),
+      length: rawKey?.length 
+    });
+
     const privateKey = process.env.APPLE_PRIVATE_KEY
       ?.trim()
       .replace(/^"|"$/g, "") // Remove potential outer double quotes
@@ -98,17 +106,32 @@ class AppleAuthService {
    */
   async exchangeCode(code, redirectUri) {
     const clientId = (await getEnvVar("APPLE_CLIENT_ID") || process.env.APPLE_CLIENT_ID || "").toString().trim().replace(/^"|"$/g, "");
+    const rawRedirectUri = (redirectUri || await getEnvVar("APPLE_REDIRECT_URI") || process.env.APPLE_REDIRECT_URI || "").toString();
+    const finalRedirectUri = rawRedirectUri.trim().replace(/^"|"$/g, "");
     const clientSecret = await this.getClientSecret();
-    const finalRedirectUri = (redirectUri || await getEnvVar("APPLE_REDIRECT_URI") || process.env.APPLE_REDIRECT_URI || "").toString().trim().replace(/^"|"$/g, "");
 
-    logger.info("Sending code exchange request to Apple", {
+    console.log("DEBUG: Apple exchange params", {
       clientId,
-      redirectUri: finalRedirectUri,
+      finalRedirectUri,
+      teamId: process.env.APPLE_TEAM_ID,
+      keyId: process.env.APPLE_KEY_ID
+    });
+
+    logger.info("Apple code exchange parameters", { 
+      clientId, 
+      finalRedirectUri,
       hasClientSecret: !!clientSecret,
-      code: code ? code.substring(0, 10) + '...' : null
+      code: code ? code.substring(0, 10) + '...' : null 
     });
 
     try {
+      const data = {
+        client_id: clientId,
+        client_secret: clientSecret,
+        code: code,
+        grant_type: "authorization_code",
+        redirect_uri: finalRedirectUri,
+      };
       const response = await axios.post(this.tokenUrl, qs.stringify(data), {
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",
