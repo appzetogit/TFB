@@ -137,6 +137,12 @@ export const authAPI = {
     if (name) payload.name = name;
     return apiClient.post(API_ENDPOINTS.AUTH.APPLE_LOGIN, payload);
   },
+  appleCallback: (code, role = "user") => {
+    return apiClient.post(API_ENDPOINTS.AUTH.APPLE_CALLBACK, {
+      code,
+      state: role,
+    });
+  },
 
   // Refresh token
   refreshToken: () => {

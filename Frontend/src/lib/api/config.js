@@ -163,6 +163,7 @@ export const API_ENDPOINTS = {
     FIREBASE_SOCIAL_LOGIN: "/auth/firebase/social-login",
     APPLE_CONFIG: "/auth/apple/config",
     APPLE_LOGIN: "/auth/apple",
+    APPLE_CALLBACK: "/auth/apple/callback",
     REFRESH_TOKEN: "/auth/refresh-token",
     LOGOUT: "/auth/logout",
     ME: "/auth/me",

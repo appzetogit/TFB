@@ -2,6 +2,8 @@ import axios from "axios";
 import jwt from "jsonwebtoken";
 import jwkToPem from "jwk-to-pem";
 import winston from "winston";
+import qs from "qs";
+import { getEnvVar } from "../../../shared/utils/envService.js";
 
 const logger = winston.createLogger({
   level: "info",
@@ -19,6 +21,7 @@ class AppleAuthService {
     this.lastFetched = 0;
     this.cacheTtlMs = 1000 * 60 * 60 * 6; // Cache keys for 6 hours
     this.keysUrl = "https://appleid.apple.com/auth/keys";
+    this.tokenUrl = "https://appleid.apple.com/auth/token";
   }
 
   async ensureKeys() {
@@ -58,11 +61,77 @@ class AppleAuthService {
     return key;
   }
 
+  /**
+   * Generates a signed JWT client_secret for Apple OAuth
+   */
+  async getClientSecret() {
+    const teamId = (await getEnvVar("APPLE_TEAM_ID") || process.env.APPLE_TEAM_ID || "").toString().trim().replace(/^"|"$/g, "");
+    const keyId = (await getEnvVar("APPLE_KEY_ID") || process.env.APPLE_KEY_ID || "").toString().trim().replace(/^"|"$/g, "");
+    const clientId = (await getEnvVar("APPLE_CLIENT_ID") || process.env.APPLE_CLIENT_ID || "").toString().trim().replace(/^"|"$/g, "");
+    const privateKey = (process.env.APPLE_PRIVATE_KEY || "").toString().trim().replace(/^"|"$/g, "").replace(/\\n/g, "\n");
+
+    if (!teamId || !keyId || !clientId || !privateKey) {
+      logger.error("Apple Auth configuration missing", { teamId: !!teamId, keyId: !!keyId, clientId: !!clientId, privateKey: !!privateKey });
+      throw new Error("Apple Auth environment variables are not properly configured");
+    }
+
+    const payload = {
+      iss: teamId,
+      iat: Math.floor(Date.now() / 1000) - 60, // 60 seconds in the past for clock drift
+      exp: Math.floor(Date.now() / 1000) + 3600, // 1 hour (Apple allows up to 6 months, but 1 hour is safer)
+      aud: "https://appleid.apple.com",
+      sub: clientId,
+    };
+
+    return jwt.sign(payload, privateKey, {
+      algorithm: "ES256",
+      header: {
+        alg: "ES256",
+        kid: keyId,
+      },
+    });
+  }
+
+  /**
+   * Exchanges authorization code for Apple tokens (id_token, access_token, refresh_token)
+   */
+  async exchangeCode(code, redirectUri) {
+    const clientId = (await getEnvVar("APPLE_CLIENT_ID") || process.env.APPLE_CLIENT_ID || "").toString().trim().replace(/^"|"$/g, "");
+    const clientSecret = await this.getClientSecret();
+    const finalRedirectUri = (redirectUri || await getEnvVar("APPLE_REDIRECT_URI") || process.env.APPLE_REDIRECT_URI || "").toString().trim().replace(/^"|"$/g, "");
+
+    logger.info("Sending code exchange request to Apple", { 
+      clientId, 
+      redirectUri: finalRedirectUri, 
+      hasClientSecret: !!clientSecret,
+      code: code ? code.substring(0, 10) + '...' : null 
+    });
+
+    try {
+      const response = await axios.post(this.tokenUrl, qs.stringify(data), {
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+      });
+      logger.info("Apple code exchange successful", { hasIdToken: !!response.data.id_token });
+      return response.data;
+    } catch (error) {
+      const errorMessage = error.response?.data?.error_description || error.response?.data?.error || error.message;
+      logger.error("Apple code exchange failed", {
+        message: errorMessage,
+        error: error.response?.data,
+      });
+      throw new Error(`Apple code exchange failed: ${errorMessage}`);
+    }
+  }
+
   async verifyIdentityToken(identityToken, audience) {
     if (!identityToken) {
       throw new Error("Identity token is required");
     }
-    if (!audience) {
+
+    const clientId = (audience || await getEnvVar("APPLE_CLIENT_ID") || process.env.APPLE_CLIENT_ID || "").toString().trim().replace(/^"|"$/g, "");
+    if (!clientId) {
       throw new Error("Audience (clientId) is required for Apple verification");
     }
 
@@ -78,12 +147,15 @@ class AppleAuthService {
     }
 
     const publicKey = jwkToPem(key);
+    logger.info("Public key generated for kid", { kid });
     try {
-      return jwt.verify(identityToken, publicKey, {
+      const verified = jwt.verify(identityToken, publicKey, {
         issuer: "https://appleid.apple.com",
-        audience,
+        audience: clientId,
         algorithms: ["RS256"],
       });
+      logger.info("Apple identity token verified successfully", { sub: verified.sub });
+      return verified;
     } catch (error) {
       logger.error("Apple identity token verification failed", {
         message: error.message,

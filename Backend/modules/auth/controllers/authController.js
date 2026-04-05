@@ -1010,6 +1010,203 @@ export const firebaseSocialLogin = asyncHandler(async (req, res) => {
   return handleFirebaseSocialLogin(req, res, "google", "user");
 });
 
+
+
+/**
+ * Initiate Google OAuth flow
+ * GET /api/auth/google/:role
+ */
+export const googleAuth = asyncHandler(async (req, res) => {
+  const { role } = req.params;
+
+  // Validate role
+  const allowedRoles = ["user", "restaurant", "delivery"];
+  const userRole = role || "restaurant";
+
+  if (!allowedRoles.includes(userRole)) {
+    return errorResponse(
+      res,
+      400,
+      `Invalid role. Allowed roles: ${allowedRoles.join(", ")}`,
+    );
+  }
+
+  // Check if Google OAuth is configured
+  if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+    return errorResponse(
+      res,
+      500,
+      "Google OAuth is not configured. Please set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in .env",
+    );
+  }
+
+  try {
+    const { authUrl, state } = googleAuthService.getAuthUrl(userRole);
+
+    // Store state in session/cookie for verification (optional, for extra security)
+    res.cookie("oauth_state", state, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: 10 * 60 * 1000, // 10 minutes
+    });
+
+    // Redirect to Google OAuth
+    return res.redirect(authUrl);
+  } catch (error) {
+    logger.error(`Error initiating Google OAuth: ${error.message}`);
+    return errorResponse(res, 500, "Failed to initiate Google OAuth");
+  }
+});
+
+/**
+ * Handle Google OAuth callback
+ * GET /api/auth/google/:role/callback
+ */
+export const googleCallback = asyncHandler(async (req, res) => {
+  const { role } = req.params;
+  const { code, state, error } = req.query;
+
+  // Validate role
+  const allowedRoles = ["user", "restaurant", "delivery"];
+  const userRole = role || "restaurant";
+
+  if (!allowedRoles.includes(userRole)) {
+    return errorResponse(
+      res,
+      400,
+      `Invalid role. Allowed roles: ${allowedRoles.join(", ")}`,
+    );
+  }
+
+  // Check for OAuth errors
+  if (error) {
+    logger.error(`Google OAuth error: ${error}`);
+    return res.redirect(
+      `${process.env.FRONTEND_URL || "http://localhost:5173"}/restaurant/login?error=oauth_failed`,
+    );
+  }
+
+  if (!code) {
+    return res.redirect(
+      `${process.env.FRONTEND_URL || "http://localhost:5173"}/restaurant/login?error=no_code`,
+    );
+  }
+
+  // Verify state (optional but recommended)
+  const storedState = req.cookies?.oauth_state;
+  if (storedState && state !== storedState) {
+    logger.warn("OAuth state mismatch - possible CSRF attack");
+    return res.redirect(
+      `${process.env.FRONTEND_URL || "http://localhost:5173"}/restaurant/login?error=invalid_state`,
+    );
+  }
+
+  try {
+    // Exchange code for tokens
+    const tokens = await googleAuthService.getTokens(code);
+
+    // Get user info from Google
+    const googleUser = await googleAuthService.getUserInfoFromToken(tokens);
+
+    if (!googleUser.email) {
+      return res.redirect(
+        `${process.env.FRONTEND_URL || "http://localhost:5173"}/restaurant/login?error=no_email`,
+      );
+    }
+
+    // Find or create user
+    let user = await User.findOne({
+      $or: [{ googleId: googleUser.googleId }, { email: googleUser.email }],
+    });
+
+    if (user) {
+      // Update Google info if not set
+      if (!user.googleId) {
+        user.googleId = googleUser.googleId;
+        user.googleEmail = googleUser.email;
+        if (!user.profileImage && googleUser.picture) {
+          user.profileImage = googleUser.picture;
+        }
+        // Update signupMethod if not already set
+        if (!user.signupMethod) {
+          user.signupMethod = "google";
+        }
+        await user.save();
+      }
+
+      // Ensure role matches (for restaurant login, user should be restaurant)
+      if (userRole === "restaurant" && user.role !== "restaurant") {
+        return res.redirect(
+          `${process.env.FRONTEND_URL || "http://localhost:5173"}/restaurant/login?error=wrong_role`,
+        );
+      }
+    } else {
+      // Create new user
+      const userData = {
+        name: googleUser.name || "Google User",
+        email: googleUser.email,
+        googleId: googleUser.googleId,
+        googleEmail: googleUser.email,
+        role: userRole,
+        signupMethod: "google",
+        profileImage: googleUser.picture || null,
+      };
+
+      user = await User.create(userData);
+      logger.info(`New user registered via Google: ${user._id}`, {
+        email: googleUser.email,
+        userId: user._id,
+        role: userRole,
+      });
+    }
+
+    // Generate JWT tokens
+    const jwtTokens = jwtService.generateTokens({
+      userId: user._id.toString(),
+      role: user.role,
+      email: user.email,
+    });
+
+    // Set refresh token in httpOnly cookie
+    res.cookie(
+      "refreshToken",
+      jwtTokens.refreshToken,
+      getRefreshTokenCookieOptions(),
+    );
+
+    // Clear OAuth state cookie
+    res.clearCookie("oauth_state");
+
+    // Redirect to frontend with access token as query param
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+    const redirectPath =
+      userRole === "restaurant"
+        ? "/restaurant/auth/google-callback"
+        : userRole === "delivery"
+          ? "/delivery/auth/google-callback"
+          : "/user/auth/google-callback";
+
+    const userData = {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      phoneVerified: user.phoneVerified,
+      role: user.role,
+      profileImage: user.profileImage,
+      signupMethod: user.signupMethod,
+    };
+
+    return res.redirect(redirectUrl);
+  } catch (error) {
+    logger.error(`Error in Google OAuth callback: ${error.message}`);
+    return res.redirect(
+      `${process.env.FRONTEND_URL || "http://localhost:5173"}/restaurant/login?error=auth_failed`,
+    );
+  }
+});
+
 /**
  * Login / register using Apple identity token
  * POST /api/auth/apple
@@ -1229,212 +1426,216 @@ export const appleLogin = asyncHandler(async (req, res) => {
  * GET /api/auth/apple/config
  */
 export const getAppleConfig = asyncHandler(async (_req, res) => {
-  const clientId =
-    (await getEnvVar("APPLE_CLIENT_ID")) || process.env.APPLE_CLIENT_ID || "";
-  const redirectUri =
-    (await getEnvVar("APPLE_REDIRECT_URI")) ||
-    process.env.APPLE_REDIRECT_URI ||
-    "";
+  const clientId = (process.env.APPLE_CLIENT_ID || (await getEnvVar("APPLE_CLIENT_ID")) || "").toString().trim().replace(/^"|"$/g, "");
+  const redirectUri = (process.env.APPLE_REDIRECT_URI || (await getEnvVar("APPLE_REDIRECT_URI")) || "").toString().trim().replace(/^"|"$/g, "");
+
+  logger.info("Apple config requested", { clientId, redirectUri });
 
   return successResponse(res, 200, "Apple config fetched successfully", {
-    clientId: clientId.trim(),
-    redirectUri: redirectUri.trim(),
+    clientId,
+    redirectUri,
   });
 });
 
 /**
- * Initiate Google OAuth flow
- * GET /api/auth/google/:role
+ * Handle Apple OAuth callback (POST from Apple)
+ * POST /api/auth/apple/callback
  */
-export const googleAuth = asyncHandler(async (req, res) => {
-  const { role } = req.params;
+export const appleCallback = asyncHandler(async (req, res) => {
+  const { code, id_token, state, user: appleUserJson, error } = { ...req.query, ...req.body };
+  const expectsJson = req.headers.accept?.includes("application/json") || req.headers["content-type"] === "application/json";
 
-  // Validate role
-  const allowedRoles = ["user", "restaurant", "delivery"];
-  const userRole = role || "restaurant";
+  logger.info("Apple OAuth callback received", { 
+    hasCode: !!code, 
+    hasIdToken: !!id_token, 
+    state, 
+    hasUserJson: !!appleUserJson, 
+    error,
+    method: req.method,
+    url: req.originalUrl
+  });
 
-  if (!allowedRoles.includes(userRole)) {
-    return errorResponse(
-      res,
-      400,
-      `Invalid role. Allowed roles: ${allowedRoles.join(", ")}`,
-    );
-  }
-
-  // Check if Google OAuth is configured
-  if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
-    return errorResponse(
-      res,
-      500,
-      "Google OAuth is not configured. Please set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in .env",
-    );
-  }
-
-  try {
-    const { authUrl, state } = googleAuthService.getAuthUrl(userRole);
-
-    // Store state in session/cookie for verification (optional, for extra security)
-    res.cookie("oauth_state", state, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-      maxAge: 10 * 60 * 1000, // 10 minutes
-    });
-
-    // Redirect to Google OAuth
-    return res.redirect(authUrl);
-  } catch (error) {
-    logger.error(`Error initiating Google OAuth: ${error.message}`);
-    return errorResponse(res, 500, "Failed to initiate Google OAuth");
-  }
-});
-
-/**
- * Handle Google OAuth callback
- * GET /api/auth/google/:role/callback
- */
-export const googleCallback = asyncHandler(async (req, res) => {
-  const { role } = req.params;
-  const { code, state, error } = req.query;
-
-  // Validate role
-  const allowedRoles = ["user", "restaurant", "delivery"];
-  const userRole = role || "restaurant";
-
-  if (!allowedRoles.includes(userRole)) {
-    return errorResponse(
-      res,
-      400,
-      `Invalid role. Allowed roles: ${allowedRoles.join(", ")}`,
-    );
-  }
-
-  // Check for OAuth errors
   if (error) {
-    logger.error(`Google OAuth error: ${error}`);
-    return res.redirect(
-      `${process.env.FRONTEND_URL || "http://localhost:5173"}/restaurant/login?error=oauth_failed`,
-    );
+    logger.error("Apple OAuth callback error", { error });
+    if (expectsJson) {
+      return errorResponse(res, 400, error);
+    }
+    return res.status(200).send(`
+      <script>
+        console.error('Apple Login Error from backend:', '${error}');
+        if (window.opener) {
+          window.opener.postMessage({ type: 'APPLE_LOGIN_ERROR', error: '${error}' }, '*');
+        }
+        window.close();
+      </script>
+    `);
   }
 
   if (!code) {
-    return res.redirect(
-      `${process.env.FRONTEND_URL || "http://localhost:5173"}/restaurant/login?error=no_code`,
-    );
-  }
-
-  // Verify state (optional but recommended)
-  const storedState = req.cookies?.oauth_state;
-  if (storedState && state !== storedState) {
-    logger.warn("OAuth state mismatch - possible CSRF attack");
-    return res.redirect(
-      `${process.env.FRONTEND_URL || "http://localhost:5173"}/restaurant/login?error=invalid_state`,
-    );
+    logger.error("Apple OAuth callback missing code");
+    if (expectsJson) {
+      return errorResponse(res, 400, "Authorization code is missing");
+    }
+    return res.status(200).send(`
+      <script>
+        if (window.opener) {
+          window.opener.postMessage({ type: 'APPLE_LOGIN_ERROR', error: 'no_code' }, '*');
+        }
+        window.close();
+      </script>
+    `);
   }
 
   try {
     // Exchange code for tokens
-    const tokens = await googleAuthService.getTokens(code);
+    logger.info("Exchanging Apple code for tokens", { code: code ? code.substring(0, 10) + '...' : null });
+    const tokens = await appleAuthService.exchangeCode(code);
+    const identityToken = tokens.id_token || id_token;
 
-    // Get user info from Google
-    const googleUser = await googleAuthService.getUserInfoFromToken(tokens);
-
-    if (!googleUser.email) {
-      return res.redirect(
-        `${process.env.FRONTEND_URL || "http://localhost:5173"}/restaurant/login?error=no_email`,
-      );
+    if (!identityToken) {
+      logger.error("No identity token received from Apple during code exchange");
+      throw new Error("No identity token received from Apple");
     }
 
+    // Verify token
+    logger.info("Verifying Apple identity token");
+    const applePayload = await appleAuthService.verifyIdentityToken(identityToken);
+    const appleId = applePayload.sub;
+    const email = applePayload.email?.toLowerCase().trim();
+
+    // Parse user object if provided (Apple only sends this on first-time login)
+    let firstName = "";
+    let lastName = "";
+    if (appleUserJson) {
+      try {
+        const parsed = JSON.parse(appleUserJson);
+        firstName = parsed.name?.firstName || "";
+        lastName = parsed.name?.lastName || "";
+      } catch (e) {
+        logger.warn("Failed to parse Apple user JSON", { appleUserJson });
+      }
+    }
+
+    const fullName = [firstName, lastName].filter(Boolean).join(" ") || email?.split("@")[0] || "Apple User";
+
+    const userRole = state || "user"; // We use state to pass the role
+
     // Find or create user
-    let user = await User.findOne({
-      $or: [{ googleId: googleUser.googleId }, { email: googleUser.email }],
-    });
+    const lookupConditions = [{ appleId }];
+    if (email) {
+      lookupConditions.push({ email, role: userRole });
+    }
+
+    let user = await User.findOne({ $or: lookupConditions });
+
+    if (user && user.role !== userRole) {
+      return res.status(200).send(`
+        <script>
+          if (window.opener) {
+            window.opener.postMessage({ 
+              type: 'APPLE_LOGIN_ERROR', 
+              error: 'wrong_role',
+              message: 'This account is registered as ${user.role}, not ${userRole}'
+            }, '*');
+          }
+          window.close();
+        </script>
+      `);
+    }
 
     if (user) {
-      // Update Google info if not set
-      if (!user.googleId) {
-        user.googleId = googleUser.googleId;
-        user.googleEmail = googleUser.email;
-        if (!user.profileImage && googleUser.picture) {
-          user.profileImage = googleUser.picture;
-        }
-        // Update signupMethod if not already set
-        if (!user.signupMethod) {
-          user.signupMethod = "google";
-        }
-        await user.save();
+      // Update existing user with Apple ID if missing
+      let shouldSave = false;
+      if (!user.appleId) {
+        user.appleId = appleId;
+        shouldSave = true;
       }
-
-      // Ensure role matches (for restaurant login, user should be restaurant)
-      if (userRole === "restaurant" && user.role !== "restaurant") {
-        return res.redirect(
-          `${process.env.FRONTEND_URL || "http://localhost:5173"}/restaurant/login?error=wrong_role`,
-        );
+      if (user.signupMethod !== "apple") {
+        user.signupMethod = "apple";
+        shouldSave = true;
       }
+      if (user.authProvider !== "apple") {
+        user.authProvider = "apple";
+        shouldSave = true;
+      }
+      if (shouldSave) await user.save();
     } else {
       // Create new user
-      const userData = {
-        name: googleUser.name || "Google User",
-        email: googleUser.email,
-        googleId: googleUser.googleId,
-        googleEmail: googleUser.email,
+      user = await User.create({
+        name: fullName,
+        email,
+        appleId,
         role: userRole,
-        signupMethod: "google",
-        profileImage: googleUser.picture || null,
-      };
-
-      user = await User.create(userData);
-      logger.info(`New user registered via Google: ${user._id}`, {
-        email: googleUser.email,
-        userId: user._id,
-        role: userRole,
+        signupMethod: "apple",
+        authProvider: "apple",
+        isActive: true,
       });
     }
 
-    // Generate JWT tokens
+    if (!user.isActive) {
+       return res.status(200).send(`
+        <script>
+          if (window.opener) {
+            window.opener.postMessage({ type: 'APPLE_LOGIN_ERROR', error: 'account_deactivated' }, '*');
+          }
+          window.close();
+        </script>
+      `);
+    }
+
+    // Generate session tokens
     const jwtTokens = jwtService.generateTokens({
       userId: user._id.toString(),
       role: user.role,
       email: user.email,
     });
 
-    // Set refresh token in httpOnly cookie
-    res.cookie(
-      "refreshToken",
-      jwtTokens.refreshToken,
-      getRefreshTokenCookieOptions(),
-    );
+    // Set refresh token cookie
+    res.cookie("refreshToken", jwtTokens.refreshToken, getRefreshTokenCookieOptions());
 
-    // Clear OAuth state cookie
-    res.clearCookie("oauth_state");
-
-    // Redirect to frontend with access token as query param
-    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
-    const redirectPath =
-      userRole === "restaurant"
-        ? "/restaurant/auth/google-callback"
-        : userRole === "delivery"
-          ? "/delivery/auth/google-callback"
-          : "/user/auth/google-callback";
-
+    // Send success message to opener
     const userData = {
       id: user._id,
       name: user.name,
       email: user.email,
-      phone: user.phone,
-      phoneVerified: user.phoneVerified,
       role: user.role,
       profileImage: user.profileImage,
       signupMethod: user.signupMethod,
     };
 
-    const redirectUrl = `${frontendUrl}${redirectPath}?token=${jwtTokens.accessToken}&user=${encodeURIComponent(JSON.stringify(userData))}`;
+    if (expectsJson) {
+      return successResponse(res, 200, "Apple authentication successful", {
+        accessToken: jwtTokens.accessToken,
+        user: userData,
+        provider: 'apple'
+      });
+    }
 
-    return res.redirect(redirectUrl);
-  } catch (error) {
-    logger.error(`Error in Google OAuth callback: ${error.message}`);
-    return res.redirect(
-      `${process.env.FRONTEND_URL || "http://localhost:5173"}/restaurant/login?error=auth_failed`,
-    );
+    return res.status(200).send(`
+      <script>
+        if (window.opener) {
+          window.opener.postMessage({
+            type: 'APPLE_LOGIN_SUCCESS',
+            token: '${jwtTokens.accessToken}',
+            user: ${JSON.stringify(userData)},
+            provider: 'apple'
+          }, '*');
+        }
+        window.close();
+      </script>
+    `);
+  } catch (err) {
+    logger.error("Apple callback processing failed", { message: err.message });
+    if (req.headers.accept?.includes("application/json") || req.headers["content-type"] === "application/json") {
+      return errorResponse(res, 400, "Processing failed: " + err.message);
+    }
+    return res.status(200).send(`
+      <script>
+        if (window.opener) {
+          window.opener.postMessage({ type: 'APPLE_LOGIN_ERROR', error: 'processing_failed' }, '*');
+        }
+        window.close();
+      </script>
+    `);
   }
 });
