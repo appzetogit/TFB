@@ -275,7 +275,8 @@ export default function SignIn() {
 
   useEffect(() => {
     const pendingProvider = getPendingProvider()
-    if (!pendingProvider) return
+    // JAISE AAPNE BATAYA: Apple ke liye Firebase ko trigger mat karna
+    if (!pendingProvider || pendingProvider === "apple") return
 
     console.log("[SocialAuth] Observed Firebase restore status", {
       provider: pendingProvider,
@@ -944,13 +945,14 @@ export default function SignIn() {
           let message = "Apple sign-in failed."
           if (isAppleCancelError(error) || error?.error === "user-cancelled") {
             message = ""
-            clearPendingProvider()
           }
           setAppleError(message)
           setIsAppleLoading(false)
+          clearPendingProvider()
         })
     } catch (error) {
       console.error("Manual Apple trigger failed:", error)
+      clearPendingProvider()
       setIsAppleLoading(false)
     }
   }
