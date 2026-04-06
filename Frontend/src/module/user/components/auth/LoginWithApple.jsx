@@ -11,7 +11,7 @@ const LoginWithApple = ({ clientId, redirectURI, isLoading }) => {
         redirectURI={"https://app.tifunbox.com/api/auth/apple/callback"}
         responseType="code"
         responseMode="form_post" // Matching backend expectation
-        usePopup={true} // Keeping popup to avoid breaking postMessage logic
+        usePopup={false} // Keeping popup to avoid breaking postMessage logic
         designProp={{
           height: 30,
           width: 140,
