@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { authAPI } from "@/lib/api"
+import AppleSignin from "react-apple-signin-auth"
 import { firebaseAuth, googleProvider, ensureFirebaseInitialized } from "@/lib/firebase"
 import { hasFlutterGoogleBridge, nativeGoogleSignIn } from "@/lib/utils/flutterGoogleAuthBridge"
 import { getModuleToken, setAuthData } from "@/lib/utils/auth"
@@ -924,11 +925,19 @@ export default function SignIn() {
     setAppleError('');
 
     try {
-      // Trigger sign in - NO INTERRUPTIONS (await) BEFORE THIS LINE
-      console.log("[AppleAuth] Calling window.AppleID.auth.signIn() immediately...");
-      const data = await window.AppleID.auth.signIn();
+      // Trigger sign in - USING THE NEW LIBRARY react-apple-signin-auth
+      console.log("[AppleAuth] Calling AppleSignin.signIn() from library...");
+      const data = await AppleSignin.signIn({
+        authOptions: {
+          clientId: appleConfig.clientId,
+          redirectURI: appleConfig.redirectUri,
+          scope: "name email",
+          state: "user",
+          usePopup: true,
+        },
+      });
       
-      console.log("[AppleAuth] Sign in SDK response received:", data);
+      console.log("[AppleAuth] Library sign in response:", data);
 
       if (data && data.authorization) {
         console.log("[AppleAuth] Authorization data found, processing directly...");
