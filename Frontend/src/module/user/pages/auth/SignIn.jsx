@@ -912,21 +912,22 @@ export default function SignIn() {
   }
 
   const handleAppleSignIn = async () => {
-    if (isAppleLoading) return;
-
-    // IMPORTANT: Safari requires zero delay before popup.
-    // If config or SDK is not ready, we must not call signIn() or it will be blocked.
-    if (!appleConfig || !window.AppleID) {
-      setAppleError('Security check in progress... Please click again in 1 second.');
-      return;
+    // 1. SAFARI ZERO-DELAY CHECK
+    // In Safari, even a microtask can break the user gesture context.
+    // We check availability synchronously.
+    if (!appleConfig || !window.AppleID || isAppleLoading) {
+      if (!appleConfig || !window.AppleID) {
+        setAppleError('Loading Apple Sign-In... Please try again in a moment.')
+      }
+      return
     }
-    
-    setIsAppleLoading(true);
-    setAppleError('');
+
+    setIsAppleLoading(true)
+    setAppleError("")
 
     try {
-      // Trigger sign in - USING THE NEW LIBRARY react-apple-signin-auth
-      console.log("[AppleAuth] Calling AppleSignin.signIn() from library...");
+      // 2. TRIGGER IMMEDIATELY
+      // No 'await' or any async code should happen between the button click and this call.
       const data = await AppleSignin.signIn({
         authOptions: {
           clientId: appleConfig.clientId,
@@ -937,13 +938,13 @@ export default function SignIn() {
         },
       });
       
-      console.log("[AppleAuth] Library sign in response:", data);
+      logAppleDebug("Library sign in response received", { hasAuth: !!data?.authorization });
 
       if (data && data.authorization) {
-        console.log("[AppleAuth] Authorization data found, processing directly...");
         const { code, id_token } = data.authorization;
-        // Proceed with backend login
+        // The token exchange can be async because the popup is already handled
         const loginResponse = await authAPI.appleLogin({ code, id_token });
+        
         if (loginResponse.success) {
           const resData = loginResponse?.data?.data || {};
           if (resData.accessToken && resData.user) {
@@ -955,15 +956,16 @@ export default function SignIn() {
         }
       }
     } catch (error) {
-      console.error('[AppleAuth] SignIn error:', error);
-      const isCancelled = error.error === 'popup_closed_by_user';
+      console.error('[AppleAuth] Library SignIn error:', error);
+      // 'popup_closed_by_user' is the standard cancel error
+      const isCancelled = error.error === 'popup_closed_by_user' || error.error === 'user-cancelled';
       if (!isCancelled) {
         setAppleError(error.message || 'Apple sign-in failed. Please try again.');
       }
     } finally {
-      setIsAppleLoading(false);
+      setIsAppleLoading(false)
     }
-  };
+  }
 
   const toggleMode = () => {
     const newMode = isSignUp ? "signin" : "signup"
