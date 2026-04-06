@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from "react"
-import { useNavigate, useSearchParams, Link } from "react-router-dom"
+import { useState, useEffect, useRef, useCallback } from "react"
+import { useNavigate, useSearchParams, Link, useLocation } from "react-router-dom"
 import { Mail, Phone, AlertCircle, Loader2, Apple } from "lucide-react"
 import AnimatedPage from "../../components/AnimatedPage"
 import { Button } from "@/components/ui/button"
@@ -58,6 +58,9 @@ const logAppleDebug = (message, details = null) => {
 
 export default function SignIn() {
   const navigate = useNavigate()
+  const location = useLocation()
+  const from = location.state?.from || "/profile"
+  
   const redirectToUserHome = () => {
     navigate("/", { replace: true })
   }
@@ -250,14 +253,20 @@ export default function SignIn() {
         
         if (token && user) {
           clearPendingProvider()
-          setAuthData("user", token, user)
-          window.dispatchEvent(new Event("userAuthChanged"))
-          
-          // Register FCM token
-          registerFcmTokenForLoggedInUser().catch(() => {})
-          
-          logAppleDebug("Apple login finalized via message listener")
-          redirectToUserHome()
+            setAuthData("user", token, user, { rememberMe: true });
+            
+            console.log("[AppleLogin] Auth data stored, dispatching change event", {
+                hasToken: !!getModuleToken("user"),
+                tokenPrefix: token.substring(0, 5)
+            });
+            window.dispatchEvent(new Event("userAuthChanged"));
+            
+            // On Safari/macOS, storage propagation can be delayed. 250ms is safer than 100ms.
+            setTimeout(() => {
+                const target = "/";
+                console.log(`[AppleLogin] Redirecting to: ${target}`);
+                navigate(target, { replace: true });
+            }, 250);
         }
       } else if (type === "APPLE_LOGIN_ERROR") {
         console.error("[AppleAuth] Error message received from popup:", error);
@@ -948,14 +957,20 @@ export default function SignIn() {
         if (loginResponse?.data?.data) {
           const resData = loginResponse.data.data;
           if (resData.accessToken && resData.user) {
-            setAuthData("user", resData.accessToken, resData.user);
+            setAuthData("user", resData.accessToken, resData.user, { rememberMe: true });
             
-            // Dispatch event to update navbar/UI
+            console.log("[AppleLogin] Auth success, dispatching event", {
+                token: resData.accessToken.substring(0, 5) + "..."
+            });
             window.dispatchEvent(new Event("userAuthChanged"));
             registerFcmTokenForLoggedInUser().catch(() => {});
             
-            logAppleDebug("Auth success, redirecting...");
-            redirectToUserHome();
+            // On Safari/macOS, storage propagation can be delayed. 250ms is safer than 100ms.
+            setTimeout(() => {
+                const target = from || "/profile";
+                console.log(`[AppleLogin] Redirecting to: ${target}`);
+                navigate(target, { replace: true });
+            }, 250);
           }
         }
       }
