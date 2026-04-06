@@ -21,6 +21,7 @@ import { appendAppleDebugLog } from "@/lib/utils/appleDebugLog"
 import { useFirebaseUserSession } from "@/lib/firebaseUserSession"
 import loginBanner from "@/assets/loginbanner.jpg"
 import tifunboxLogo from "@/assets/tifunboxlogo.png"
+import LoginWithApple from "../../components/auth/LoginWithApple"
 
 // Common country codes
 const countryCodes = [
@@ -169,6 +170,18 @@ export default function SignIn() {
     preload()
   }, [])
 
+  useEffect(() => {
+    const fetchAppleConfig = async () => {
+      try {
+        const configResponse = await authAPI.getAppleConfig()
+        setAppleConfig(configResponse.data.data)
+      } catch (err) {
+        console.error("Failed to fetch Apple config on mount:", err)
+      }
+    }
+    fetchAppleConfig()
+  }, [])
+
   const [authMethod, setAuthMethod] = useState("phone") // "phone" or "email"
   const [formData, setFormData] = useState({
     phone: "",
@@ -188,6 +201,7 @@ export default function SignIn() {
   const redirectHandledRef = useRef(false)
   const [isAppleLoading, setIsAppleLoading] = useState(false)
   const [appleError, setAppleError] = useState("")
+  const [appleConfig, setAppleConfig] = useState(null)
   const isIOSBrowser = /iPad|iPhone|iPod/i.test(
     typeof navigator !== "undefined" ? navigator.userAgent : "",
   )
@@ -1314,22 +1328,32 @@ export default function SignIn() {
 
           {/* Social Login Controls */}
             <div className="flex justify-center items-center gap-4 md:gap-6">
-              {/* Apple Login */}
+              {/* Apple Login Component */}
               <div className="relative group">
-                <button
-                  type="button"
-                  onClick={handleAppleSignIn}
-                  disabled={isAppleLoading}
-                  className="w-12 h-12 md:w-14 md:h-14 rounded-full bg-black flex items-center justify-center hover:bg-gray-900 transition-all hover:shadow-md active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-                  aria-label="Sign in with Apple"
-                  aria-busy={isAppleLoading ? "true" : undefined}
-                >
-                  {isAppleLoading ? (
+                {appleConfig && (
+                  <LoginWithApple 
+                    clientId={appleConfig.clientId}
+                    redirectURI={appleConfig.redirectUri}
+                    isLoading={isAppleLoading}
+                  />
+                )}
+                {!appleConfig && isAppleLoading && (
+                  <button
+                    type="button"
+                    className="w-12 h-12 md:w-14 md:h-14 rounded-full bg-black flex items-center justify-center opacity-50"
+                  >
                     <Loader2 className="h-5 w-5 animate-spin text-white" />
-                  ) : (
+                  </button>
+                )}
+                {!appleConfig && !isAppleLoading && (
+                  <button
+                    type="button"
+                    onClick={handleAppleSignIn} // Fallback to manual trigger if config not yet in state
+                    className="w-12 h-12 md:w-14 md:h-14 rounded-full bg-black flex items-center justify-center hover:bg-gray-900 transition-all"
+                  >
                     <Apple className="h-6 w-6 text-white" />
-                  )}
-                </button>
+                  </button>
+                )}
               </div>
 
               {/* Google Login */}
