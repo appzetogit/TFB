@@ -196,14 +196,36 @@ export default function SignIn() {
       try {
         // 1. Fetch config early
         const response = await authAPI.getAppleConfig();
-        setAppleConfig(response.data.data);
+        const config = response.data.data;
+        setAppleConfig(config);
 
         // 2. Load SDK early
         if (!window.AppleID) {
           const script = document.createElement('script');
           script.src = 'https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js';
           script.async = true;
+          script.onload = () => {
+            if (window.AppleID && config) {
+              console.log("[AppleAuth] SDK loaded, initializing...");
+              window.AppleID.auth.init({
+                clientId: config.clientId,
+                scope: "name email",
+                redirectURI: config.redirectUri,
+                state: "user",
+                usePopup: true,
+              });
+            }
+          };
           document.head.appendChild(script);
+        } else if (config) {
+          // SDK already exists, just init
+          window.AppleID.auth.init({
+            clientId: config.clientId,
+            scope: "name email",
+            redirectURI: config.redirectUri,
+            state: "user",
+            usePopup: true,
+          });
         }
       } catch (err) {
         console.error('[AppleAuth] Pre-init failed:', err);
@@ -890,43 +912,20 @@ export default function SignIn() {
 
   const handleAppleSignIn = async () => {
     if (isAppleLoading) return;
+
+    // IMPORTANT: Safari requires zero delay before popup.
+    // If config or SDK is not ready, we must not call signIn() or it will be blocked.
+    if (!appleConfig || !window.AppleID) {
+      setAppleError('Security check in progress... Please click again in 1 second.');
+      return;
+    }
     
     setIsAppleLoading(true);
     setAppleError('');
 
     try {
-      // 1. Check if config is ready
-      let config = appleConfig;
-      if (!config) {
-        console.log("[AppleAuth] Config not ready, fetching now...");
-        const response = await authAPI.getAppleConfig();
-        config = response?.data?.data;
-        setAppleConfig(config);
-      }
-
-      if (!config || !config.clientId || !config.redirectUri) {
-        throw new Error("Apple Sign-In is not configured correctly.");
-      }
-
-      const { clientId, redirectUri } = config;
-
-      // 2. Ensure SDK is loaded
-      if (!window.AppleID) {
-        throw new Error("Apple SDK is still loading. Please try again.");
-      }
-
-      // 3. Initialize Apple ID
-      console.log("[AppleAuth] Initializing Apple ID with config:", { clientId, redirectUri });
-      window.AppleID.auth.init({
-        clientId: clientId,
-        scope: "name email",
-        redirectURI: redirectUri,
-        state: "user",
-        usePopup: true,
-      });
-
-      // 4. Trigger sign in
-      console.log("[AppleAuth] Calling window.AppleID.auth.signIn()...");
+      // Trigger sign in - NO INTERRUPTIONS (await) BEFORE THIS LINE
+      console.log("[AppleAuth] Calling window.AppleID.auth.signIn() immediately...");
       const data = await window.AppleID.auth.signIn();
       
       console.log("[AppleAuth] Sign in SDK response received:", data);
