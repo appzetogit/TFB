@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { authAPI } from "@/lib/api"
+import AppleLogin from "react-apple-login"
 import AppleSignin from "react-apple-signin-auth"
 import { firebaseAuth, googleProvider, ensureFirebaseInitialized } from "@/lib/firebase"
 import { hasFlutterGoogleBridge, nativeGoogleSignIn } from "@/lib/utils/flutterGoogleAuthBridge"
@@ -1187,22 +1188,23 @@ export default function SignIn() {
           {/* Social Login Controls */}
             <div className="flex justify-center items-center gap-4 md:gap-6">
               {/* Apple Login */}
-              <div className="relative group">
-                <button
-                  type="button"
-                  onClick={handleAppleSignIn}
-                  disabled={isAppleLoading}
-                  className="w-12 h-12 md:w-14 md:h-14 rounded-full bg-black flex items-center justify-center hover:bg-gray-900 transition-all hover:shadow-md active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-                  aria-label="Sign in with Apple"
-                  aria-busy={isAppleLoading ? "true" : undefined}
-                >
-                  {isAppleLoading ? (
-                    <Loader2 className="h-5 w-5 animate-spin text-white" />
-                  ) : (
-                    <Apple className="h-6 w-6 text-white" />
-                  )}
-                </button>
-              </div>
+                <AppleLogin
+                  clientId={import.meta.env.VITE_APPLE_CLIENT_ID}
+                  redirectURI={import.meta.env.VITE_APPLE_REDIRECT_URI}
+                  responseType={"code"}
+                  responseMode={"query"}
+                  usePopup={false}
+                  designProp={{
+                    height: 30,
+                    width: 140,
+                    color: "black",
+                    border: false,
+                    type: "sign-in",
+                    border_radius: 15,
+                    scale: 1,
+                    locale: "en_US",
+                  }}
+                />
 
               {/* Google Login */}
               <button
