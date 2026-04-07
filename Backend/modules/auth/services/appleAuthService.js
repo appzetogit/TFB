@@ -63,24 +63,21 @@ class AppleAuthService {
 
   /**
    * Generates a signed JWT client_secret for Apple OAuth
+   * @param {string} overrideClientId - Optional client instance ID to sign for
    */
-  async getClientSecret() {
-    console.log("DEBUG: Apple Config (Signing)", {
+  async getClientSecret(overrideClientId = null) {
+    const rawDefaultClientId = (await getEnvVar("APPLE_CLIENT_ID") || process.env.APPLE_CLIENT_ID || "").toString();
+    const defaultClientId = rawDefaultClientId.trim().replace(/^"|"$/g, "");
+    const clientId = overrideClientId || defaultClientId;
+
+    console.log("DEBUG: Apple Secret Signing Params", {
       teamId: process.env.APPLE_TEAM_ID,
       keyId: process.env.APPLE_KEY_ID,
-      clientId: process.env.APPLE_CLIENT_ID,
+      clientId: clientId,
     });
-
-    console.log("DEBUG: getClientSecret started");
-    const rawKey = process.env.APPLE_PRIVATE_KEY;
-    console.log("DEBUG: Key format check:", {
-      hasKey: !!rawKey,
-      startsWithHeader: rawKey?.includes("BEGIN PRIVATE KEY"),
-      length: rawKey?.length
-    });
-
+    
     const encodedKey = (process.env.APPLE_PRIVATE_KEY || "").trim();
-
+    
     // Decode Base64 key to real PEM format
     let privateKey = "";
     if (encodedKey.startsWith("-----BEGIN")) {
@@ -92,8 +89,7 @@ class AppleAuthService {
     }
 
     if (!privateKey || !privateKey.includes("BEGIN PRIVATE KEY")) {
-      logger.error("❌ Apple private key missing or invalid");
-      throw new Error("❌ Apple private key missing or invalid");
+      throw new Error("Apple private key missing or invalid in environment");
     }
 
     try {
@@ -102,15 +98,13 @@ class AppleAuthService {
         expiresIn: "1h",
         issuer: process.env.APPLE_TEAM_ID,
         audience: "https://appleid.apple.com",
-        subject: process.env.APPLE_CLIENT_ID,
+        subject: clientId,
         keyid: process.env.APPLE_KEY_ID,
       });
 
-      console.log("✅ Apple Client Secret Generated");
       return token;
     } catch (error) {
       logger.error("Failed to sign Apple Client Secret", { message: error.message });
-      console.log("ERROR: ES256 Signing failed. Check if private key is a valid asymmetric PEM.");
       throw error;
     }
   }
@@ -118,10 +112,11 @@ class AppleAuthService {
   /**
    * Exchanges authorization code for Apple tokens (id_token, access_token, refresh_token)
    */
-  async exchangeCode(code, redirectUri) {
-    const rawClientId = (await getEnvVar("APPLE_CLIENT_ID") || process.env.APPLE_CLIENT_ID || "").toString();
-    const clientId = rawClientId.trim().replace(/^"|"$/g, "");
-
+  async exchangeCode(code, redirectUri = null, overrideClientId = null) {
+    const rawDefaultClientId = (await getEnvVar("APPLE_CLIENT_ID") || process.env.APPLE_CLIENT_ID || "").toString();
+    const defaultClientId = rawDefaultClientId.trim().replace(/^"|"$/g, "");
+    const clientId = overrideClientId || defaultClientId;
+    
     const rawRedirectUri = (redirectUri || await getEnvVar("APPLE_REDIRECT_URI") || process.env.APPLE_REDIRECT_URI || "").toString();
     const finalRedirectUri = rawRedirectUri.trim().replace(/^"|"$/g, "");
 
@@ -131,13 +126,13 @@ class AppleAuthService {
       code: code ? code.substring(0, 10) + '...' : null
     });
 
-    const clientSecret = await this.getClientSecret();
+    const clientSecret = await this.getClientSecret(clientId);
 
-    logger.info("Apple code exchange parameters", {
-      clientId,
+    logger.info("Apple code exchange parameters", { 
+      clientId, 
       finalRedirectUri,
       hasClientSecret: !!clientSecret,
-      code: code ? code.substring(0, 10) + '...' : null
+      code: code ? code.substring(0, 10) + '...' : null 
     });
 
     try {

@@ -1442,7 +1442,7 @@ export const getAppleConfig = asyncHandler(async (_req, res) => {
  * POST /api/auth/apple/callback
  */
 export const appleCallback = asyncHandler(async (req, res) => {
-  const { code, id_token, state, user: appleUserJson, error } = { ...req.query, ...req.body };
+  const { code, id_token, state, user: appleUserJson, error, clientId: passedClientId } = { ...req.query, ...req.body };
   
   // Robust JSON preference detection
   const isNative = req.headers["user-agent"]?.includes("Dart") || req.headers["user-agent"]?.includes("Flutter");
@@ -1463,6 +1463,7 @@ export const appleCallback = asyncHandler(async (req, res) => {
     state, 
     expectsJson,
     isApiPost,
+    passedClientId,
     method: req.method,
     url: req.originalUrl
   });
@@ -1501,7 +1502,27 @@ export const appleCallback = asyncHandler(async (req, res) => {
   try {
     // Exchange code for tokens
     logger.info("Exchanging Apple code for tokens", { code: code ? code.substring(0, 10) + '...' : null });
-    const tokens = await appleAuthService.exchangeCode(code);
+    
+    let tokens;
+    try {
+      // First attempt with passed or default clientId
+      tokens = await appleAuthService.exchangeCode(code, null, passedClientId);
+    } catch (exchangeError) {
+      // If mismatch occurred and we didn't try the other ID yet, retry with iOS ID
+      const isMismatch = exchangeError.message.includes("client_id mismatch") || exchangeError.message.includes("invalid_client");
+      const defaultUsed = !passedClientId;
+      
+      if (isMismatch && defaultUsed) {
+        logger.info("Apple exchange failed with default client_id. Retrying with app.tifunbox.com...");
+        try {
+          tokens = await appleAuthService.exchangeCode(code, null, "app.tifunbox.com");
+        } catch (retryError) {
+          throw exchangeError; // If retry also fails, throw original error
+        }
+      } else {
+        throw exchangeError;
+      }
+    }
     const identityToken = tokens.id_token || id_token;
 
     if (!identityToken) {
