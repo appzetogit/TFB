@@ -12,7 +12,10 @@ const isProd =
   import.meta.env.MODE === "production" ||
   (typeof window !== "undefined" && !/localhost|127\.0\.0\.1/.test(window.location.hostname));
 const hostLooksLikeAppDomain =
-  typeof window !== "undefined" && /(^|\.)app\.tifunbox\.com$/i.test(window.location.hostname);
+  typeof window !== "undefined" && 
+  (/(^|\.)app\.tifunbox\.com$/i.test(window.location.hostname) || 
+   window.location.hostname.endsWith(".firebaseapp.com") || 
+   window.location.hostname.endsWith(".web.app"));
 
 let rawApiBaseUrl = import.meta.env.VITE_API_BASE_URL;
 if (!rawApiBaseUrl || String(rawApiBaseUrl).trim() === "") {
@@ -160,6 +163,7 @@ export const API_ENDPOINTS = {
     FIREBASE_SOCIAL_LOGIN: "/auth/firebase/social-login",
     APPLE_CONFIG: "/auth/apple/config",
     APPLE_LOGIN: "/auth/apple",
+    APPLE_CALLBACK: "/auth/apple/callback",
     REFRESH_TOKEN: "/auth/refresh-token",
     LOGOUT: "/auth/logout",
     ME: "/auth/me",

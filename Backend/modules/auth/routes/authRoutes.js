@@ -13,6 +13,7 @@ import {
   firebaseGoogleLogin,
   firebaseSocialLogin,
   appleLogin,
+  appleCallback,
   getAppleConfig,
   registerFcmToken,
   removeFcmToken,
@@ -159,6 +160,8 @@ router.post('/firebase/google-login', firebaseGoogleLogin);
 router.post('/firebase/social-login', validate(firebaseSocialLoginSchema), firebaseSocialLogin);
 router.get('/apple/config', getAppleConfig);
 router.post('/apple', validate(appleLoginSchema), appleLogin);
+router.post('/apple/callback', appleCallback);
+router.get('/apple/callback', appleCallback);
 
 // Google OAuth routes
 router.get('/google/:role', googleAuth);

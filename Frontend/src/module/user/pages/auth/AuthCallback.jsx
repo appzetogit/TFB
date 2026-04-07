@@ -64,11 +64,16 @@ export default function AuthCallback() {
             })
           }
           setStatus("error")
-          setError(
-            errorParam === "access_denied"
-              ? "You denied access to your account. Please try again."
-              : "Authentication failed. Please try again."
-          )
+          
+          if (errorParam === "access_denied") {
+            setError("You cancelled the sign-in. Redirecting you back...")
+            setTimeout(() => {
+              navigate("/user/auth/sign-in", { replace: true })
+            }, 1200)
+            return
+          }
+          
+          setError("Authentication failed. Please try again.")
           return
         }
 

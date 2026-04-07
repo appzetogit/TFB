@@ -453,7 +453,7 @@ if (process.env.NODE_ENV === "production") {
     keyGenerator: clientKeyGenerator,
     standardHeaders: true,
     legacyHeaders: false,
-    skip: (req) => req.method !== "GET",
+    skip: (req) => req.method !== "GET" || req.path.includes("apple/callback"),
     message: "Too many read requests from this IP, please try again later.",
   });
 
@@ -464,7 +464,7 @@ if (process.env.NODE_ENV === "production") {
     keyGenerator: clientKeyGenerator,
     standardHeaders: true,
     legacyHeaders: false,
-    skip: (req) => req.method === "GET",
+    skip: (req) => req.method === "GET" || req.path.includes("apple/callback"),
     message: "Too many requests from this IP, please try again later.",
   });
 

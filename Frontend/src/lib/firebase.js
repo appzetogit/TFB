@@ -99,20 +99,10 @@ const fetchFirebaseConfig = async () => {
 let app;
 let firebaseAuth;
 let googleProvider;
-const FIREBASE_HOSTING_AUTH_DOMAIN = "tifunbox.firebaseapp.com";
+//const FIREBASE_HOSTING_AUTH_DOMAIN = "tifunbox.firebaseapp.com";
+
+const FIREBASE_HOSTING_AUTH_DOMAIN = "app.tifunbox.com";
 let appleProvider;
-const getPreferredAuthDomain = () => {
-  const configuredAuthDomain = firebaseConfig.originalAuthDomain || firebaseConfig.authDomain || "";
-
-  if (configuredAuthDomain && configuredAuthDomain !== FIREBASE_HOSTING_AUTH_DOMAIN) {
-    console.warn("⚠️ Overriding Firebase authDomain to Firebase Hosting domain for redirect auth", {
-      configuredAuthDomain,
-      effectiveAuthDomain: FIREBASE_HOSTING_AUTH_DOMAIN,
-    })
-  }
-
-  return FIREBASE_HOSTING_AUTH_DOMAIN
-}
 
 // Function to ensure Firebase is initialized
 async function ensureFirebaseInitialized() {
@@ -148,7 +138,6 @@ async function ensureFirebaseInitialized() {
   }
 
   try {
-    firebaseConfig.authDomain = getPreferredAuthDomain();
     const existingApps = getApps();
     if (existingApps.length === 0) {
       app = initializeApp(firebaseConfig);

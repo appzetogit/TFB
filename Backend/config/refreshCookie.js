@@ -42,7 +42,7 @@ export function getRefreshTokenCookieOptions(maxAgeMs = DEFAULT_MAX_AGE_MS) {
     return {
       httpOnly: true,
       secure: true,
-      sameSite: "none",
+      sameSite: "none", // Reverted to "none" to support cross-origin background fetch in mobile apps
       path: "/",
       maxAge: maxAgeMs,
       ...(domain ? { domain } : {}),
