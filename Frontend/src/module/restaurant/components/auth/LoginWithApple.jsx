@@ -13,7 +13,7 @@ const LoginWithApple = ({ clientId, redirectURI, isLoading }) => {
         responseType="code"
         responseMode="form_post"
         state="restaurant" // <--- Ye restaurant ke liye fix kiya hai
-        usePopup={true}    // <--- Popup use kar rahe hain taaki login ke baad page refresh na ho
+        usePopup={false}    // <--- Popup use kar rahe hain taaki login ke baad page refresh na ho
         designProp={{
           height: 30,
           width: 140,
