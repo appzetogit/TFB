@@ -1,6 +1,6 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
-import legacy from "@vitejs/plugin-legacy";
+// ❌ legacy plugin removed
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
 
@@ -43,12 +43,6 @@ function firebaseConfigPlugin() {
 export default defineConfig({
   plugins: [
     react(),
-    // Legacy bundle helps iOS in-app browsers/webviews that fail on modern chunks.
-    legacy({
-      targets: ["defaults", "Safari >= 13", "iOS >= 13"],
-      renderLegacyChunks: true,
-      modernPolyfills: true,
-    }),
     tailwindcss(),
     firebaseConfigPlugin(),
   ],
@@ -64,12 +58,17 @@ export default defineConfig({
       "@emotion/styled",
       "@mui/x-date-pickers",
     ],
+    // ✅ important fix
+    esbuildOptions: {
+      target: "esnext",
+    },
   },
   server: {
-    host: "0.0.0.0", // Allow access from network
-    port: 5173, // Default Vite port
+    host: "0.0.0.0",
+    port: 5173,
   },
   build: {
+    target: "esnext",
     outDir: "dist",
     sourcemap: false,
     chunkSizeWarningLimit: 1600,
@@ -79,9 +78,6 @@ export default defineConfig({
         drop_console: true,
         drop_debugger: true,
       },
-    },
-    esbuild: {
-      drop: ["console", "debugger"],
     },
   },
 });
