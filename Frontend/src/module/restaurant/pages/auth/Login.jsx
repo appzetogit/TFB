@@ -135,13 +135,12 @@ export default function RestaurantLogin() {
 
   // Listen for message from Apple OAuth popup
   const handleMessage = useCallback(async (event) => {
-    // Allow messages from same origin OR from the backend origin
-    const backendOrigin = "https://backend.tifunbox.com";
-    if (event.origin !== window.location.origin && event.origin !== backendOrigin) {
-      // In development, we also allow localhost:5000
-      if (import.meta.env.DEV && event.origin !== "http://localhost:5000" && event.origin !== "http://localhost:5173") return;
-      else if (!import.meta.env.DEV) return;
-    }
+    // Robust origin check: accept messages from same origin OR any tifunbox subdomain
+    const isSameOrigin = event.origin === window.location.origin;
+    const isTifunboxDomain = event.origin.endsWith('tifunbox.com');
+    const isLocal = import.meta.env.DEV && (event.origin.includes('localhost') || event.origin.includes('127.0.0.1'));
+    
+    if (!isSameOrigin && !isTifunboxDomain && !isLocal) return;
 
     const { type, token, user, error, provider } = event.data || {}
 

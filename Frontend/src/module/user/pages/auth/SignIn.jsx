@@ -205,6 +205,13 @@ export default function SignIn() {
 
   // Listen for message from Apple OAuth popup
   const handleMessage = useCallback(async (event) => {
+    // Robust origin check: accept messages from same origin OR any tifunbox subdomain
+    const isSameOrigin = event.origin === window.location.origin;
+    const isTifunboxDomain = event.origin.endsWith('tifunbox.com');
+    const isLocal = import.meta.env.DEV && (event.origin.includes('localhost') || event.origin.includes('127.0.0.1'));
+    
+    if (!isSameOrigin && !isTifunboxDomain && !isLocal) return;
+
     const { type, token, user, error, provider } = event.data || {}
 
     if (type === "APPLE_LOGIN_SUCCESS" && provider === "apple") {
