@@ -147,6 +147,7 @@ class AppleAuthService {
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",
         },
+        timeout: 10000, // 10 second timeout
       });
       logger.info("Apple code exchange successful", { hasIdToken: !!response.data.id_token });
       return response.data;

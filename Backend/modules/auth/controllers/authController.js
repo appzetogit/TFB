@@ -1528,39 +1528,29 @@ export const appleCallback = asyncHandler(async (req, res) => {
   }
 
   try {
+    const startTime = Date.now();
     // Exchange code for tokens
-    logger.info("Exchanging Apple code for tokens", { code: code ? code.substring(0, 10) + '...' : null });
+    logger.info("[AppleAuth] Logic reached. Starting code exchange...", { code: code ? code.substring(0, 5) + '...' : null });
     
     let tokens;
     try {
-      // First attempt with passed or default clientId
       tokens = await appleAuthService.exchangeCode(code, null, passedClientId);
+      logger.info("[AppleAuth] Step 1: Code exchange successful", { duration: Date.now() - startTime });
     } catch (exchangeError) {
-      // If mismatch occurred and we didn't try the other ID yet, retry with iOS ID
       const isMismatch = exchangeError.message.includes("client_id mismatch") || exchangeError.message.includes("invalid_client");
-      const defaultUsed = !passedClientId;
-      
-      if (isMismatch && defaultUsed) {
-        logger.info("Apple exchange failed with default client_id. Retrying with app.tifunbox.com...");
-        try {
-          tokens = await appleAuthService.exchangeCode(code, null, "app.tifunbox.com");
-        } catch (retryError) {
-          throw exchangeError; // If retry also fails, throw original error
-        }
+      if (isMismatch) {
+        logger.info("[AppleAuth] Step 1 Fallback: Retrying with app.tifunbox.com...");
+        tokens = await appleAuthService.exchangeCode(code, null, "app.tifunbox.com");
       } else {
         throw exchangeError;
       }
     }
     const identityToken = tokens.id_token || id_token;
-
-    if (!identityToken) {
-      logger.error("No identity token received from Apple during code exchange");
-      throw new Error("No identity token received from Apple");
-    }
-
+    
     // Verify token
-    logger.info("Verifying Apple identity token");
+    logger.info("[AppleAuth] Step 2: Verifying identity token...");
     const applePayload = await appleAuthService.verifyIdentityToken(identityToken);
+    logger.info("[AppleAuth] Step 2 Success: Token verified", { sub: applePayload.sub });
     const appleId = applePayload.sub;
     const email = applePayload.email?.toLowerCase().trim();
 

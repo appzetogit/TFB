@@ -795,7 +795,7 @@ export default function RestaurantOnboarding() {
     } else if (step === 2) {
       setStep2({
         menuImages: [],
-        profileImage: "https://res.cloudinary.com/dbv5id2cy/image/upload/v1707212002/restaurant_profile.jpg",
+        profileImage: "https://via.placeholder.com/300?text=Restaurant+Profile",
         cuisines: ["North Indian", "Chinese", "Bakery"],
         openingTime: "10:00",
         closingTime: "23:00",

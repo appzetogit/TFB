@@ -218,25 +218,12 @@ export default function SignIn() {
     // Robust origin check: allow same origin OR any tifunbox subdomain
     const origin = event.origin || "";
     const isSameOrigin = origin === window.location.origin;
-    const isTifunboxDomain = origin.endsWith('tifunbox.com');
     const isLocal = import.meta.env.DEV && (origin.includes('localhost') || origin.includes('127.0.0.1'));
 
-    // Log incoming messages for debugging
-    if (origin.includes('apple') || origin.includes('tifunbox')) {
-      console.log("[AppleAuth] Message received from origin:", origin, "data type:", typeof event.data);
-    }
-
-    if (!isSameOrigin && !isTifunboxDomain && !isLocal) {
-      // If none of the preferred checks pass, do a simple domain check
-      const normalizedOrigin = origin.toLowerCase();
-      const isAllowedSubdomain = normalizedOrigin.includes(".tifunbox.com") || normalizedOrigin.includes("tifunbox.com");
-      
-      if (!isAllowedSubdomain) {
-        if (origin.includes('apple') || origin.includes('tifunbox')) {
-          console.warn("[AppleAuth] Origin check failed for:", origin);
-        }
+    // Accept messages from same origin, tifunbox domains, or localhost
+    const isTifunbox = origin.includes("tifunbox.com");
+    if (!isSameOrigin && !isTifunbox && !isLocal) {
         return;
-      }
     }
 
     // Handle string data if necessary
