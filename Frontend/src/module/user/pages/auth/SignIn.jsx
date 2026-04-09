@@ -206,28 +206,68 @@ export default function SignIn() {
   // Listen for message from Apple OAuth popup
   const handleMessage = useCallback(async (event) => {
     // Robust origin check: allow same origin OR any tifunbox subdomain
-    const isSameOrigin = event.origin === window.location.origin;
-    const isTifunboxDomain = event.origin.endsWith('tifunbox.com');
-    const isLocal = import.meta.env.DEV && (event.origin.includes('localhost') || event.origin.includes('127.0.0.1'));
+    const origin = event.origin || "";
+    const isSameOrigin = origin === window.location.origin;
+    const isTifunboxDomain = origin.endsWith('tifunbox.com');
+    const isLocal = import.meta.env.DEV && (origin.includes('localhost') || origin.includes('127.0.0.1'));
     
-    if (!isSameOrigin && !isTifunboxDomain && !isLocal) return;
+    // Log incoming messages for debugging
+    if (origin.includes('apple') || origin.includes('tifunbox')) {
+      console.log("[AppleAuth] Message received from origin:", origin, "data type:", typeof event.data);
+    }
 
-    const { type, token, user, error, provider } = event.data || {}
-
-    if (type === "APPLE_LOGIN_SUCCESS" && (provider === "apple" || type.includes("APPLE"))) {
-      console.log("[AppleAuth] Success! Redirecting to home...");
-      if (token && user) {
-        clearPendingProvider()
-        setAuthData("user", token, user)
-        window.dispatchEvent(new Event("userAuthChanged"))
-        registerFcmTokenForLoggedInUser().catch(() => {})
-        // Turant home par bhejo
-        navigate("/", { replace: true })
+    if (!isSameOrigin && !isTifunboxDomain && !isLocal) {
+      if (origin.includes('apple') || origin.includes('tifunbox')) {
+        console.warn("[AppleAuth] Origin check failed for:", origin);
       }
-    } else if (type === "APPLE_LOGIN_ERROR" || error) {
-      console.error("[AppleAuth] Error:", error);
-      setAppleError(error || "Apple sign-in failed.")
-      setIsAppleLoading(false)
+      return;
+    }
+
+    // Handle string data if necessary
+    let data = event.data;
+    if (typeof data === 'string') {
+      try {
+        data = JSON.parse(data);
+      } catch (e) {
+        // Not a JSON string, ignore
+      }
+    }
+
+    const { type, token, user, error, provider } = data || {}
+
+    if (type === "APPLE_LOGIN_SUCCESS" || (type === "success" && provider === "apple")) {
+      console.log("[AppleAuth] Success message detected. Processing tokens...");
+      if (token && user) {
+        try {
+          // Clear loading immediately once we have data
+          setIsAppleLoading(false);
+          clearPendingProvider();
+          
+          // Save auth data
+          setAuthData("user", token, user);
+          
+          // Notify app
+          window.dispatchEvent(new Event("userAuthChanged"));
+          registerFcmTokenForLoggedInUser().catch(() => {});
+          
+          console.log("[AppleAuth] Auth data set. Navigating home...");
+          // Immediate navigation
+          navigate("/", { replace: true });
+        } catch (err) {
+          console.error("[AppleAuth] Error saving auth data:", err);
+          setAppleError("Failed to complete sign-in. Please try again.");
+          setIsAppleLoading(false);
+        }
+      } else {
+        console.warn("[AppleAuth] Success message received but token or user missing", { hasToken: !!token, hasUser: !!user });
+        setIsAppleLoading(false);
+      }
+    } else if (type === "APPLE_LOGIN_ERROR" || error || type === "error") {
+      const errorMsg = error || (data && data.message) || "Apple sign-in failed.";
+      console.error("[AppleAuth] Error message received:", errorMsg);
+      setAppleError(errorMsg);
+      setIsAppleLoading(false);
+      clearPendingProvider();
     }
   }, [navigate]);
 

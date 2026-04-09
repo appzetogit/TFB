@@ -1425,11 +1425,37 @@ export const appleLogin = asyncHandler(async (req, res) => {
 /**
  * GET /api/auth/apple/config
  */
-export const getAppleConfig = asyncHandler(async (_req, res) => {
-  const clientId = (process.env.APPLE_CLIENT_ID || (await getEnvVar("APPLE_CLIENT_ID")) || "").toString().trim().replace(/^"|"$/g, "");
-  const redirectUri = (process.env.APPLE_REDIRECT_URI || (await getEnvVar("APPLE_REDIRECT_URI")) || "").toString().trim().replace(/^"|"$/g, "");
+export const getAppleConfig = asyncHandler(async (req, res) => {
+  // Prioritize process.env for fundamental OAuth config to prevent DB overrides from breaking auth flow
+  let clientId = process.env.APPLE_CLIENT_ID;
+  let redirectUri = process.env.APPLE_REDIRECT_URI;
 
-  logger.info("Apple config requested", { clientId, redirectUri });
+  // Fallback to database if not in env
+  if (!clientId) {
+    clientId = await getEnvVar("APPLE_CLIENT_ID");
+  }
+  if (!redirectUri) {
+    redirectUri = await getEnvVar("APPLE_REDIRECT_URI");
+  }
+
+  // Final cleanup
+  clientId = (clientId || "").toString().trim().replace(/^"|"$/g, "");
+  redirectUri = (redirectUri || "").toString().trim().replace(/^"|"$/g, "");
+
+  // Robustness check: If redirectUri is missing or empty, try to construct it from current request
+  if (!redirectUri) {
+    const host = req.get('host');
+    const protocol = req.protocol === 'https' || req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http';
+    redirectUri = `${protocol}://${host}/api/auth/apple/callback`;
+    logger.info("Apple redirectUri was empty, constructed from request", { redirectUri });
+  }
+
+  logger.info("Apple config requested", { 
+    clientId, 
+    redirectUri, 
+    envRedirect: process.env.APPLE_REDIRECT_URI ? "present" : "missing",
+    dbRedirect: (await getEnvVar("APPLE_REDIRECT_URI")) ? "present" : "missing"
+  });
 
   return successResponse(res, 200, "Apple config fetched successfully", {
     clientId,

@@ -80,25 +80,25 @@ export default function RestaurantLogin() {
     try {
       if (typeof localStorage === "undefined") return
       localStorage.setItem(key, value)
-    } catch {}
+    } catch { }
   }
   const safeSessionSet = (key, value) => {
     try {
       if (typeof sessionStorage === "undefined") return
       sessionStorage.setItem(key, value)
-    } catch {}
+    } catch { }
   }
   const safeSessionRemove = (key) => {
     try {
       if (typeof sessionStorage === "undefined") return
       sessionStorage.removeItem(key)
-    } catch {}
+    } catch { }
   }
   const safeLocalRemove = (key) => {
     try {
       if (typeof localStorage === "undefined") return
       localStorage.removeItem(key)
-    } catch {}
+    } catch { }
   }
 
   const clearPendingProvider = () => {
@@ -123,7 +123,7 @@ export default function RestaurantLogin() {
             document.head.appendChild(script)
           })
         }
-        
+
         const configResponse = await authAPI.getAppleConfig()
         setAppleConfig(configResponse.data.data)
       } catch (err) {
@@ -136,28 +136,65 @@ export default function RestaurantLogin() {
   // Listen for message from Apple OAuth popup
   const handleMessage = useCallback(async (event) => {
     // Robust origin check: accept messages from same origin OR any tifunbox subdomain
-    const isSameOrigin = event.origin === window.location.origin;
-    const isTifunboxDomain = event.origin.endsWith('tifunbox.com');
-    const isLocal = import.meta.env.DEV && (event.origin.includes('localhost') || event.origin.includes('127.0.0.1'));
-    
-    if (!isSameOrigin && !isTifunboxDomain && !isLocal) return;
+    const origin = event.origin || "";
+    const isSameOrigin = origin === window.location.origin;
+    const isTifunboxDomain = origin.endsWith('tifunbox.com');
+    const isLocal = import.meta.env.DEV && (origin.includes('localhost') || origin.includes('127.0.0.1'));
 
-    const { type, token, user, error, provider } = event.data || {}
-
-    if (type === "APPLE_LOGIN_SUCCESS" && provider === "apple") {
-      if (token && user) {
-        console.log("✅ Apple login success message received")
-        clearPendingProvider()
-        setAuthData("restaurant", token, user)
-        window.dispatchEvent(new Event("restaurantAuthChanged"))
-        navigate("/restaurant", { replace: true })
-      }
-    } else if (type === "APPLE_LOGIN_ERROR") {
-      console.error("❌ Apple login error message received:", error)
-      setAppleError(error || "Apple sign-in failed.")
-      setIsAppleLoading(false)
+    // Log incoming messages for debugging
+    if (origin.includes('apple') || origin.includes('tifunbox')) {
+      console.log("[AppleAuth][Restaurant] Message received from origin:", origin, "data type:", typeof event.data);
     }
-  }, [navigate])
+
+    if (!isSameOrigin && !isTifunboxDomain && !isLocal) {
+      if (origin.includes('apple') || origin.includes('tifunbox')) {
+        console.warn("[AppleAuth][Restaurant] Origin check failed for:", origin);
+      }
+      return;
+    }
+
+    // Handle string data if necessary
+    let data = event.data;
+    if (typeof data === 'string') {
+      try {
+        data = JSON.parse(data);
+      } catch (e) {
+        // Not a JSON string, ignore
+      }
+    }
+
+    const { type, token, user, error, provider } = data || {}
+
+    if (type === "APPLE_LOGIN_SUCCESS" || (type === "success" && provider === "apple")) {
+      if (token && user) {
+        console.log("✅ [AppleAuth][Restaurant] Success message received")
+        try {
+          // Clear loading immediately once we have data
+          setIsAppleLoading(false);
+          clearPendingProvider();
+
+          setAuthData("restaurant", token, user);
+          window.dispatchEvent(new Event("restaurantAuthChanged"));
+
+          console.log("[AppleAuth][Restaurant] Auth data set. Navigating home...");
+          navigate("/restaurant", { replace: true });
+        } catch (err) {
+          console.error("❌ [AppleAuth][Restaurant] Error saving auth data:", err);
+          setAppleError("Failed to complete sign-in. Please try again.");
+          setIsAppleLoading(false);
+        }
+      } else {
+        console.warn("⚠️ [AppleAuth][Restaurant] Success message received but token or user missing", { hasToken: !!token, hasUser: !!user });
+        setIsAppleLoading(false);
+      }
+    } else if (type === "APPLE_LOGIN_ERROR" || error || type === "error") {
+      const errorMsg = error || (data && data.message) || "Apple sign-in failed.";
+      console.error("❌ [AppleAuth][Restaurant] Error message received:", errorMsg)
+      setAppleError(errorMsg)
+      setIsAppleLoading(false)
+      clearPendingProvider()
+    }
+  }, [navigate]);
 
   useEffect(() => {
     window.addEventListener("message", handleMessage)
@@ -533,7 +570,7 @@ export default function RestaurantLogin() {
           const { signInWithRedirect } = await import("firebase/auth")
           await signInWithRedirect(firebaseAuth, googleProvider)
           return
-        } catch (_) {}
+        } catch (_) { }
       }
       if (error?.code !== "auth/popup-closed-by-user") {
         setApiError(error?.message || "Google sign-in failed")
