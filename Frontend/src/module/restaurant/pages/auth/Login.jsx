@@ -10,13 +10,10 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
-import { restaurantAPI, authAPI } from "@/lib/api"
-import { firebaseAuth, googleProvider, ensureFirebaseInitialized } from "@/lib/firebase"
+import { restaurantAPI } from "@/lib/api"
+import { firebaseAuth, googleProvider, appleProvider, ensureFirebaseInitialized } from "@/lib/firebase"
 import { hasFlutterGoogleBridge, nativeGoogleSignIn } from "@/lib/utils/flutterGoogleAuthBridge"
 import { useCompanyName } from "@/lib/hooks/useCompanyName"
-import { useCallback } from "react"
-import LoginWithApple from "@/module/restaurant/components/auth/LoginWithApple"
-import { Loader2 } from "lucide-react"
 
 // Common country codes
 const countryCodes = [
@@ -62,169 +59,9 @@ export default function RestaurantLogin() {
   const [isSending, setIsSending] = useState(false)
   const [isAppleLoading, setIsAppleLoading] = useState(false)
   const [apiError, setApiError] = useState("")
-  const [appleError, setAppleError] = useState("")
-  const [appleConfig, setAppleConfig] = useState(null)
-  const isAppleReady = appleConfig && window.AppleID
   const isIOSBrowser = /iPad|iPhone|iPod/i.test(
     typeof navigator !== "undefined" ? navigator.userAgent : "",
   )
-  const isWebView =
-    typeof window !== "undefined" &&
-    (window.flutter_inappwebview ||
-      /wv/.test(navigator.userAgent))
-  const APPLE_REDIRECT_IN_PROGRESS_KEY = "appleRedirectInProgress"
-  const APPLE_SIGNIN_STARTED_KEY = "apple_signin_started"
-  const PENDING_PROVIDER_KEY = "pendingSocialProvider"
-
-  const safeLocalSet = (key, value) => {
-    try {
-      if (typeof localStorage === "undefined") return
-      localStorage.setItem(key, value)
-    } catch { }
-  }
-  const safeSessionSet = (key, value) => {
-    try {
-      if (typeof sessionStorage === "undefined") return
-      sessionStorage.setItem(key, value)
-    } catch { }
-  }
-  const safeSessionRemove = (key) => {
-    try {
-      if (typeof sessionStorage === "undefined") return
-      sessionStorage.removeItem(key)
-    } catch { }
-  }
-  const safeLocalRemove = (key) => {
-    try {
-      if (typeof localStorage === "undefined") return
-      localStorage.removeItem(key)
-    } catch { }
-  }
-
-  const clearPendingProvider = () => {
-    safeSessionRemove(PENDING_PROVIDER_KEY)
-    safeSessionRemove(APPLE_REDIRECT_IN_PROGRESS_KEY)
-    safeSessionRemove(APPLE_SIGNIN_STARTED_KEY)
-    safeLocalRemove(PENDING_PROVIDER_KEY)
-    safeLocalRemove(APPLE_REDIRECT_IN_PROGRESS_KEY)
-  }
-
-  // Preload Apple SDK and Configuration
-  useEffect(() => {
-    const loadAppleDependencies = async () => {
-      try {
-        if (!window.AppleID) {
-          await new Promise((resolve, reject) => {
-            const script = document.createElement("script")
-            script.src = "https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js"
-            script.async = true
-            script.onload = resolve
-            script.onerror = () => reject(new Error("Apple SDK load failed"))
-            document.head.appendChild(script)
-          })
-        }
-
-        const configResponse = await authAPI.getAppleConfig()
-        setAppleConfig(configResponse.data.data)
-      } catch (err) {
-        console.error("Failed to preload Apple dependencies:", err)
-      }
-    }
-    loadAppleDependencies()
-  }, [])
-
-  // Listen for message from Apple OAuth popup
-  const handleMessage = useCallback(async (event) => {
-    // Robust origin check: accept messages from same origin OR any tifunbox subdomain
-    const origin = event.origin || "";
-    const isSameOrigin = origin === window.location.origin;
-    const isTifunboxDomain = origin.endsWith('tifunbox.com');
-    const isLocal = import.meta.env.DEV && (origin.includes('localhost') || origin.includes('127.0.0.1'));
-
-    // Log incoming messages for debugging
-    if (origin.includes('apple') || origin.includes('tifunbox')) {
-      console.log("[AppleAuth][Restaurant] Message received from origin:", origin, "data type:", typeof event.data);
-    }
-
-    if (!isSameOrigin && !isTifunboxDomain && !isLocal) {
-      // Flexible subdomain check
-      const normalizedOrigin = origin.toLowerCase();
-      const isAllowedSubdomain = normalizedOrigin.includes(".tifunbox.com") || normalizedOrigin.includes("tifunbox.com");
-      
-      if (!isAllowedSubdomain) {
-        if (origin.includes('apple') || origin.includes('tifunbox')) {
-          console.warn("[AppleAuth][Restaurant] Origin check failed for:", origin);
-        }
-        return;
-      }
-    }
-
-    // Handle string data if necessary
-    let data = event.data;
-    if (typeof data === 'string') {
-      try {
-        data = JSON.parse(data);
-      } catch (e) {
-        // Not a JSON string, ignore
-      }
-    }
-
-    const { type, token, user, error, provider } = data || {}
-
-    if (type === "APPLE_LOGIN_SUCCESS" || (type === "success" && provider === "apple")) {
-      if (token && user) {
-        console.log("✅ [AppleAuth][Restaurant] Success message received")
-        try {
-          // Clear loading immediately once we have data
-          setIsAppleLoading(false);
-          clearPendingProvider();
-
-          setAuthData("restaurant", token, user);
-          window.dispatchEvent(new Event("restaurantAuthChanged"));
-
-          console.log("[AppleAuth][Restaurant] Auth data set. Navigating home...");
-          navigate("/restaurant", { replace: true });
-        } catch (err) {
-          console.error("❌ [AppleAuth][Restaurant] Error saving auth data:", err);
-          setAppleError("Failed to complete sign-in. Please try again.");
-          setIsAppleLoading(false);
-        }
-      } else {
-        console.warn("⚠️ [AppleAuth][Restaurant] Success message received but token or user missing", { hasToken: !!token, hasUser: !!user });
-        setIsAppleLoading(false);
-      }
-    } else if (type === "APPLE_LOGIN_ERROR" || error || type === "error") {
-      const errorMsg = error || (data && data.message) || "Apple sign-in failed.";
-      console.error("❌ [AppleAuth][Restaurant] Error message received:", errorMsg)
-      setAppleError(errorMsg)
-      setIsAppleLoading(false)
-      clearPendingProvider()
-    }
-  }, [navigate]);
-
-  useEffect(() => {
-    window.addEventListener("message", handleMessage)
-    return () => window.removeEventListener("message", handleMessage)
-  }, [handleMessage])
-  
-  // Failsafe timer for infinite loader
-  useEffect(() => {
-    let timer;
-    if (isAppleLoading) {
-      console.log("[AppleAuth][Restaurant] Loader started, setting 60s failsafe...");
-      timer = setTimeout(() => {
-        if (isAppleLoading) {
-          console.warn("[AppleAuth][Restaurant] Loader timed out after 60s. Clearing...");
-          setIsAppleLoading(false);
-          setAppleError("Authentication timed out. Please try again.");
-          clearPendingProvider();
-        }
-      }, 60000);
-    }
-    return () => {
-      if (timer) clearTimeout(timer);
-    };
-  }, [isAppleLoading]);
 
   // Prefill phone when user comes back from OTP screen
   useEffect(() => {
@@ -418,8 +255,12 @@ export default function RestaurantLogin() {
 
   const resolveFirebaseProvider = (user, providerOverride = null) => {
     if (providerOverride) return providerOverride
-    // Apple is now handled manually (not via Firebase), so we always return "google" for Firebase users
-    return "google"
+
+    const providerId = (user?.providerData || [])
+      .find((providerData) => ["google.com", "apple.com"].includes(providerData?.providerId))
+      ?.providerId
+
+    return providerId === "apple.com" ? "apple" : "google"
   }
 
   // Helper function to process signed-in user
@@ -432,8 +273,9 @@ export default function RestaurantLogin() {
     try {
       const provider = resolveFirebaseProvider(user, providerOverride)
       const idToken = await user.getIdToken(true)
-      // Only handle google login here, apple is handled via handleMessage
-      const response = await restaurantAPI.firebaseGoogleLogin(idToken)
+      const response = provider === "apple"
+        ? await restaurantAPI.firebaseAppleLogin(idToken)
+        : await restaurantAPI.firebaseGoogleLogin(idToken)
       const data = response?.data?.data || {}
 
       const accessToken = data.accessToken
@@ -595,7 +437,7 @@ export default function RestaurantLogin() {
           const { signInWithRedirect } = await import("firebase/auth")
           await signInWithRedirect(firebaseAuth, googleProvider)
           return
-        } catch (_) { }
+        } catch (_) {}
       }
       if (error?.code !== "auth/popup-closed-by-user") {
         setApiError(error?.message || "Google sign-in failed")
@@ -604,37 +446,45 @@ export default function RestaurantLogin() {
   }
 
   const handleAppleLogin = async () => {
-    if (!isAppleReady) {
-      console.log("🍎 Apple not ready yet, checking config...", { hasConfig: !!appleConfig, hasSDK: !!window.AppleID })
-      setAppleError("Apple Sign-In is initializing. Please try again.")
-      return
-    }
+    setApiError("")
+    setIsAppleLoading(true)
+    redirectHandledRef.current = false
 
     try {
-      console.log("🍎 Starting manual Apple sign-in flow for restaurant...")
-      setAppleError("")
-      setIsAppleLoading(true)
-      safeSessionSet(APPLE_SIGNIN_STARTED_KEY, "1")
+      await ensureFirebaseInitialized()
 
-      // Initialize Apple SDK with config from backend
-      window.AppleID.auth.init({
-        clientId: appleConfig.clientId,
-        scope: "email name",
-        redirectURI: appleConfig.redirectUri,
-        state: "restaurant",
-        usePopup: true,
-      })
-
-      // Trigger the sign-in popup
-      await window.AppleID.auth.signIn()
-      console.log("🍎 Apple signIn() triggered successfully")
-    } catch (error) {
-      console.error("🍎 Apple sign-in error or manual initialization failed:", error)
-      if (error?.error !== "popup_closed_by_user" && error?.error !== "user-cancelled") {
-        setAppleError("Apple sign-in failed. Please try again.")
+      if (!firebaseAuth || !appleProvider) {
+        throw new Error("Firebase is not configured correctly for Apple login")
       }
+
+      const {
+        browserLocalPersistence,
+        setPersistence,
+        signInWithPopup,
+      } = await import("firebase/auth")
+
+      await setPersistence(firebaseAuth, browserLocalPersistence)
+
+      const result = await signInWithPopup(firebaseAuth, appleProvider)
+      if (result?.user) {
+        await processSignedInUser(result.user, "apple-popup-result", "apple")
+        return
+      }
+
+      throw new Error("Apple sign-in completed without returning a Firebase user")
+    } catch (error) {
+      console.error("Firebase Apple login error:", error)
+      redirectHandledRef.current = false
+      setApiError(
+        error?.code === "auth/popup-blocked"
+          ? "Popup was blocked. Please allow popups and try again."
+          : error?.code === "auth/popup-closed-by-user"
+            ? "Apple sign-in was cancelled."
+            : error?.message || "Apple sign-in failed",
+      )
+    } finally {
       setIsAppleLoading(false)
-      clearPendingProvider()
+      setIsSending(false)
     }
   }
 
@@ -829,7 +679,7 @@ export default function RestaurantLogin() {
 
           {/* Alternative Login Options */}
           <div className="space-y-3">
-            {/* Login with Email/Phone Toggle */}
+            {/* Login with Email Button */}
             <Button
               onClick={() => {
                 if (loginMethod === "phone") {
@@ -839,12 +689,10 @@ export default function RestaurantLogin() {
                 }
               }}
               variant="outline"
-              className="w-full h-12 rounded-lg border border-gray-300 hover:border-gray-400 hover:bg-gray-50 text-gray-900 font-semibold text-base flex items-center justify-center gap-3"
+              className="w-full h-12 rounded-lg border border-gray- hover:border-gray-400 hover:bg-gray-50 text-gray-900 font-semibold text-base flex items-center justify-center gap-3"
             >
-              <div className="w-5 h-5 flex items-center justify-center">
-                {loginMethod === "email" ? <Phone className="w-5 h-5 text-blue-600" /> : <Mail className="w-5 h-5 text-blue-600" />}
-              </div>
-              <span className="flex-1 text-center pr-8">
+              {loginMethod === "email" ? <Phone className="w-5 h-5 mr-auto text-blue-600" /> : <Mail className="w-5 h-5 mr-auto text-blue-600" />}
+              <span className="mr-auto text-gray-900">
                 {loginMethod === "phone" ? "Login with Email" : "Back to Phone"}
               </span>
             </Button>
@@ -854,53 +702,41 @@ export default function RestaurantLogin() {
               onClick={handleGoogleLogin}
               disabled={isSending || isAppleLoading}
               variant="outline"
-              className="w-full h-12 rounded-lg border border-gray-300 hover:border-gray-400 hover:bg-gray-50 text-gray-900 font-semibold text-base flex items-center justify-center gap-3"
+              className="w-full h-12 rounded-lg border border-gray- hover:border-gray-400 hover:bg-gray-50 text-gray-900 font-semibold text-base flex items-center justify-center gap-3"
             >
-              {isSending ? (
-                <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
-              ) : (
-                <svg className="w-5 h-5" viewBox="0 0 24 24">
-                  <path
-                    fill="#4285F4"
-                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                  />
-                  <path
-                    fill="#34A853"
-                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                  />
-                  <path
-                    fill="#FBBC05"
-                    d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-                  />
-                  <path
-                    fill="#EA4335"
-                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                  />
-                </svg>
-              )}
-              <span className="flex-1 text-center pr-8">Login with Google</span>
+              {/* Google Logo SVG */}
+              <svg className="w-5 h-5 mr-auto" viewBox="0 0 24 24">
+                <path
+                  fill="#4285F4"
+                  d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                />
+                <path
+                  fill="#34A853"
+                  d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                />
+                <path
+                  fill="#FBBC05"
+                  d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+                />
+                <path
+                  fill="#EA4335"
+                  d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                />
+              </svg>
+              <span className="mr-auto text-gray-900">Login with Google</span>
             </Button>
 
-            {/* Login with Apple Button */}
             <Button
               onClick={handleAppleLogin}
               disabled={isSending || isAppleLoading}
               variant="outline"
-              className="w-full h-12 rounded-lg border border-gray-300 hover:border-gray-400 hover:bg-gray-50 text-gray-900 font-semibold text-base flex items-center justify-center gap-3"
+              className="w-full h-12 rounded-lg border border-gray- hover:border-gray-400 hover:bg-gray-50 text-gray-900 font-semibold text-base flex items-center justify-center gap-3"
             >
-              {isAppleLoading ? (
-                <Loader2 className="h-5 w-5 animate-spin text-black" />
-              ) : (
-                <Apple className="w-5 h-5 text-black" />
-              )}
-              <span className="flex-1 text-center pr-8">
-                {isAppleLoading ? "Signing in..." : "Login with Apple"}
+              <Apple className="w-5 h-5 mr-auto text-black" />
+              <span className="mr-auto text-gray-900">
+                {isAppleLoading ? "Signing in with Apple" : "Login with Apple"}
               </span>
             </Button>
-
-            {appleError && (
-              <p className="text-red-500 text-xs mt-1 text-center">{appleError}</p>
-            )}
           </div>
         </div>
       </div>
