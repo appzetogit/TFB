@@ -56,6 +56,15 @@ const logAppleDebug = (message, details = null) => {
   console.log(`[AppleAuth] ${message}`)
 }
 
+const isAppleCancelError = (error) => {
+  if (!error) return false;
+  return (
+    error.error === "user_cancelled" ||
+    error.error === "popup_closed_by_user" ||
+    (error.message && error.message.toLowerCase().includes("cancel"))
+  );
+};
+
 export default function SignIn() {
   const navigate = useNavigate()
   const redirectToUserHome = () => {
@@ -183,7 +192,8 @@ export default function SignIn() {
   const [isAppleLoading, setIsAppleLoading] = useState(false)
   const [appleError, setAppleError] = useState("")
   const [appleConfig, setAppleConfig] = useState(null)
-  const isAppleReady = appleConfig && window.AppleID
+  const [appleAuthReady, setAppleAuthReady] = useState(false)
+  const isAppleReady = appleConfig && window.AppleID && appleAuthReady
   const isIOSBrowser = /iPad|iPhone|iPod/i.test(
     typeof navigator !== "undefined" ? navigator.userAgent : "",
   )
