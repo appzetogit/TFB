@@ -1695,13 +1695,6 @@ export const appleCallback = asyncHandler(async (req, res) => {
     const redirectPath = "/auth/callback";
     const redirectUrl = `${frontendUrl}${redirectPath}?token=${jwtTokens.accessToken}&user=${encodeURIComponent(JSON.stringify(userData))}&state=${effectiveRole}`;
     
-    // IF RESTAURANT: Direct redirect to dashboard as requested by user
-    if (effectiveRole === "restaurant") {
-      const directRestaurantUrl = `${frontendUrl}/restaurant?token=${jwtTokens.accessToken}`;
-      logger.info(`Apple Login Success (Restaurant): Direct redirect to ${directRestaurantUrl}`);
-      return res.redirect(directRestaurantUrl);
-    }
-    
     logger.info(`Apple Login Successful: Redirecting to ${redirectUrl} for role ${effectiveRole}`);
 
     // Support JSON response for native apps (Mobile)

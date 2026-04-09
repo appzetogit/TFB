@@ -4,21 +4,12 @@ import AppleLogin from 'react-apple-login';
 const LoginWithApple = ({ clientId, redirectURI, isLoading, state = "user" }) => {
   const handleLogin = () => {
     if (isLoading) return;
-    
-    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api";
-    
-    if (state === "restaurant") {
-       // Using apiBaseUrl to hit the correct backend environment
-       window.open(`${apiBaseUrl}/auth/apple/start?role=restaurant`, "_self");
-       return;
-    }
 
     const finalClientId = clientId || "com.tifunbox.web";
-    // Construct redirect URI naturally based on apiBaseUrl
-    const finalRedirectURI = redirectURI || `${apiBaseUrl}/auth/apple/callback`;
-    
+    const finalRedirectURI = redirectURI || "https://backend.tifunbox.com/api/auth/apple/callback";
+
     // Construct Apple Auth URL
-    const authUrl = `https://appleid.apple.com/auth/authorize?` + 
+    const authUrl = `https://appleid.apple.com/auth/authorize?` +
       `client_id=${finalClientId}&` +
       `redirect_uri=${encodeURIComponent(finalRedirectURI)}&` +
       `response_type=code&` +
@@ -31,7 +22,7 @@ const LoginWithApple = ({ clientId, redirectURI, isLoading, state = "user" }) =>
     const height = 600;
     const left = window.screen.width / 2 - width / 2;
     const top = window.screen.height / 2 - height / 2;
-    
+
     window.open(
       authUrl,
       "Apple Login",
