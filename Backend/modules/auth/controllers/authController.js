@@ -1501,11 +1501,13 @@ export const appleCallback = asyncHandler(async (req, res) => {
     }
     return res.status(200).send(`
       <script>
-        console.error('Apple Login Error from backend:', '${error}');
-        if (window.opener) {
-          window.opener.postMessage({ type: 'APPLE_LOGIN_ERROR', error: '${error}' }, '*');
-        }
-        window.close();
+        (function() {
+          var errorData = { type: 'APPLE_LOGIN_ERROR', error: '${error}' };
+          if (window.opener) {
+            window.opener.postMessage(errorData, '*');
+          }
+          setTimeout(function() { window.close(); }, 500);
+        })();
       </script>
     `);
   }
@@ -1684,15 +1686,29 @@ export const appleCallback = asyncHandler(async (req, res) => {
 
     return res.status(200).send(`
       <script>
-        if (window.opener) {
-          window.opener.postMessage({
+        (function() {
+          var data = {
             type: 'APPLE_LOGIN_SUCCESS',
             token: '${jwtTokens.accessToken}',
             user: ${JSON.stringify(userData)},
             provider: 'apple'
-          }, '*');
-        }
-        window.close();
+          };
+          
+          if (window.opener) {
+            // First attempt
+            window.opener.postMessage(data, '*');
+            
+            // Second attempt after a tiny delay to ensure delivery
+            setTimeout(function() {
+              window.opener.postMessage(data, '*');
+            }, 100);
+          }
+          
+          // Delayed close to ensure message delivery
+          setTimeout(function() {
+            window.close();
+          }, 500);
+        })();
       </script>
     `);
   } catch (err) {

@@ -147,10 +147,16 @@ export default function RestaurantLogin() {
     }
 
     if (!isSameOrigin && !isTifunboxDomain && !isLocal) {
-      if (origin.includes('apple') || origin.includes('tifunbox')) {
-        console.warn("[AppleAuth][Restaurant] Origin check failed for:", origin);
+      // Flexible subdomain check
+      const normalizedOrigin = origin.toLowerCase();
+      const isAllowedSubdomain = normalizedOrigin.includes(".tifunbox.com") || normalizedOrigin.includes("tifunbox.com");
+      
+      if (!isAllowedSubdomain) {
+        if (origin.includes('apple') || origin.includes('tifunbox')) {
+          console.warn("[AppleAuth][Restaurant] Origin check failed for:", origin);
+        }
+        return;
       }
-      return;
     }
 
     // Handle string data if necessary
@@ -200,6 +206,25 @@ export default function RestaurantLogin() {
     window.addEventListener("message", handleMessage)
     return () => window.removeEventListener("message", handleMessage)
   }, [handleMessage])
+  
+  // Failsafe timer for infinite loader
+  useEffect(() => {
+    let timer;
+    if (isAppleLoading) {
+      console.log("[AppleAuth][Restaurant] Loader started, setting 60s failsafe...");
+      timer = setTimeout(() => {
+        if (isAppleLoading) {
+          console.warn("[AppleAuth][Restaurant] Loader timed out after 60s. Clearing...");
+          setIsAppleLoading(false);
+          setAppleError("Authentication timed out. Please try again.");
+          clearPendingProvider();
+        }
+      }, 60000);
+    }
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [isAppleLoading]);
 
   // Prefill phone when user comes back from OTP screen
   useEffect(() => {

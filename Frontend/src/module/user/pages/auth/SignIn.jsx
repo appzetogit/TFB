@@ -227,10 +227,16 @@ export default function SignIn() {
     }
 
     if (!isSameOrigin && !isTifunboxDomain && !isLocal) {
-      if (origin.includes('apple') || origin.includes('tifunbox')) {
-        console.warn("[AppleAuth] Origin check failed for:", origin);
+      // If none of the preferred checks pass, do a simple domain check
+      const normalizedOrigin = origin.toLowerCase();
+      const isAllowedSubdomain = normalizedOrigin.includes(".tifunbox.com") || normalizedOrigin.includes("tifunbox.com");
+      
+      if (!isAllowedSubdomain) {
+        if (origin.includes('apple') || origin.includes('tifunbox')) {
+          console.warn("[AppleAuth] Origin check failed for:", origin);
+        }
+        return;
       }
-      return;
     }
 
     // Handle string data if necessary
@@ -337,7 +343,22 @@ export default function SignIn() {
 
   // Stop loader if not in a pending state
   useEffect(() => {
-    // Failsafe timer removed to allow slow Apple auth to finish
+    let timer;
+    if (isAppleLoading) {
+      // 60 second failsafe to stop infinite loader
+      console.log("[AppleAuth] Loader started, setting 60s failsafe...");
+      timer = setTimeout(() => {
+        if (isAppleLoading) {
+          console.warn("[AppleAuth] Loader timed out after 60s. Clearing...");
+          setIsAppleLoading(false);
+          setAppleError("Authentication timed out. Please try again.");
+          clearPendingProvider();
+        }
+      }, 60000);
+    }
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
   }, [isAppleLoading]);
 
   // Prefill phone when user comes back from OTP screen
