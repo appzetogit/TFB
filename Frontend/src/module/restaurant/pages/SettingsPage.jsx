@@ -180,30 +180,6 @@ export default function SettingsPage() {
         { id: "terms", label: "Terms & conditions", description: "View legal terms for restaurant partners", icon: FileText, route: "/restaurant/terms" },
       ],
     },
-    {
-      id: "account",
-      title: "Account",
-      items: [
-        {
-          id: "logout",
-          label: isLoggingOut ? "Logging out..." : "Logout",
-          description: "Sign out from this restaurant account",
-          icon: LogOut,
-          action: handleLogout,
-          isDestructive: true,
-          disabled: isLoggingOut || isDeletingAccount,
-        },
-        {
-          id: "delete",
-          label: isDeletingAccount ? "Deleting account..." : "Delete account",
-          description: "Permanently remove this restaurant account",
-          icon: Trash2,
-          action: handleDeleteAccount,
-          isDestructive: true,
-          disabled: isDeletingAccount || isLoggingOut,
-        },
-      ],
-    },
   ]
 
   return (

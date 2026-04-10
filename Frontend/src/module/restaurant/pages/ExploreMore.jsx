@@ -30,7 +30,10 @@ import {
   Calendar,
   MapPin,
   UtensilsCrossed,
+  LogOut,
+  Trash2,
 } from "lucide-react"
+import { toast } from "sonner"
 import { Card, CardContent } from "@/components/ui/card"
 import { DateRangeCalendar } from "@/components/ui/date-range-calendar"
 import { clearModuleAuth, clearAuthData } from "@/lib/utils/auth"
@@ -333,6 +336,7 @@ function TimePickerWheel({
 export default function ExploreMore() {
   const navigate = useNavigate()
   const [profileOpen, setProfileOpen] = useState(false)
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
 
@@ -489,6 +493,53 @@ export default function ExploreMore() {
       navigate("/restaurant/welcome", { replace: true })
     } finally {
       setIsLoggingOut(false)
+    }
+  }
+
+  const handleDeleteAccount = async () => {
+    if (isDeletingAccount || isLoggingOut) return
+    if (!window.confirm("Are you sure you want to delete your restaurant account? This action cannot be undone.")) return
+
+    setIsDeletingAccount(true)
+    setProfileOpen(false)
+    try {
+      try {
+        await removeFcmTokenForRestaurant()
+      } catch (fcmError) {
+        console.warn("Restaurant FCM token removal failed before account deletion:", fcmError)
+      }
+
+      await restaurantAPI.deleteAccount()
+      
+      // Cleanup logic similar to handleLogout
+      try {
+        const { signOut } = await import("firebase/auth")
+        if (firebaseAuth?.currentUser) {
+          await signOut(firebaseAuth)
+        }
+      } catch (firebaseError) {
+        console.warn("Firebase logout failed for restaurant cleanup:", firebaseError)
+      }
+
+      clearModuleAuth("restaurant")
+      localStorage.removeItem("restaurant_onboarding")
+      localStorage.removeItem("restaurant_accessToken")
+      localStorage.removeItem("restaurant_authenticated")
+      localStorage.removeItem("restaurant_user")
+      sessionStorage.removeItem("restaurantAuthData")
+      window.dispatchEvent(new Event("restaurantAuthChanged"))
+
+      toast.success("Account deleted successfully")
+      navigate("/restaurant/welcome", { replace: true })
+    } catch (error) {
+      console.error("Error deleting restaurant account:", error)
+      toast.error(
+        error?.response?.data?.message ||
+        error?.message ||
+        "Failed to delete account",
+      )
+    } finally {
+      setIsDeletingAccount(false)
     }
   }
 
@@ -1148,25 +1199,47 @@ export default function ExploreMore() {
                 </div>
               </div>
 
-              {/* Logout Buttons */}
-              <div className="px-6 pb-6 space-y-3">
-                {/* Logout Button */}
-                <button
-                  onClick={handleLogout}
-                  disabled={isLoggingOut}
-                  className="w-full bg-red-600 hover:bg-red-700 disabled:bg-red-400 disabled:cursor-not-allowed text-white font-semibold py-3 px-4 rounded-lg transition-colors"
-                >
-                  {isLoggingOut ? "Logging out..." : "Logout"}
-                </button>
+              {/* Account Actions Selection Section */}
+              <div className="px-6 pb-6 space-y-4">
+                <Card className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
+                  <div className="p-0">
+                    {/* Logout Button */}
+                    <button
+                      onClick={handleLogout}
+                      disabled={isLoggingOut || isDeletingAccount}
+                      className="w-full flex items-center gap-3 px-4 py-4 text-left transition-colors hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed border-b border-gray-50"
+                    >
+                      <div className="p-2 rounded-lg bg-red-50">
+                        <LogOut className="w-5 h-5 text-red-600" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-red-600">
+                          {isLoggingOut ? "Logging out..." : "Logout"}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-0.5">Sign out from this restaurant account</p>
+                      </div>
+                      <Info className="w-4 h-4 text-red-300 shrink-0" />
+                    </button>
 
-                {/* Logout from all devices Button */}
-                <button
-                  onClick={handleLogoutAllDevices}
-                  disabled={isLoggingOut}
-                  className="w-full bg-white border-2 border-red-600 text-red-600 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed font-semibold py-3 px-4 rounded-lg transition-colors"
-                >
-                  {isLoggingOut ? "Logging out..." : "Logout from all devices"}
-                </button>
+                    {/* Delete account Button */}
+                    <button
+                      onClick={handleDeleteAccount}
+                      disabled={isDeletingAccount || isLoggingOut}
+                      className="w-full flex items-center gap-3 px-4 py-4 text-left transition-colors hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      <div className="p-2 rounded-lg bg-red-50">
+                        <Trash2 className="w-5 h-5 text-red-600" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-red-600">
+                          {isDeletingAccount ? "Deleting account..." : "Delete account"}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-0.5">Permanently remove this restaurant account</p>
+                      </div>
+                      <Info className="w-4 h-4 text-red-300 shrink-0" />
+                    </button>
+                  </div>
+                </Card>
               </div>
 
               {/* Footer Links */}
