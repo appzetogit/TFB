@@ -74,9 +74,22 @@ export default function AuthCallback() {
           } catch { return null }
         }
 
+        let detectedProvider = searchParams.get("provider") || getStoredProvider();
+        
+        // Final fallback for direct backend redirects (common for existing users)
+        // Check if the user object in URL contains apple signature
+        if (!detectedProvider) {
+          const userStr = searchParams.get("user");
+          if (userStr && (
+            userStr.toLowerCase().includes('"signupmethod":"apple"') || 
+            userStr.toLowerCase().includes('"provider":"apple"')
+          )) {
+            detectedProvider = "apple";
+          }
+        }
+
         const providerParam =
-          searchParams.get("provider") ||
-          getStoredProvider() ||
+          detectedProvider ||
           (window.location.pathname.toLowerCase().includes("apple") || searchParams.has("id_token") ? "apple" : "google")
         setProvider(providerParam)
         if (providerParam === "apple") {
