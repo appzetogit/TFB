@@ -14,8 +14,8 @@ const LoginWithApple = ({ clientId, redirectURI, isLoading, state = "user" }) =>
       `redirect_uri=${encodeURIComponent(finalRedirectURI)}&` +
       `response_type=code&` +
       `response_mode=form_post&` +
-      `state=${state}&` +
-      `role=${state}`;
+      `scope=name%20email&` +
+      `state=${state}`;
 
     // Store pending provider for the loading screen
     try {

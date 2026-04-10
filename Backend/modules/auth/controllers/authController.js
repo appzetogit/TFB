@@ -1508,6 +1508,9 @@ export const appleCallback = asyncHandler(async (req, res) => {
   console.log("🍎 Apple Callback Debug:", {
     method: req.method,
     code: code ? (code.substring(0, 5) + "...") : null,
+    id_token: id_token ? (id_token.substring(0, 10) + "...") : null,
+    state,
+    roleFromQuery,
     error
   });
 
@@ -1620,6 +1623,10 @@ export const appleCallback = asyncHandler(async (req, res) => {
     // Log role mismatch for debugging
     if (user && user.role && user.role !== userRole) {
        logger.info(`Apple Login Status: Account role is ${user.role}, but logging into ${userRole} portal (Model: ${userRole === "restaurant" ? "Restaurant" : "User"}).`);
+    }
+
+    if (!user && !email) {
+       logger.warn("Apple Login Warning: No existing user found and no email received from Apple. This will create a new account without email matching.", { appleId, role: userRole });
     }
 
     if (user) {
