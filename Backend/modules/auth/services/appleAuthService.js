@@ -75,9 +75,9 @@ class AppleAuthService {
       keyId: process.env.APPLE_KEY_ID,
       clientId: clientId,
     });
-    
+
     const encodedKey = (process.env.APPLE_PRIVATE_KEY || "").trim();
-    
+
     // Decode Base64 key to real PEM format
     let privateKey = "";
     if (encodedKey.startsWith("-----BEGIN")) {
@@ -116,7 +116,7 @@ class AppleAuthService {
     const rawDefaultClientId = (await getEnvVar("APPLE_CLIENT_ID") || process.env.APPLE_CLIENT_ID || "").toString();
     const defaultClientId = rawDefaultClientId.trim().replace(/^"|"$/g, "");
     const clientId = overrideClientId || defaultClientId;
-    
+
     const rawRedirectUri = (redirectUri || await getEnvVar("APPLE_REDIRECT_URI") || process.env.APPLE_REDIRECT_URI || "").toString();
     const finalRedirectUri = rawRedirectUri.trim().replace(/^"|"$/g, "");
 
@@ -128,11 +128,11 @@ class AppleAuthService {
 
     const clientSecret = await this.getClientSecret(clientId);
 
-    logger.info("Apple code exchange parameters", { 
-      clientId, 
+    logger.info("Apple code exchange parameters", {
+      clientId,
       finalRedirectUri,
       hasClientSecret: !!clientSecret,
-      code: code ? code.substring(0, 10) + '...' : null 
+      code: code ? code.substring(0, 10) + '...' : null
     });
 
     try {
@@ -178,6 +178,9 @@ class AppleAuthService {
     // Ensure our standard audiences are always in the list
     if (!trustedAudiences.includes("com.tifunbox.web")) trustedAudiences.push("com.tifunbox.web");
     if (!trustedAudiences.includes("app.tifunbox.com")) trustedAudiences.push("app.tifunbox.com");
+    if (!trustedAudiences.includes("com.tifunbox")) trustedAudiences.push("com.tifunbox");
+    if (!trustedAudiences.includes("com.tifunbox.delivery")) trustedAudiences.push("com.tifunbox.delivery");
+    if (!trustedAudiences.includes("app.tifunbox.com.restaurant")) trustedAudiences.push("app.tifunbox.com.restaurant");
 
     if (trustedAudiences.length === 0) {
       throw new Error("Audience (clientId) is required for Apple verification");
