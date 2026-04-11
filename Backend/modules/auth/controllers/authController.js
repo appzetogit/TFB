@@ -1569,39 +1569,33 @@ export const appleCallback = asyncHandler(async (req, res) => {
     // 3. Exchange code for tokens
     logger.info("[AppleAuth] Logic reached. Starting code exchange...");
 
+    // Step 1: Exchange code for tokens (Sequential Fallback for multiple Client IDs)
     let tokens;
-    try {
-      tokens = await appleAuthService.exchangeCode(code, null, passedClientId);
-      logger.info("[AppleAuth] Step 1: Code exchange successful");
-    } catch (exchangeError) {
-      const isMismatch = exchangeError.message.includes("client_id mismatch") || exchangeError.message.includes("invalid_client");
-      if (isMismatch) {
-        logger.info("[AppleAuth] Step 1 Fallback: Retrying with alternate client IDs...");
-        try {
-          // Try User Web ID
-          tokens = await appleAuthService.exchangeCode(code, null, "app.tifunbox.com");
-        } catch (e2) {
-          try {
-            // Try Restaurant App ID variants
-            tokens = await appleAuthService.exchangeCode(code, null, "app.tifunbox.com.restaurant");
-          } catch (e3) {
-            try {
-              // Try another common variant
-              tokens = await appleAuthService.exchangeCode(code, null, "com.tifunbox.restaurant");
-            } catch (e4) {
-              try {
-                // Try Delivery App ID
-                tokens = await appleAuthService.exchangeCode(code, null, "com.tifunbox.delivery");
-              } catch (e5) {
-                // If all fallbacks fail, throw the original error or the most recent one
-                throw exchangeError;
-              }
-            }
-          }
-        }
-      } else {
-        throw exchangeError;
+    let exchangeError;
+    
+    // Choose IDs based on role to speed up the process
+    let clientIdsToTry = ["com.tifunbox.web", "app.tifunbox.com", "app.tifunbox.com.restaurant", "com.tifunbox.restaurant", "com.tifunbox.delivery"];
+    if (effectiveRole === "restaurant") {
+      clientIdsToTry = ["app.tifunbox.com.restaurant", "com.tifunbox.restaurant", "com.tifunbox.web", "app.tifunbox.com"];
+    } else if (effectiveRole === "delivery") {
+      clientIdsToTry = ["com.tifunbox.delivery", "com.tifunbox.web"];
+    }
+
+    for (const cid of clientIdsToTry) {
+      try {
+        tokens = await appleAuthService.exchangeCode(code, null, cid);
+        if (tokens) break; // Success!
+      } catch (err) {
+        exchangeError = err;
+        // If it's a mismatch or invalid_client, try the next one
+        const isMismatch = err.message.includes("client_id mismatch") || err.message.includes("invalid_client");
+        if (!isMismatch) break; // If it's another error (like network), stop immediately
       }
+    }
+
+    if (!tokens) {
+      logger.error("All Apple code exchange attempts failed", { error: exchangeError?.message });
+      throw exchangeError || new Error("Apple authentication failed");
     }
 
     const identityToken = tokens.id_token || id_token;
