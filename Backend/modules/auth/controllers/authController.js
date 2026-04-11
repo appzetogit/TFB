@@ -1582,15 +1582,20 @@ export const appleCallback = asyncHandler(async (req, res) => {
           tokens = await appleAuthService.exchangeCode(code, null, "app.tifunbox.com");
         } catch (e2) {
           try {
-            // Try Restaurant App ID
+            // Try Restaurant App ID variants
             tokens = await appleAuthService.exchangeCode(code, null, "app.tifunbox.com.restaurant");
           } catch (e3) {
             try {
-              // Try Delivery App ID
-              tokens = await appleAuthService.exchangeCode(code, null, "com.tifunbox.delivery");
+              // Try another common variant
+              tokens = await appleAuthService.exchangeCode(code, null, "com.tifunbox.restaurant");
             } catch (e4) {
-              // If all fallbacks fail, throw the original error or the most recent one
-              throw exchangeError;
+              try {
+                // Try Delivery App ID
+                tokens = await appleAuthService.exchangeCode(code, null, "com.tifunbox.delivery");
+              } catch (e5) {
+                // If all fallbacks fail, throw the original error or the most recent one
+                throw exchangeError;
+              }
             }
           }
         }
@@ -1792,15 +1797,29 @@ export const appleCallback = asyncHandler(async (req, res) => {
     return res.status(200).send(`
       <script>
         (function() {
+          window.name = "Apple Login";
           var data = ${JSON.stringify(successData)};
+          window.appleData = data;
+          
+          // Log for Flutter console capture
+          console.log("Captured Login/Signup Response:", { 
+            url: window.location.href, 
+            body: data 
+          });
           
           if (window.opener) {
             // Popup flow
             window.opener.postMessage(data, '*');
             setTimeout(function() { window.close(); }, 500);
           } else {
-            // Full-page redirect flow
-            window.location.href = "${redirectUrl}";
+            // Full-page or WebView flow - Try to deliver and then redirect
+            // If the app is listening for postMessage on window
+            window.postMessage(data, '*');
+            
+            // Short delay to allow listeners to catch the data
+            setTimeout(function() {
+              window.location.href = "${redirectUrl}";
+            }, 500);
           }
         })();
       </script>
