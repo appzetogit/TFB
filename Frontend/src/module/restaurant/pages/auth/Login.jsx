@@ -719,13 +719,12 @@ export default function RestaurantLogin() {
             </Button>
 
             {/* Login with Google Button */}
-            <Button
+            {/* <Button
               onClick={handleGoogleLogin}
               disabled={isSending || isAppleLoading}
               variant="outline"
               className="w-full h-12 rounded-lg border border-gray- hover:border-gray-400 hover:bg-gray-50 text-gray-900 font-semibold text-base flex items-center justify-center gap-3"
             >
-              {/* Google Logo SVG */}
               <svg className="w-5 h-5 mr-auto" viewBox="0 0 24 24">
                 <path
                   fill="#4285F4"
@@ -745,14 +744,14 @@ export default function RestaurantLogin() {
                 />
               </svg>
               <span className="mr-auto text-gray-900">Login with Google</span>
-            </Button>
+            </Button> */}
 
-            <LoginWithApple 
+            {/* <LoginWithApple 
               clientId={appleConfig?.clientId}
               redirectURI={appleConfig?.redirectURI}
               isLoading={isAppleLoading}
               state="restaurant"
-            />
+            /> */}
           </div>
         </div>
       </div>

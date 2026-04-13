@@ -33,11 +33,11 @@ export default function RestaurantSignIn() {
       if (token && user) {
         setAuthData(targetRole, token, user)
         window.dispatchEvent(new Event(`${targetRole}AuthChanged`))
-        
+
         if (targetRole === "restaurant") {
-            navigate("/restaurant", { replace: true });
+          navigate("/restaurant", { replace: true });
         } else {
-            navigate("/", { replace: true });
+          navigate("/", { replace: true });
         }
       }
     }
@@ -272,10 +272,10 @@ export default function RestaurantSignIn() {
             </div>
 
             {/* Apple Login Button for Restaurant */}
-            <LoginWithApple 
+            {/* <LoginWithApple 
                 state="restaurant" 
                 isLoading={isLoading} 
-            />
+            /> */}
           </form>
 
           {/* Sign up link */}
