@@ -614,7 +614,7 @@ export default function SignIn() {
       if (unsubscribe) unsubscribe();
       window.removeEventListener("storage", handleStorageChange);
     }
-  }, [navigate]);
+  }, []);
 
   // Get selected country details dynamically
   const selectedCountry = countryCodes.find(c => c.code === formData.countryCode) || countryCodes[2] // Default to India (+91)

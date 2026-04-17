@@ -9,37 +9,19 @@ import { useFirebaseUserSession } from "@/lib/firebaseUserSession";
  */
 export default function ProtectedRoute({ children, requiredRole, loginPath }) {
   const location = useLocation();
-  const firebaseUserSession = useFirebaseUserSession()
-  const shouldWaitForFirebaseRestore =
-    !isModuleAuthenticated(requiredRole) &&
-    firebaseUserSession.isRestoring &&
-    !!(
-      firebaseUserSession.pendingProvider ||
-      firebaseUserSession.currentUser ||
-      firebaseUserSession.redirectResultUser
-    )
+  const firebaseUserSession = useFirebaseUserSession();
+  const isAuthenticated = isModuleAuthenticated(requiredRole);
 
-  // Check if user is authenticated for the required module using module-specific token
+  // Check if user is authenticated for required module
   if (!requiredRole) {
     // If no role required, allow access
     return children;
   }
 
-  if (requiredRole === "user" && shouldWaitForFirebaseRestore) {
-    console.log("[ProtectedRoute] Waiting for Firebase restore", {
-      requiredRole,
-      isRestoring: firebaseUserSession.isRestoring,
-      hasCurrentUser: !!firebaseUserSession.currentUser,
-      hasRedirectUser: !!firebaseUserSession.redirectResultUser,
-      pendingProvider: firebaseUserSession.pendingProvider || null,
-    })
-    return <Loader />
-  }
-
-  const isAuthenticated = isModuleAuthenticated(requiredRole);
-
-  // If not authenticated for this module, redirect to login
+  // Simplified: Don't wait for Firebase restore for user module
+  // Firebase session restoration was blocking normal login flow
   if (!isAuthenticated) {
+    // If not authenticated, redirect to login
     if (loginPath) {
       return <Navigate to={loginPath} state={{ from: location.pathname }} replace />;
     }

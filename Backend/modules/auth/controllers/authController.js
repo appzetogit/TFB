@@ -311,7 +311,20 @@ export const verifyOTP = asyncHandler(async (req, res) => {
     });
 
     // Set refresh token in httpOnly cookie
+    console.log('🔐 Setting refresh token cookie:', {
+      token: tokens.refreshToken ? 'SET' : 'NOT_SET',
+      options: getRefreshTokenCookieOptions()
+    });
     res.cookie("refreshToken", tokens.refreshToken, getRefreshTokenCookieOptions());
+    
+    // Also set accessToken in cookie for immediate frontend access
+    res.cookie("accessToken", tokens.accessToken, {
+      httpOnly: false,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+      path: "/"
+    });
 
     // Return access token and user info
     return successResponse(res, 200, "Authentication successful", {

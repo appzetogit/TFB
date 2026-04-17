@@ -31,6 +31,22 @@ function pickAccessTokenFromResponseBody(body) {
   return null;
 }
 
+function getAccessTokenFromCookies() {
+  try {
+    // Try to get access token from cookie first
+    const cookies = document.cookie.split(';');
+    for (let cookie of cookies) {
+      const [name, value] = cookie.trim().split('=');
+      if (name === 'accessToken' && value) {
+        return decodeURIComponent(value);
+      }
+    }
+  } catch (error) {
+    console.warn('Failed to get access token from cookies:', error);
+  }
+  return null;
+}
+
 function isRefreshTokenRequestUrl(url) {
   if (!url || typeof url !== "string") return false;
   return (
@@ -367,7 +383,7 @@ apiClient.interceptors.request.use(
         accessToken !== "undefined"
       ) {
         // If no auth header but we have a token, add it
-        config.headers.Authorization = `Bearer ${accessToken.trim()}`;
+        config.headers.Authorization = `Bearer ${token.trim()}`;
         if (import.meta.env.DEV) {
           console.log(
             "[API Interceptor] Added Authorization header for FormData request",
