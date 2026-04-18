@@ -367,7 +367,7 @@ export default function EditProfile() {
         toast.success('Profile updated successfully')
         
         // Navigate back
-        navigate("/user/profile")
+        navigate("/profile")
       }
     } catch (error) {
       console.error('Error updating profile:', error)

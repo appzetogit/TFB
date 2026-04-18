@@ -440,7 +440,7 @@ export default function CategoryPage() {
 
     if (!selectedStillVisible) {
       setSelectedCategory('all')
-      navigate('/user/category/all', { replace: true })
+      navigate('/category/all', { replace: true })
     }
   }, [categories, navigate, selectedCategory])
 
@@ -520,7 +520,7 @@ export default function CategoryPage() {
     // Auth check
     if (!isModuleAuthenticated("user")) {
       toast.error("Please login to add items to cart")
-      navigate("/user/auth/sign-in", { state: { from: `/user/category/${category}` } })
+      navigate("/auth/sign-in", { state: { from: `/category/${category}` } })
       return
     }
 
@@ -703,9 +703,9 @@ export default function CategoryPage() {
     setSelectedCategory(categorySlug)
     // Update URL to reflect category change
     if (categorySlug === 'all') {
-      navigate('/user/category/all')
+      navigate('/category/all')
     } else {
-      navigate(`/user/category/${categorySlug}`)
+      navigate(`/category/${categorySlug}`)
     }
   }
 
@@ -720,7 +720,7 @@ export default function CategoryPage() {
           {/* Search Bar with Back Button */}
           <div className="flex items-center gap-2 px-3 md:px-6 py-3 border-b border-gray-100 dark:border-gray-800">
             <button
-              onClick={() => navigate('/user')}
+              onClick={() => navigate('/')}
               className="w-9 h-9 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors flex-shrink-0"
             >
               <ArrowLeft className="h-5 w-5 text-gray-700 dark:text-gray-300" />
@@ -914,8 +914,8 @@ export default function CategoryPage() {
                     key={restaurant.id}
                     to={
                       selectedCategory && selectedCategory !== 'all'
-                        ? `/user/restaurants/${restaurantSlug}?q=${encodeURIComponent(selectedCategory)}`
-                        : `/user/restaurants/${restaurantSlug}`
+                        ? `/restaurants/${restaurantSlug}?q=${encodeURIComponent(selectedCategory)}`
+                        : `/restaurants/${restaurantSlug}`
                     }
                     className="h-full flex"
                   >

@@ -34,7 +34,7 @@ export default function SubmitComplaint() {
       console.error("Order ID missing from URL params")
       toast.error("Order ID is required")
       setTimeout(() => {
-        navigate("/user/orders")
+        navigate("/orders")
       }, 2000)
       return
     }
@@ -54,7 +54,7 @@ export default function SubmitComplaint() {
           console.error("Order not found in response:", response?.data)
           toast.error("Order not found")
           setTimeout(() => {
-            navigate("/user/orders")
+            navigate("/orders")
           }, 2000)
           return
         }
@@ -69,7 +69,7 @@ export default function SubmitComplaint() {
         console.error("Error fetching order:", error)
         toast.error(error?.response?.data?.message || "Failed to load order details")
         setTimeout(() => {
-          navigate("/user/orders")
+          navigate("/orders")
         }, 2000)
       } finally {
         setLoading(false)
@@ -121,7 +121,7 @@ export default function SubmitComplaint() {
         toast.success("Complaint submitted successfully")
         // Navigate back to order details using the orderId from URL or order._id
         const orderIdForNav = order?._id || orderId
-        navigate(`/user/orders/${orderIdForNav}/details`)
+        navigate(`/orders/${orderIdForNav}/details`)
       } else {
         toast.error(response?.data?.message || "Failed to submit complaint")
       }

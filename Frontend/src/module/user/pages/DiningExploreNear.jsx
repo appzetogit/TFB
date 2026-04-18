@@ -246,7 +246,7 @@ export default function DiningExploreNear() {
                 onFocus={handleSearchFocus}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && heroSearch.trim()) {
-                    navigate(`/user/search?q=${encodeURIComponent(heroSearch.trim())}`)
+                    navigate(`/search?q=${encodeURIComponent(heroSearch.trim())}`)
                     closeSearch()
                     setHeroSearch("")
                   }
@@ -353,7 +353,7 @@ export default function DiningExploreNear() {
               }
 
               return (
-                <Link key={restaurant.id} to={`/user/restaurants/${restaurantSlug}`}>
+                <Link key={restaurant.id} to={`/restaurants/${restaurantSlug}`}>
                   <Card className="overflow-hidden gap-0 cursor-pointer border-0 group bg-white shadow-md hover:shadow-xl transition-all duration-300 py-0 rounded-2xl">
                     
                     {/* Image Section */}

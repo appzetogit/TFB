@@ -21,7 +21,7 @@ export default function CollectionDetail() {
       setCollection(foundCollection)
     } else {
       // If collection not found, maybe it was deleted or invalid ID
-      // navigate("/user/collections")
+      // navigate("/collections")
     }
   }, [id, collections])
 
@@ -54,7 +54,7 @@ export default function CollectionDetail() {
             <CardContent className="py-12 text-center">
               <Heart className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
               <p className="text-muted-foreground text-lg mb-4">This collection is empty</p>
-              <Link to="/user">
+              <Link to="/">
                 <Button className="bg-gradient-to-r bg-primary-orange hover:opacity-90 text-white">
                   Explore Restaurants
                 </Button>
@@ -93,7 +93,7 @@ export default function CollectionDetail() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-4">
           {collection.items.map((item, index) => (
             <ScrollReveal key={item.slug || item.id} delay={index * 0.1}>
-              <Link to={item.slug ? `/user/restaurants/${item.slug}` : "#"}>
+              <Link to={item.slug ? `/restaurants/${item.slug}` : "#"}>
                 <Card className="overflow-hidden h-full p-0 gap-0">
                   <div className="h-48 w-full relative overflow-hidden">
                     <img

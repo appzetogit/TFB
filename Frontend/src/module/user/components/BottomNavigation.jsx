@@ -5,9 +5,9 @@ export default function BottomNavigation() {
   const location = useLocation()
 
   // Check active routes - support both /user/* and /* paths
-  const isDining = location.pathname === "/dining" || location.pathname === "/user/dining"
-  const isUnder250 = location.pathname === "/under-250" || location.pathname === "/user/under-250"
-  const isProfile = location.pathname.startsWith("/profile") || location.pathname.startsWith("/user/profile")
+  const isDining = location.pathname === "/dining" || location.pathname === "/dining"
+  const isUnder250 = location.pathname === "/under-250" || location.pathname === "/under-250"
+  const isProfile = location.pathname.startsWith("/profile") || location.pathname.startsWith("/profile")
   const isDelivery = !isDining && !isUnder250 && !isProfile && (location.pathname === "/" || location.pathname === "/user" || (location.pathname.startsWith("/") && !location.pathname.startsWith("/restaurant") && !location.pathname.startsWith("/delivery") && !location.pathname.startsWith("/admin") && !location.pathname.startsWith("/usermain")))
 
   return (
@@ -57,7 +57,7 @@ export default function BottomNavigation() {
 
         {/* Dining Tab */}
         <Link
-          to="/user/dining"
+          to="/dining"
           className={`flex flex-col items-center gap-1.5 px-4 sm:px-5 py-2 transition-all duration-200 relative ${isDining
             ? "text-[#671E1F]"
             : "text-gray-600 dark:text-gray-400"
@@ -77,7 +77,7 @@ export default function BottomNavigation() {
 
         {/* Profile Tab */}
         <Link
-          to="/user/profile"
+          to="/profile"
           className={`flex flex-col items-center gap-1.5 px-4 sm:px-5 py-2 transition-all duration-200 relative ${isProfile
             ? "text-[#671E1F]"
             : "text-gray-600 dark:text-gray-400"

@@ -174,9 +174,9 @@ export default function GiftCardCheckout() {
           className="w-full h-14 bg-red-700 hover:bg-red-800 text-white font-semibold text-base rounded-xl transition-all duration-200 flex items-center justify-between px-6"
           onClick={() => {
             // Navigate to payment or show payment options
-            navigate('/user/profile/payments/new', {
+            navigate('/profile/payments/new', {
               state: {
-                returnTo: '/user/gift-card/checkout',
+                returnTo: '/gift-card/checkout',
                 giftCard: { category, amount, message }
               }
             })

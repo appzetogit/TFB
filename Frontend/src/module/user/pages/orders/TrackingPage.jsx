@@ -187,7 +187,7 @@ const TrackingPage = () => {
           {/* Contact Person Card - click to go to profile */}
           <button
             type="button"
-            onClick={() => navigate('/user/profile')}
+            onClick={() => navigate('/profile')}
             className="w-full text-left bg-gray-800 rounded-xl p-4 border border-gray-700 shadow-sm hover:bg-gray-700/80 active:bg-gray-700 transition-colors"
           >
             <div className="flex items-center gap-3">

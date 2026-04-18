@@ -57,7 +57,7 @@ export default function Favorites() {
         <div className="max-w-4xl mx-auto space-y-6">
           <ScrollReveal>
             <div className="flex items-center gap-3 sm:gap-4">
-              <Link to="/user/profile">
+              <Link to="/profile">
                 <Button variant="ghost" size="icon" className="rounded-full h-8 w-8 sm:h-10 sm:w-10">
                   <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5" />
                 </Button>
@@ -69,7 +69,7 @@ export default function Favorites() {
           <CardContent className="py-12 text-center">
             <Heart className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
             <p className="text-muted-foreground text-lg mb-4">You haven't added any favorites yet</p>
-            <Link to="/user">
+            <Link to="/">
               <Button className="bg-gradient-to-r bg-primary-orange hover:opacity-90 text-white">
                 Explore Restaurants
               </Button>
@@ -87,7 +87,7 @@ export default function Favorites() {
         <ScrollReveal>
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3 sm:gap-4">
-              <Link to="/user/profile">
+              <Link to="/profile">
                 <Button variant="ghost" size="icon" className="rounded-full h-8 w-8 sm:h-10 sm:w-10">
                   <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5" />
                 </Button>
@@ -165,7 +165,7 @@ export default function Favorites() {
               <div className="col-span-full text-center py-12">
                 <Heart className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
                 <p className="text-muted-foreground text-lg mb-4">No restaurants saved yet</p>
-                <Link to="/user">
+                <Link to="/">
                   <Button className="bg-gradient-to-r bg-primary-orange hover:opacity-90 text-white">
                     Explore Restaurants
                   </Button>
@@ -174,7 +174,7 @@ export default function Favorites() {
             ) : (
               restaurantsToShow.map((restaurant, index) => (
             <ScrollReveal key={restaurant.slug} delay={index * 0.1}>
-              <Link to={`/user/restaurants/${restaurant.slug}`}>
+              <Link to={`/restaurants/${restaurant.slug}`}>
                 <Card className="overflow-hidden h-full">
                   <div className="h-32 w-full relative overflow-hidden">
                     <img
@@ -245,7 +245,7 @@ export default function Favorites() {
               <div className="col-span-full text-center py-12">
                 <Bookmark className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
                 <p className="text-muted-foreground text-lg mb-4">No dishes saved yet</p>
-                <Link to="/user">
+                <Link to="/">
                   <Button className="bg-gradient-to-r bg-primary-orange hover:opacity-90 text-white">
                     Explore Dishes
                   </Button>
@@ -256,7 +256,7 @@ export default function Favorites() {
                 const restaurantSlug = dish.restaurantSlug || ""
                 return (
                   <ScrollReveal key={`${dish.id}-${dish.restaurantId}`} delay={index * 0.1}>
-                    <Link to={`/user/restaurants/${restaurantSlug}?dish=${dish.id}`}>
+                    <Link to={`/restaurants/${restaurantSlug}?dish=${dish.id}`}>
                       <Card className="overflow-hidden h-full cursor-pointer hover:shadow-lg transition-shadow">
                         <div className="h-32 w-full relative overflow-hidden">
                           <img

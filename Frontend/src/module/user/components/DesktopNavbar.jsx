@@ -31,9 +31,9 @@ export default function DesktopNavbar() {
   }
 
   // Check active routes - support both /user/* and /* paths
-  const isDining = location.pathname === "/dining" || location.pathname === "/user/dining"
-  const isUnder250 = location.pathname === "/under-250" || location.pathname === "/user/under-250"
-  const isProfile = location.pathname.startsWith("/profile") || location.pathname.startsWith("/user/profile")
+  const isDining = location.pathname === "/dining" || location.pathname === "/dining"
+  const isUnder250 = location.pathname === "/under-250" || location.pathname === "/under-250"
+  const isProfile = location.pathname.startsWith("/profile") || location.pathname.startsWith("/profile")
   const isDelivery = !isDining && !isUnder250 && !isProfile && (location.pathname === "/" || location.pathname === "/user" || (location.pathname.startsWith("/") && !location.pathname.startsWith("/restaurant") && !location.pathname.startsWith("/delivery") && !location.pathname.startsWith("/admin") && !location.pathname.startsWith("/usermain")))
 
   // Reset visibility and scroll position when route changes
@@ -165,7 +165,7 @@ export default function DesktopNavbar() {
 
               {/* Dining Tab */}
               <Link
-                to="/user/dining"
+                to="/dining"
                 className={`px-6 py-2.5 text-sm font-medium transition-all duration-200 relative ${isDining
                   ? "text-red-600 dark:text-red-500"
                   : "text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-500"
@@ -182,7 +182,7 @@ export default function DesktopNavbar() {
 
               {/* Profile Tab */}
               <Link
-                to="/user/profile"
+                to="/profile"
                 className={`px-6 py-2.5 text-sm font-medium transition-all duration-200 relative ${isProfile
                   ? "text-red-600 dark:text-red-500"
                   : "text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-500"
@@ -210,7 +210,7 @@ export default function DesktopNavbar() {
               </Link>
 
               {/* Wallet Icon */}
-              <Link to="/user/wallet">
+              <Link to="/wallet">
                 <Button
                   variant="ghost"
                   size="icon"
@@ -222,7 +222,7 @@ export default function DesktopNavbar() {
               </Link>
 
               {/* Cart Icon */}
-              <Link to="/user/cart">
+              <Link to="/cart">
                 <Button
                   variant="ghost"
                   size="icon"

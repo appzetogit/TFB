@@ -157,7 +157,7 @@ export default function AuthCallback() {
           if (errorParam === "access_denied") {
             setError("You cancelled the sign-in. Redirecting you back...")
             setTimeout(() => {
-              const redirectPath = effectiveRole === "restaurant" ? "/restaurant/login" : "/user/auth/sign-in";
+              const redirectPath = effectiveRole === "restaurant" ? "/restaurant/login" : "/auth/sign-in";
               navigate(redirectPath, { replace: true })
             }, 1200)
             return
@@ -359,11 +359,11 @@ export default function AuthCallback() {
   }, [navigate, searchParams])
 
   const handleRetry = () => {
-    navigate("/user/auth/sign-in")
+    navigate("/auth/sign-in")
   }
 
   const handleGoHome = () => {
-    navigate("/user")
+    navigate("/")
   }
 
   return (

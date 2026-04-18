@@ -78,7 +78,7 @@ export default function UserOrderDetails() {
           orderData = response.data.order
         } else {
           toast.error("Order not found")
-          navigate("/user/orders")
+          navigate("/orders")
           return
         }
 
@@ -104,7 +104,7 @@ export default function UserOrderDetails() {
         toast.error(
           error?.response?.data?.message || "Failed to load order details"
         )
-        navigate("/user/orders")
+        navigate("/orders")
       } finally {
         setLoading(false)
       }
@@ -163,7 +163,7 @@ export default function UserOrderDetails() {
         <div className="text-center space-y-3">
           <p className="text-gray-700 text-sm font-medium">Order not found</p>
           <button
-            onClick={() => navigate("/user/orders")}
+            onClick={() => navigate("/orders")}
             className="px-4 py-2 rounded-lg bg-[#E23744] text-white text-sm font-semibold"
           >
             Back to Orders
@@ -804,7 +804,7 @@ export default function UserOrderDetails() {
       <div className="fixed bottom-0 w-full bg-white border-t border-gray-200 p-4 flex gap-3 z-20">
         <button
           type="button"
-          onClick={() => navigate(`/user/restaurants/${order.restaurantId || ""}`)}
+          onClick={() => navigate(`/restaurants/${order.restaurantId || ""}`)}
           className="flex-1 bg-[#E23744] text-white py-3 rounded-lg font-semibold flex items-center justify-center gap-2 hover:bg-red-600 transition-colors"
         >
           <RotateCcw className="w-4 h-4" />
@@ -846,7 +846,7 @@ export default function UserOrderDetails() {
                 : String(orderMongoId)
 
               console.log("Navigating to complaint page with orderId:", orderIdString)
-              navigate(`/user/complaints/submit/${encodeURIComponent(orderIdString)}`)
+              navigate(`/complaints/submit/${encodeURIComponent(orderIdString)}`)
             }}
             className="w-full bg-orange-50 border border-orange-200 text-orange-700 py-3 rounded-lg font-semibold flex items-center justify-center gap-2 hover:bg-orange-100 transition-colors"
           >

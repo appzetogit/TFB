@@ -151,12 +151,12 @@ export default function UserLayout() {
   const showBottomNav = location.pathname === "/" ||
     location.pathname === "/user" ||
     location.pathname === "/dining" ||
-    location.pathname === "/user/dining" ||
+    location.pathname === "/dining" ||
     location.pathname === "/under-250" ||
-    location.pathname === "/user/under-250" ||
+    location.pathname === "/under-250" ||
     location.pathname === "/profile" ||
-    location.pathname === "/user/profile" ||
-    location.pathname.startsWith("/user/profile")
+    location.pathname === "/profile" ||
+    location.pathname.startsWith("/profile")
 
   // Auth pages (sign-in, otp, etc.) should fill viewport without layout constraints
   const isAuthRoute = location.pathname === "/auth/sign-in" ||

@@ -242,7 +242,7 @@ export default function SearchOverlay({ isOpen, onClose, searchValue, onSearchCh
     e.preventDefault()
     if (searchValue.trim()) {
       saveSearchToHistory(searchValue.trim())
-      navigate(`/user/search?q=${encodeURIComponent(searchValue.trim())}`)
+      navigate(`/search?q=${encodeURIComponent(searchValue.trim())}`)
       onClose()
       onSearchChange("")
     }
@@ -254,13 +254,13 @@ export default function SearchOverlay({ isOpen, onClose, searchValue, onSearchCh
     if (food.restaurantSlug) {
       // Go directly to the restaurant menu page with a dish search query
       navigate(
-        `/user/restaurants/${food.restaurantSlug}?q=${encodeURIComponent(
+        `/restaurants/${food.restaurantSlug}?q=${encodeURIComponent(
           food.name,
         )}`,
       )
     } else {
       // Fallback: use generic search results page
-      navigate(`/user/search?q=${encodeURIComponent(food.name)}`)
+      navigate(`/search?q=${encodeURIComponent(food.name)}`)
     }
 
     onClose()

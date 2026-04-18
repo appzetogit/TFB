@@ -122,7 +122,7 @@ export default function GiftCards() {
         
         {/* Help Button */}
         <Link 
-          to="/user/help"
+          to="/help"
           className="absolute top-4 right-4 z-10 flex items-center gap-1.5 text-white font-medium text-sm"
         >
           <HelpCircle className="h-4 w-4" />
@@ -282,7 +282,7 @@ export default function GiftCards() {
               {/* Redeem Link */}
               <div className="flex items-center gap-1 pt-1">
                 <span className="text-gray-600 dark:text-gray-400 text-sm">Do you have a gift card?</span>
-                <Link to="/user/gift-card/redeem" className="text-red-700 dark:text-red-400 text-sm font-medium underline underline-offset-2 decoration-dashed hover:text-red-800 dark:hover:text-red-500">
+                <Link to="/gift-card/redeem" className="text-red-700 dark:text-red-400 text-sm font-medium underline underline-offset-2 decoration-dashed hover:text-red-800 dark:hover:text-red-500">
                   Redeem now
                 </Link>
               </div>
@@ -385,12 +385,12 @@ export default function GiftCards() {
               alert('Please select or enter a valid amount (Min ₹100)')
               return
             }
-            navigate('/user/gift-card/checkout', { 
-              state: { 
+            navigate('/gift-card/checkout', {
+              state: {
                 category: currentCategory,
                 amount: finalAmount,
                 message: message
-              } 
+              }
             })
           }}
         >

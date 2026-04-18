@@ -289,7 +289,7 @@ export default function Under250() {
     // Check authentication
     if (!isModuleAuthenticated('user')) {
       toast.error("Please login to add items to cart")
-      navigate('/user/auth/sign-in', { state: { from: location.pathname } })
+      navigate('/auth/sign-in', { state: { from: location.pathname } })
       return
     }
 
@@ -421,7 +421,7 @@ export default function Under250() {
       item.restaurantName?.toLowerCase().replace(/\s+/g, "-") ||
       item.restaurant?.toLowerCase().replace(/\s+/g, "-")
     const restaurantUrl = restaurantSlug
-      ? `${window.location.origin}/user/restaurants/${restaurantSlug}`
+      ? `${window.location.origin}/restaurants/${restaurantSlug}`
       : window.location.href
 
     try {
@@ -519,7 +519,7 @@ export default function Under250() {
                 const categorySlug = category.slug || category.name.toLowerCase().replace(/\s+/g, '-')
                 return (
                   <div key={category.id} className="flex-shrink-0">
-                    <Link to={`/user/category/${categorySlug}`}>
+                    <Link to={`/category/${categorySlug}`}>
                       <motion.div
                         className="flex flex-col items-center gap-2 w-[62px] sm:w-24 md:w-28"
                         onClick={() => setActiveCategory(category.id)}
@@ -1126,7 +1126,7 @@ export default function Under250() {
                     return (
                       <Link
                         key={category.id}
-                        to={`/user/category/${categorySlug}`}
+                        to={`/category/${categorySlug}`}
                         onClick={() => setShowAllCategoriesModal(false)}
                         className="flex flex-col items-center gap-2"
                       >

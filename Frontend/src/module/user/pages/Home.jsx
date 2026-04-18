@@ -1360,7 +1360,7 @@ export default function Home() {
                           onFocus={handleSearchFocus}
                           onKeyDown={(e) => {
                             if (e.key === 'Enter' && heroSearch.trim()) {
-                              navigate(`/user/search?q=${encodeURIComponent(heroSearch.trim())}`)
+                              navigate(`/search?q=${encodeURIComponent(heroSearch.trim())}`)
                               closeSearch()
                               setHeroSearch("")
                             }
@@ -1502,7 +1502,7 @@ export default function Home() {
                       whileHover={{ scale: 1.05, y: -5 }}
                       whileTap={{ scale: 0.95 }}
                     >
-                      <Link to={`/user/category/${category.slug || category.name.toLowerCase().replace(/\s+/g, '-')}`} className="flex flex-col items-center gap-2 group">
+                      <Link to={`/category/${category.slug || category.name.toLowerCase().replace(/\s+/g, '-')}`} className="flex flex-col items-center gap-2 group">
                         <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl sm:rounded-3xl overflow-hidden shadow-sm border border-gray-100 dark:border-gray-800 relative">
                           <OptimizedImage
                             src={category.image}
@@ -1530,7 +1530,7 @@ export default function Home() {
                       key={category._id || index}
                       className="flex-shrink-0 transform transition-all duration-300 hover:scale-105 active:scale-95"
                     >
-                      <Link to={`/user/category/${category.slug || category.label.toLowerCase().replace(/\s+/g, '-')}`} className="flex flex-col items-center gap-2 group">
+                      <Link to={`/category/${category.slug || category.label.toLowerCase().replace(/\s+/g, '-')}`} className="flex flex-col items-center gap-2 group">
                         <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl sm:rounded-3xl overflow-hidden shadow-sm border border-gray-100 dark:border-gray-800 relative">
                           <OptimizedImage
                             src={category.imageUrl}
@@ -1667,25 +1667,25 @@ export default function Home() {
                   id: 'offers',
                   label: 'Offers',
                   image: exploreOffers,
-                  href: '/user/offers'
+                  href: '/offers'
                 },
                 {
                   id: 'gourmet',
                   label: 'Gourmet',
                   image: exploreGourmet,
-                  href: '/user/gourmet'
+                  href: '/gourmet'
                 },
                 {
                   id: 'top10',
                   label: 'Top 10',
                   image: exploreTop10,
-                  href: '/user/top-10'
+                  href: '/top-10'
                 },
                 {
                   id: 'collection',
                   label: 'Collections',
                   image: exploreCollection,
-                  href: '/user/profile/favorites'
+                  href: '/profile/favorites'
                 },
               ].map((item, index) => (
                 <motion.div
@@ -1853,7 +1853,7 @@ export default function Home() {
                     }}
                   >
                     <div className="h-full group">
-                      <Link to={`/user/restaurants/${restaurantSlug}`} className="h-full flex">
+                      <Link to={`/restaurants/${restaurantSlug}`} className="h-full flex">
                         <Card className={`overflow-hidden gap-0 cursor-pointer border-0 dark:border-gray-800 group bg-white dark:bg-[#1a1a1a] border-background transition-all duration-500 py-0 rounded-2xl sm:rounded-3xl flex flex-col h-full w-full relative ${isOutOfService ? 'grayscale opacity-75' : ''
                           }`}>
                           {/* Image Section with Carousel */}
@@ -1972,7 +1972,7 @@ export default function Home() {
             </div>
           </div>
           <div className="flex justify-center pt-2 sm:pt-3">
-            {/* <Link to="/user/restaurants">
+            {/* <Link to="/restaurants">
               <Button variant="outline" className="bg-transparent outline-none text-red-600 hover:opacity-80 border-none underline shadow-none  text-xs sm:text-sm md:text-base sm:hidden">
                 See All Restaurants
               </Button>
@@ -2641,7 +2641,7 @@ export default function Home() {
                         whileTap={{ scale: 0.95 }}
                       >
                         <Link
-                          to={`/user/category/${categoryData.slug || categoryData.name.toLowerCase().replace(/\s+/g, '-')}`}
+                          to={`/category/${categoryData.slug || categoryData.name.toLowerCase().replace(/\s+/g, '-')}`}
                           onClick={() => setShowAllCategoriesModal(false)}
                           className="block"
                         >

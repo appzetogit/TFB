@@ -7,11 +7,12 @@ const PENDING_PROVIDER_KEY = "pendingSocialProvider"
 const APPLE_REDIRECT_IN_PROGRESS_KEY = "appleRedirectInProgress"
 const DEFAULT_RESTORE_TIMEOUT_MS = 4000
 const IOS_SAFARI_RESTORE_TIMEOUT_MS = 2500
+const BACKEND_LOGIN_TIMEOUT_MS = 12000
 const USER_AUTH_PATHS = new Set([
   "/auth/sign-in",
-  "/user/auth/sign-in",
+  "/auth/sign-in",
   "/auth/otp",
-  "/user/auth/otp",
+  "/auth/otp",
 ])
 
 const listeners = new Set()
@@ -120,6 +121,20 @@ const getProviderFromUser = (user) => {
   )
 }
 
+const withTimeout = (promise, timeoutMs, label) => {
+  let timeoutId = null
+
+  const timeoutPromise = new Promise((_, reject) => {
+    timeoutId = window.setTimeout(() => {
+      reject(new Error(`${label} timed out`))
+    }, timeoutMs)
+  })
+
+  return Promise.race([promise, timeoutPromise]).finally(() => {
+    if (timeoutId) window.clearTimeout(timeoutId)
+  })
+}
+
 const isUserAuthPath = () => {
   if (typeof window === "undefined") return false
   return USER_AUTH_PATHS.has(window.location.pathname)
@@ -166,8 +181,16 @@ const completeBackendLoginFromFirebaseUser = async (user, source) => {
       email: user.email || null,
     })
 
-    const idToken = await user.getIdToken(true)
-    const response = await authAPI.firebaseSocialLogin(idToken, "user", provider)
+    const idToken = await withTimeout(
+      user.getIdToken(true),
+      BACKEND_LOGIN_TIMEOUT_MS,
+      "Firebase ID token refresh",
+    )
+    const response = await withTimeout(
+      authAPI.firebaseSocialLogin(idToken, "user", provider),
+      BACKEND_LOGIN_TIMEOUT_MS,
+      "Backend Firebase social login",
+    )
     const payload = response?.data?.data || {}
 
     if (!payload.accessToken || !payload.user) {
@@ -318,13 +341,22 @@ export async function startFirebaseUserSessionBootstrap() {
         if (!user) return
 
         try {
-          await completeBackendLoginFromFirebaseUser(user, "auth-state-changed")
+          completeBackendLoginFromFirebaseUser(user, "auth-state-changed").catch((error) => {
+            console.error("[FirebaseUserSession] Failed completing backend login from auth state", error)
+            clearPendingProvider()
+            setState({
+              lastError: error,
+              pendingProvider: null,
+              isRestoring: false,
+            })
+          })
         } catch (error) {
           console.error("[FirebaseUserSession] Failed completing backend login from auth state", error)
           clearPendingProvider()
           setState({
             lastError: error,
             pendingProvider: null,
+            isRestoring: false,
           })
         }
       })

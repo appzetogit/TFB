@@ -441,7 +441,7 @@ export default function RestaurantDetails() {
     // Check authentication
     if (!isModuleAuthenticated('user')) {
       toast.error("Please login to add items to cart")
-      navigate('/user/auth/sign-in', { state: { from: location.pathname } })
+      navigate('/auth/sign-in', { state: { from: location.pathname } })
       return
     }
 
@@ -774,7 +774,7 @@ export default function RestaurantDetails() {
     const restaurantName = restaurant?.name || "this restaurant"
 
     // Create share URL
-    const shareUrl = `${window.location.origin}/user/restaurants/${restaurantSlug}`
+    const shareUrl = `${window.location.origin}/restaurants/${restaurantSlug}`
     const shareText = `Check out ${restaurantName} on ${companyName}! ${shareUrl}`
 
     const result = await shareContent({
@@ -804,7 +804,7 @@ export default function RestaurantDetails() {
     const restaurantSlug = restaurant?.slug || slug || ""
 
     // Create share URL
-    const shareUrl = `${window.location.origin}/user/restaurants/${restaurantSlug}?dish=${dishId}`
+    const shareUrl = `${window.location.origin}/restaurants/${restaurantSlug}?dish=${dishId}`
     const shareText = `Check out ${item.name} from ${restaurant?.name || "this restaurant"}! ${shareUrl}`
 
     const result = await shareContent({

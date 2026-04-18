@@ -129,7 +129,7 @@ export default function Coffee() {
             return (
               <Link 
                 key={store.id} 
-                to={`/user/restaurants/${storeSlug}`}
+                to={`/restaurants/${storeSlug}`}
                 className="block"
               >
                 <div className={`flex items-start gap-4 py-4 ${index !== stores.length - 1 ? 'border-b border-gray-200' : ''}`}>

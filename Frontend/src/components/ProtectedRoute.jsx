@@ -31,7 +31,7 @@ export default function ProtectedRoute({ children, requiredRole, loginPath }) {
       'admin': '/admin/login',
       'restaurant': '/restaurant/login',
       'delivery': '/delivery/sign-in',
-      'user': '/user/auth/sign-in'
+      'user': '/auth/sign-in'
     };
 
     const redirectPath = roleLoginPaths[requiredRole] || '/';

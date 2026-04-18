@@ -108,7 +108,7 @@ export default function StickyCartCard() {
                 </div>
 
                 {/* Restaurant Info */}
-                <Link to={`/user/restaurants/${restaurantSlug}`} className="flex-1 min-w-0">
+                <Link to={`/restaurants/${restaurantSlug}`} className="flex-1 min-w-0">
                   <h3 className="font-bold text-gray-900 dark:text-gray-200 text-base md:text-lg mb-0.5 line-clamp-1">
                     {restaurantName}
                   </h3>
@@ -120,7 +120,7 @@ export default function StickyCartCard() {
 
                 {/* View Cart Button */}
                 <Link 
-                  to="/user/cart"
+                  to="/cart"
                   className="flex-shrink-0 bg-red-600 dark:bg-red-700 hover:bg-red-700 text-white px-4 py-2.5 md:px-5 md:py-3 rounded-lg font-semibold transition-colors"
                 >
                   <div className="text-center">

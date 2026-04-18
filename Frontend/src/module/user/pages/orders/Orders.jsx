@@ -378,7 +378,7 @@ export default function Orders() {
 
   // Handle reorder - open View Details page of order
   const handleReorder = (order) => {
-    navigate(`/user/orders/${order.id}/details`)
+    navigate(`/orders/${order.id}/details`)
   }
 
   // Three-dots menu handlers
@@ -418,7 +418,7 @@ Order again from this restaurant in the ${companyName} app.`
 
   const handleViewOrderDetails = (order) => {
     setActiveMenuOrderId(null)
-    navigate(`/user/orders/${order.id}/details`)
+    navigate(`/orders/${order.id}/details`)
   }
 
   const handleDeleteOrder = (order) => {
@@ -545,7 +545,7 @@ Order again from this restaurant in the ${companyName} app.`
     return (
       <div className="min-h-screen bg-gray-50 pb-10">
         <div className="bg-white p-4 flex items-center shadow-sm sticky top-0 z-10">
-          <Link to="/user">
+          <Link to="/">
             <ArrowLeft className="w-6 h-6 text-gray-700 cursor-pointer" />
           </Link>
           <h1 className="ml-4 text-xl font-semibold text-gray-800">Your Orders</h1>
@@ -561,14 +561,14 @@ Order again from this restaurant in the ${companyName} app.`
     return (
       <div className="min-h-screen bg-gray-50 pb-10">
         <div className="bg-white p-4 flex items-center shadow-sm sticky top-0 z-10">
-          <Link to="/user">
+          <Link to="/">
             <ArrowLeft className="w-6 h-6 text-gray-700 cursor-pointer" />
           </Link>
           <h1 className="ml-4 text-xl font-semibold text-gray-800">Your Orders</h1>
         </div>
         <div className="px-4 py-8 text-center">
           <p className="text-gray-600">You haven't placed any orders yet</p>
-          <Link to="/user">
+          <Link to="/">
             <button className="mt-4 text-red-500 font-medium">Start Ordering</button>
           </Link>
         </div>
@@ -580,7 +580,7 @@ Order again from this restaurant in the ${companyName} app.`
     <div className="min-h-screen bg-gray-50 pb-10 font-sans">
       {/* Header */}
       <div className="bg-white p-4 flex items-center shadow-sm sticky top-0 z-10">
-        <Link to="/user">
+        <Link to="/">
           <ArrowLeft className="w-6 h-6 text-gray-700 cursor-pointer" />
         </Link>
         <h1 className="ml-4 text-xl font-semibold text-gray-800">Your Orders</h1>
@@ -663,7 +663,7 @@ Order again from this restaurant in the ${companyName} app.`
                         </p>
                       )}
                       {order.restaurantId && (
-                        <Link to={`/user/restaurants/${order.restaurantId}`}>
+                        <Link to={`/restaurants/${order.restaurantId}`}>
                           <button className="text-xs text-red-500 font-medium flex items-center mt-1 hover:text-red-600">
                             View menu <span className="ml-0.5">▸</span>
                           </button>
@@ -885,7 +885,7 @@ Order again from this restaurant in the ${companyName} app.`
                     )}
                   </div>
                   <div className="flex items-center ml-4">
-                    <Link to={`/user/orders/${order.id}/details`}>
+                    <Link to={`/orders/${order.id}/details`}>
                       <button className="text-xs text-red-500 font-medium hover:text-red-600 flex items-center gap-1">
                         View Details
                         <ChevronRight className="w-4 h-4" />

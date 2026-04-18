@@ -60,7 +60,7 @@ export default function Logout() {
 
       // Small delay for UX, then navigate to sign in
       setTimeout(() => {
-        navigate("/user/auth/sign-in", { replace: true })
+        navigate("/auth/sign-in", { replace: true })
       }, 500)
     } catch (err) {
       // Even if there's an error, we should still clear local data and logout
@@ -80,7 +80,7 @@ export default function Logout() {
       
       // Still navigate after showing error
       setTimeout(() => {
-        navigate("/user/auth/sign-in", { replace: true })
+        navigate("/auth/sign-in", { replace: true })
       }, 2000)
     }
   }
@@ -90,7 +90,7 @@ export default function Logout() {
       <div className="max-w-md md:max-w-2xl lg:max-w-3xl mx-auto px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8">
         {/* Header */}
         <div className="flex items-center gap-3 md:gap-4 mb-4 md:mb-6 lg:mb-8">
-          <Link to="/user/profile">
+          <Link to="/profile">
             <Button variant="ghost" size="icon" className="h-8 w-8 md:h-10 md:w-10 p-0">
               <ArrowLeft className="h-4 w-4 md:h-5 md:w-5 text-black dark:text-white" />
             </Button>
@@ -140,7 +140,7 @@ export default function Logout() {
               >
                 Yes, Log out
               </Button>
-              <Link to="/user/profile">
+              <Link to="/profile">
                 <Button
                   variant="outline"
                   className="w-full text-sm md:text-base h-10 md:h-12"

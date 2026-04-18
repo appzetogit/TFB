@@ -1,4 +1,4 @@
-import { useEffect, useSyncExternalStore } from "react"
+import { useEffect, useState, useSyncExternalStore } from "react"
 import { Navigate } from "react-router-dom"
 import { isModuleAuthenticated } from "@/lib/utils/auth"
 import Loader from "@/components/Loader"
@@ -27,6 +27,7 @@ const getAuthSnapshot = (module) => isModuleAuthenticated(module)
  */
 export default function AuthRedirect({ children, module, redirectTo = null }) {
   const firebaseUserSession = useFirebaseUserSession()
+  const [restoreWaitExpired, setRestoreWaitExpired] = useState(false)
   const isAuthenticated = useSyncExternalStore(
     subscribeToAuthChanges,
     () => getAuthSnapshot(module),
@@ -36,6 +37,7 @@ export default function AuthRedirect({ children, module, redirectTo = null }) {
   const shouldWaitForFirebaseRestore =
     module === "user" &&
     !isAuthenticated &&
+    !restoreWaitExpired &&
     firebaseUserSession.isRestoring &&
     !!(
       firebaseUserSession.pendingProvider ||
@@ -52,6 +54,35 @@ export default function AuthRedirect({ children, module, redirectTo = null }) {
   }
 
   useEffect(() => {
+    if (
+      module !== "user" ||
+      isAuthenticated ||
+      !firebaseUserSession.isRestoring ||
+      !(
+        firebaseUserSession.pendingProvider ||
+        firebaseUserSession.currentUser ||
+        firebaseUserSession.redirectResultUser
+      )
+    ) {
+      setRestoreWaitExpired(false)
+      return undefined
+    }
+
+    const timer = window.setTimeout(() => {
+      setRestoreWaitExpired(true)
+    }, 15000)
+
+    return () => window.clearTimeout(timer)
+  }, [
+    firebaseUserSession.currentUser,
+    firebaseUserSession.isRestoring,
+    firebaseUserSession.pendingProvider,
+    firebaseUserSession.redirectResultUser,
+    isAuthenticated,
+    module,
+  ])
+
+  useEffect(() => {
     console.log("[AuthRedirect] State update", {
       module,
       isAuthenticated,
@@ -59,6 +90,7 @@ export default function AuthRedirect({ children, module, redirectTo = null }) {
       hasCurrentUser: !!firebaseUserSession.currentUser,
       hasRedirectUser: !!firebaseUserSession.redirectResultUser,
       loadingScreen: shouldWaitForFirebaseRestore,
+      restoreWaitExpired,
     })
   }, [
     firebaseUserSession.currentUser,
@@ -66,6 +98,7 @@ export default function AuthRedirect({ children, module, redirectTo = null }) {
     firebaseUserSession.redirectResultUser,
     isAuthenticated,
     module,
+    restoreWaitExpired,
     shouldWaitForFirebaseRestore,
   ])
 

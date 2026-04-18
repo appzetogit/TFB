@@ -45,25 +45,25 @@ export default function Footer() {
 
   const footerLinks = {
     company: [
-      { name: "About Us", href: "/user/help" },
-      { name: "Careers", href: "/user/help" },
-      { name: "Blog", href: "/user/help" },
-      { name: "Press", href: "/user/help" },
+      { name: "About Us", href: "/help" },
+      { name: "Careers", href: "/help" },
+      { name: "Blog", href: "/help" },
+      { name: "Press", href: "/help" },
     ],
     support: [
-      { name: "Help Center", href: "/user/help" },
-      { name: "Contact Us", href: "/user/help" },
-      { name: "Privacy Policy", href: "/user/help" },
-      { name: "Terms of Service", href: "/user/help" },
+      { name: "Help Center", href: "/help" },
+      { name: "Contact Us", href: "/help" },
+      { name: "Privacy Policy", href: "/help" },
+      { name: "Terms of Service", href: "/help" },
     ],
     user: [
-      { name: "My Account", href: "/user/profile" },
-      { name: "My Orders", href: "/user/orders" },
-      { name: "Favorites", href: "/user/profile/favorites" },
-      { name: "Offers", href: "/user/offers" },
+      { name: "My Account", href: "/profile" },
+      { name: "My Orders", href: "/orders" },
+      { name: "Favorites", href: "/profile/favorites" },
+      { name: "Offers", href: "/offers" },
     ],
     restaurants: [
-      { name: "Partner With Us", href: "/user/help" },
+      { name: "Partner With Us", href: "/help" },
       { name: "Restaurant Login", href: "/restaurant" },
       { name: "Delivery", href: "/delivery" },
     ],

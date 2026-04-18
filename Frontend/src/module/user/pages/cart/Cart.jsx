@@ -805,7 +805,7 @@ export default function Cart() {
       try {
         localStorage.setItem("preferredAddressLabel", nextType)
         // When opened from Cart, ensure we come back to Cart after closing
-        localStorage.setItem("locationReturnPath", "/user/cart")
+        localStorage.setItem("locationReturnPath", "/cart")
       } catch {
         // ignore storage errors
       }
@@ -1355,7 +1355,7 @@ export default function Cart() {
 
   const handleGoToOrders = () => {
     setShowOrderSuccess(false)
-    navigate(`/user/orders/${placedOrderId}?confirmed=true`)
+    navigate(`/orders/${placedOrderId}?confirmed=true`)
   }
 
   // Empty cart state - but don't show if order success or placing order modal is active
@@ -1416,7 +1416,7 @@ export default function Cart() {
                     restaurantData?.name?.toLowerCase().replace(/\s+/g, "-") ||
                     restaurantId
                   const url = restaurantSlug
-                    ? `${window.location.origin}/user/restaurants/${restaurantSlug}`
+                    ? `${window.location.origin}/restaurants/${restaurantSlug}`
                     : window.location.href
                   const result = await shareContent({ title: restaurantName, text, url })
                   if (result.method === "native") {
@@ -1484,7 +1484,7 @@ export default function Cart() {
                             type="button"
                             onClick={() => {
                               const slug = restaurantData?.slug || restaurantData?.name?.toLowerCase().replace(/\s+/g, "-") || restaurantId
-                              if (slug) navigate(`/user/restaurants/${slug}`)
+                              if (slug) navigate(`/restaurants/${slug}`)
                               else toast.error("Restaurant not found")
                             }}
                             className="text-xs md:text-sm text-blue-600 dark:text-blue-400 font-medium flex items-center gap-0.5 mt-0.5 hover:underline"
@@ -1849,7 +1849,7 @@ export default function Cart() {
                             e.stopPropagation()
                             setShowAddressPicker(false)
                             try {
-                              localStorage.setItem("locationReturnPath", "/user/cart")
+                              localStorage.setItem("locationReturnPath", "/cart")
                             } catch {
                               // ignore storage errors
                             }

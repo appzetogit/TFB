@@ -909,7 +909,7 @@ export default function PageNavbar({
           </Link>
 
           {/* Wallet Icon */}
-          <Link to="/user/wallet">
+          <Link to="/wallet">
             <Button
               variant="ghost"
               size="icon"
@@ -923,7 +923,7 @@ export default function PageNavbar({
           </Link>
 
           {/* Cart Icon */}
-          <Link to="/user/cart">
+          <Link to="/cart">
             <Button
               variant="ghost"
               size="icon"
@@ -943,7 +943,7 @@ export default function PageNavbar({
 
           {/* Profile - Only shown if showProfile is true */}
           {showProfile && (
-            <Link to="/user/profile">
+            <Link to="/profile">
               <Button
                 variant="ghost"
                 size="icon"

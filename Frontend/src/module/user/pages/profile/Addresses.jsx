@@ -19,7 +19,7 @@ export default function Addresses() {
     <AnimatedPage className="min-h-screen bg-[#f5f5f5] dark:bg-[#0a0a0a]">
       <div className="max-w-md md:max-w-2xl mx-auto px-4 py-4 sm:py-6">
         <div className="flex items-center justify-between mb-4">
-          <Link to="/user/profile" className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">
+          <Link to="/profile" className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">
             <ChevronRight className="h-6 w-6 text-gray-600 dark:text-gray-400 rotate-180" />
           </Link>
           <h1 className="text-lg font-bold text-gray-900 dark:text-white">Saved addresses</h1>

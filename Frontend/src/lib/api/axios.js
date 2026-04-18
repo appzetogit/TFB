@@ -150,32 +150,36 @@ function getAuthContextForPath(pathname) {
   };
 }
 
+function normalizeUserPath(pathname) {
+  const path = pathname || "";
+  return path.startsWith("/user/") ? path.replace(/^\/user/, "") : path;
+}
+
 function isProtectedUserPath(pathname) {
+  const path = normalizeUserPath(pathname);
+
+  return [
+    "/cart",
+    "/orders",
+    "/profile",
+    "/notifications",
+    "/wallet",
+    "/bookings",
+    "/complaints/submit",
+    "/gift-card/checkout",
+    "/collections/",
+    "/dining/book-confirmation",
+    "/dining/book-success",
+  ].some((protectedPath) => path.startsWith(protectedPath));
+}
+
+function isUserAppPath(pathname) {
   const path = pathname || "";
 
   return (
-    path.startsWith("/cart") ||
-    path.startsWith("/orders") ||
-    path.startsWith("/profile") ||
-    path.startsWith("/notifications") ||
-    path.startsWith("/wallet") ||
-    path.startsWith("/bookings") ||
-    path.startsWith("/complaints/submit") ||
-    path.startsWith("/gift-card/checkout") ||
-    path.startsWith("/collections/") ||
-    path.startsWith("/dining/book-confirmation") ||
-    path.startsWith("/dining/book-success") ||
-    path.startsWith("/user/cart") ||
-    path.startsWith("/user/orders") ||
-    path.startsWith("/user/profile") ||
-    path.startsWith("/user/notifications") ||
-    path.startsWith("/user/wallet") ||
-    path.startsWith("/user/bookings") ||
-    path.startsWith("/user/complaints/submit") ||
-    path.startsWith("/user/gift-card/checkout") ||
-    path.startsWith("/user/collections/") ||
-    path.startsWith("/user/dining/book-confirmation") ||
-    path.startsWith("/user/dining/book-success")
+    path.startsWith("/user") ||
+    path.startsWith("/usermain") ||
+    isProtectedUserPath(path)
   );
 }
 
@@ -284,9 +288,7 @@ apiClient.interceptors.request.use(
           !path.startsWith("/restaurants") &&
           !isPublicRestaurantRoute) ||
         path.startsWith("/delivery") ||
-        path.startsWith("/user") ||
-        path.startsWith("/usermain") ||
-        path.startsWith("/orders")) &&
+        isUserAppPath(path)) &&
       !isPublicRestaurantRoute;
 
     // For authenticated routes, ALWAYS ensure Authorization header is set if we have a token
@@ -570,7 +572,7 @@ apiClient.interceptors.response.use(
             // Public user pages and auth callbacks should not bounce to sign-in
             // if a background profile/refresh request fails during login completion.
             if (isProtectedUserPath(currentPath)) {
-              window.location.href = "/user/auth/sign-in";
+              window.location.href = "/auth/sign-in";
             }
           }
         }

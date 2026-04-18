@@ -1537,7 +1537,7 @@ export const appleCallback = asyncHandler(async (req, res) => {
 
   // Determine redirection target (Frontend App)
   const frontendUrl = (await getEnvVar("FRONTEND_URL")) || "https://app.tifunbox.com";
-  const loginUrl = `${frontendUrl}/user/auth/sign-in`;
+  const loginUrl = `${frontendUrl}/auth/sign-in`;
   // Use /auth/callback as defined in UserRouter.jsx
   const callbackPageUrl = `${frontendUrl}/auth/callback`;
   // Robust error redirection based on the actual intended role

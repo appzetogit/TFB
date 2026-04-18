@@ -228,7 +228,7 @@ export default function Profile() {
       window.dispatchEvent(new Event("userAuthChanged"))
 
       // Navigate to sign in page
-      navigate("/user/auth/sign-in", { replace: true })
+      navigate("/auth/sign-in", { replace: true })
     } catch (err) {
       // Even if there's an error, we should still clear local data and logout
       console.error("Error during logout:", err)
@@ -244,7 +244,7 @@ export default function Profile() {
       window.dispatchEvent(new Event("userAuthChanged"))
 
       // Still navigate to login page
-      navigate("/user/auth/sign-in", { replace: true })
+      navigate("/auth/sign-in", { replace: true })
     } finally {
       setIsLoggingOut(false)
     }
@@ -291,7 +291,7 @@ export default function Profile() {
       window.dispatchEvent(new Event("userAuthChanged"))
       window.dispatchEvent(new Event("userLogout"))
 
-      navigate("/user/auth/sign-in", { replace: true })
+      navigate("/auth/sign-in", { replace: true })
     } catch (error) {
       console.error("Error deleting user account:", error)
       const message =
@@ -309,7 +309,7 @@ export default function Profile() {
       <div className="max-w-md md:max-w-2xl lg:max-w-4xl xl:max-w-5xl mx-auto px-4 sm:px-6 md:px-8 lg:px-10 xl:px-12 py-4 sm:py-6 md:py-8 lg:py-10">
         {/* Back Arrow */}
         <div className="mb-4">
-          <Link to="/user">
+          <Link to="/">
             <Button variant="ghost" size="icon" className="h-8 w-8 p-0">
               <ArrowLeft className="h-5 w-5 text-black dark:text-white" />
             </Button>
@@ -360,7 +360,7 @@ export default function Profile() {
                 {!hasValidEmail && !userProfile?.phone && (
                   <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">Not available</p>
                 )}
-                {/* <Link to="/user/profile/activity" className="flex items-center gap-1 text-red-600 text-sm font-medium">
+                {/* <Link to="/profile/activity" className="flex items-center gap-1 text-red-600 text-sm font-medium">
                   View activity
                   <ChevronRight className="h-4 w-4" />
                 </Link> */}
@@ -371,7 +371,7 @@ export default function Profile() {
 
         {/* Tifunbox Money and Coupons - Side by Side */}
         <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 lg:gap-5 mt-3 mb-3">
-          <Link to="/user/wallet" className="h-full">
+          <Link to="/wallet" className="h-full">
             <motion.div
               whileHover={{ y: -4, scale: 1.02 }}
               transition={{ duration: 0.2, type: "spring", stiffness: 300 }}
@@ -394,7 +394,7 @@ export default function Profile() {
             </motion.div>
           </Link>
 
-          <Link to="/user/profile/coupons" className="h-full">
+          <Link to="/profile/coupons" className="h-full">
             <motion.div
               whileHover={{ y: -4, scale: 1.02 }}
               transition={{ duration: 0.2, type: "spring", stiffness: 300 }}
@@ -420,7 +420,7 @@ export default function Profile() {
         {/* Account Options */}
         <div className="space-y-2 mb-3">
 
-          <Link to="/user/cart" className="block">
+          <Link to="/cart" className="block">
             <motion.div
               whileHover={{ x: 4, scale: 1.01 }}
               transition={{ duration: 0.2, type: "spring", stiffness: 300 }}
@@ -582,7 +582,7 @@ export default function Profile() {
             <div className="w-1 h-4 bg-red-600 rounded"></div>
             <h3 className="text-base font-semibold text-gray-900 dark:text-white">Collections</h3>
           </div>
-          <Link to="/user/profile/favorites">
+          <Link to="/profile/favorites">
             <motion.div
               whileHover={{ x: 4, scale: 1.01 }}
               transition={{ duration: 0.2, type: "spring", stiffness: 300 }}
@@ -618,7 +618,7 @@ export default function Profile() {
             <h3 className="text-base font-semibold text-gray-900 dark:text-white">Food Orders</h3>
           </div>
           <div className="space-y-2">
-            <Link to="/user/orders" className="block">
+            <Link to="/orders" className="block">
               <motion.div
                 whileHover={{ x: 4, scale: 1.01 }}
                 transition={{ duration: 0.2, type: "spring", stiffness: 300 }}
@@ -694,7 +694,7 @@ export default function Profile() {
             <h3 className="text-base font-semibold text-gray-900 dark:text-white">More</h3>
           </div>
           <div className="space-y-2">
-            <Link to="/user/profile/about" className="block">
+            <Link to="/profile/about" className="block">
               <motion.div
                 whileHover={{ x: 4, scale: 1.01 }}
                 transition={{ duration: 0.2, type: "spring", stiffness: 300 }}
@@ -722,7 +722,7 @@ export default function Profile() {
               </motion.div>
             </Link>
 
-            <Link to="/user/profile/send-feedback" className="block">
+            <Link to="/profile/send-feedback" className="block">
               <motion.div
                 whileHover={{ x: 4, scale: 1.01 }}
                 transition={{ duration: 0.2, type: "spring", stiffness: 300 }}
@@ -750,7 +750,7 @@ export default function Profile() {
               </motion.div>
             </Link>
 
-            <Link to="/user/profile/report-safety-emergency" className="block">
+            <Link to="/profile/report-safety-emergency" className="block">
               <motion.div
                 whileHover={{ x: 4, scale: 1.01 }}
                 transition={{ duration: 0.2, type: "spring", stiffness: 300 }}
@@ -778,7 +778,7 @@ export default function Profile() {
               </motion.div>
             </Link>
 
-            <Link to="/user/profile/settings" className="block">
+            <Link to="/profile/settings" className="block">
               <motion.div
                 whileHover={{ x: 4, scale: 1.01 }}
                 transition={{ duration: 0.2, type: "spring", stiffness: 300 }}

@@ -101,7 +101,7 @@ export default function Collections() {
             {currentCollections.map((collection, index) => (
               <Link
                 key={collection.id}
-                to={collection.id === "bookmarks" ? "/user/profile/favorites" : `/user/collections/${collection.id}`}
+                to={collection.id === "bookmarks" ? "/profile/favorites" : `/collections/${collection.id}`}
                 className="block"
               >
                 <div className={`${getGradientColor(index)} rounded-2xl p-4 h-48 relative overflow-hidden group`}>
@@ -114,8 +114,8 @@ export default function Collections() {
 
                       const shareUrl =
                         collection.id === "bookmarks"
-                          ? `${window.location.origin}/user/profile/favorites`
-                          : `${window.location.origin}/user/collections/${collection.id}`
+                          ? `${window.location.origin}/profile/favorites`
+                          : `${window.location.origin}/collections/${collection.id}`
 
                       try {
                         const result = await shareContent({

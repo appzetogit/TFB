@@ -137,7 +137,7 @@ export default function Gourmet() {
                       : (restaurant.profileImage?.url || restaurant.image || "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&h=600&fit=crop"))
 
                 return (
-                  <Link key={restaurantId} to={`/user/restaurants/${restaurantSlug}`}>
+                  <Link key={restaurantId} to={`/restaurants/${restaurantSlug}`}>
                     <Card className="overflow-hidden cursor-pointer border-0 group bg-white dark:bg-[#1a1a1a] shadow-md hover:shadow-xl transition-all duration-300 py-0 rounded-2xl mb-4">
                       {/* Image Section */}
                       <div className="relative h-44 sm:h-52 md:h-56 w-full overflow-hidden rounded-t-2xl">

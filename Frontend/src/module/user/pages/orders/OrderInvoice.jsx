@@ -22,7 +22,7 @@ export default function OrderInvoice() {
       <AnimatedPage className="min-h-screen bg-[#f5f5f5] dark:bg-[#0a0a0a] p-4">
         <div className="max-w-4xl mx-auto text-center py-20">
           <h1 className="text-lg sm:text-xl md:text-2xl font-bold mb-4">Order Not Found</h1>
-          <Link to="/user/orders">
+          <Link to="/orders">
             <Button>Back to Orders</Button>
           </Link>
         </div>
@@ -133,7 +133,7 @@ export default function OrderInvoice() {
         <ScrollReveal>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 mb-4 sm:mb-6">
             <div className="flex items-center gap-3 sm:gap-4">
-              <Link to={`/user/orders/${orderId}`}>
+              <Link to={`/orders/${orderId}`}>
                 <Button variant="ghost" size="icon" className="rounded-full h-8 w-8 sm:h-10 sm:w-10">
                   <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5" />
                 </Button>
@@ -276,12 +276,12 @@ export default function OrderInvoice() {
 
         <ScrollReveal delay={0.2}>
           <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 no-print">
-            <Link to={`/user/orders/${orderId}`} className="flex-1">
+            <Link to={`/orders/${orderId}`} className="flex-1">
               <Button variant="outline" className="w-full text-sm sm:text-base h-10 sm:h-11">
                 Track Order
               </Button>
             </Link>
-            <Link to="/user/orders" className="flex-1">
+            <Link to="/orders" className="flex-1">
               <Button variant="outline" className="w-full text-sm sm:text-base h-10 sm:h-11">
                 Back to Orders
               </Button>

@@ -210,7 +210,7 @@ export default function Dining() {
       {/* Unified Navbar & Hero Section */}
       <div
         className="relative w-full overflow-hidden min-h-[36vh] sm:min-h-[40vh] lg:min-h-[50vh] md:pt-16 cursor-pointer rounded-b-2xl md:rounded-b-none"
-        onClick={() => navigate('/user/dining/restaurants')}
+        onClick={() => navigate('/dining/restaurants')}
       >
         {/* Background with dining banner */}
         <div className="absolute top-0 left-0 right-0 bottom-0 z-0">
@@ -255,7 +255,7 @@ export default function Dining() {
                         onFocus={handleSearchFocus}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter' && heroSearch.trim()) {
-                            navigate(`/user/search?q=${encodeURIComponent(heroSearch.trim())}`)
+                            navigate(`/search?q=${encodeURIComponent(heroSearch.trim())}`)
                             closeSearch()
                             setHeroSearch("")
                           }
@@ -297,7 +297,7 @@ export default function Dining() {
             {categories.map((category, index) => (
               <Link
                 key={category._id || category.id}
-                to={`/user/dining/${category.name.toLowerCase().replace(/\s+/g, '-')}`}
+                to={`/dining/${category.name.toLowerCase().replace(/\s+/g, '-')}`}
               >
                 <motion.div
                   className="group relative rounded-2xl overflow-hidden bg-gray-100 cursor-pointer h-[110px] sm:h-[120px] md:h-[130px] shadow-sm hover:shadow-md transition-all duration-300"
@@ -456,7 +456,7 @@ export default function Dining() {
                 <motion.div
                   key={item._id || item.id}
                   className="relative flex-shrink-0 rounded-xl overflow-hidden shadow-sm cursor-pointer"
-                  onClick={() => navigate(`/user/search?q=${encodeURIComponent(item.name)}`)}
+                  onClick={() => navigate(`/search?q=${encodeURIComponent(item.name)}`)}
                   style={{
                     width: 'calc((100vw - 3rem) / 2.5)',
                     minWidth: '140px',
