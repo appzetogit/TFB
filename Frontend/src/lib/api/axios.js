@@ -183,6 +183,18 @@ function isUserAppPath(pathname) {
   );
 }
 
+function redirectWithinApp(path) {
+  if (typeof window === "undefined") return;
+  if (window.location.pathname === path) return;
+
+  window.history.replaceState(null, "", path);
+  const event =
+    typeof PopStateEvent === "function"
+      ? new PopStateEvent("popstate")
+      : new Event("popstate");
+  window.dispatchEvent(event);
+}
+
 /**
  * Get the appropriate module token based on the current route
  * @returns {string|null} - Access token for the current module or null
@@ -555,24 +567,24 @@ apiClient.interceptors.response.use(
             localStorage.removeItem("admin_accessToken");
             localStorage.removeItem("admin_authenticated");
             localStorage.removeItem("admin_user");
-            window.location.href = "/admin/login";
+            redirectWithinApp("/admin/login");
           } else if (failedModuleKey === "restaurant_accessToken") {
             localStorage.removeItem("restaurant_accessToken");
             localStorage.removeItem("restaurant_authenticated");
             localStorage.removeItem("restaurant_user");
-            window.location.href = "/restaurant/login";
+            redirectWithinApp("/restaurant/login");
           } else if (failedModuleKey === "delivery_accessToken") {
             localStorage.removeItem("delivery_accessToken");
             localStorage.removeItem("delivery_authenticated");
             localStorage.removeItem("delivery_user");
-            window.location.href = "/delivery/sign-in";
+            redirectWithinApp("/delivery/sign-in");
           } else {
             clearModuleAuth("user");
             localStorage.removeItem("accessToken");
             // Public user pages and auth callbacks should not bounce to sign-in
             // if a background profile/refresh request fails during login completion.
             if (isProtectedUserPath(currentPath)) {
-              window.location.href = "/auth/sign-in";
+              redirectWithinApp("/auth/sign-in");
             }
           }
         }

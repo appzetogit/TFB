@@ -29,6 +29,7 @@ export default function OrdersPage() {
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [retryNonce, setRetryNonce] = useState(0)
 
   // Restaurant notifications hook
   const { newOrder, clearNewOrder, isConnected } = useRestaurantNotifications()
@@ -51,7 +52,7 @@ export default function OrdersPage() {
     return () => {
       lenis.destroy()
     }
-  }, [])
+  }, [retryNonce])
 
   // Calculate summary cards from payment transactions
   const calculateSummaryCards = () => {
@@ -455,8 +456,8 @@ export default function OrdersPage() {
           ) : error ? (
             <div className="text-center py-12">
               <p className="text-red-600 text-base md:text-lg mb-2">Error: {error}</p>
-              <button 
-                onClick={() => window.location.reload()} 
+              <button
+                onClick={() => setRetryNonce((value) => value + 1)}
                 className="text-blue-600 hover:underline"
               >
                 Retry

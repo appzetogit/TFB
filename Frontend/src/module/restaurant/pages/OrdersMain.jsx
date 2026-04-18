@@ -599,8 +599,6 @@ export default function OrdersMain() {
         window.dispatchEvent(new Event("restaurantAuthChanged"))
         // Clean up URL
         navigate("/restaurant", { replace: true })
-        // Refresh page to ensure all contexts are updated if needed
-        window.location.reload()
       } catch (err) {
         console.error("Error processing token from URL:", err)
       }
@@ -795,7 +793,7 @@ export default function OrdersMain() {
         if (!error.response?.data?.message?.includes('inactive')) {
           // Only redirect if it's not an "inactive" error (which we handle differently)
           setTimeout(() => {
-            window.location.href = '/restaurant/login'
+            navigate('/restaurant/login', { replace: true })
           }, 1500)
         }
       } else {
@@ -2194,10 +2192,7 @@ function ResendNotificationButton({ orderId, mongoId, onSuccess }) {
         toast.success(`Notification sent to ${response.data.data?.notifiedCount || 0} delivery partners`);
         // Refresh orders if onSuccess callback is provided
         if (onSuccess) {
-          // Trigger a refresh by calling onSuccess with a special flag
-          setTimeout(() => {
-            window.location.reload(); // Simple refresh for now
-          }, 1000);
+          setTimeout(() => onSuccess(), 1000);
         }
       } else {
         toast.error(response.data?.message || 'Failed to send notification');

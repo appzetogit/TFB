@@ -49,6 +49,7 @@ export default function SwitchOutlet() {
   const [outlets, setOutlets] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [retryNonce, setRetryNonce] = useState(0)
   const [searchQuery, setSearchQuery] = useState("")
   const [searchOpen, setSearchOpen] = useState(false)
 
@@ -80,7 +81,7 @@ export default function SwitchOutlet() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [retryNonce])
 
   const mappedOutletsCount = outlets.length
 
@@ -280,7 +281,7 @@ export default function SwitchOutlet() {
           <div className="py-6 rounded-lg bg-red-50 border border-red-200 px-4">
             <p className="text-sm text-red-700">{error}</p>
             <button
-              onClick={() => window.location.reload()}
+              onClick={() => setRetryNonce((value) => value + 1)}
               className="mt-2 text-sm font-medium text-red-600 hover:underline"
             >
               Try again

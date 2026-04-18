@@ -1245,41 +1245,29 @@ export default function ExploreMore() {
               {/* Footer Links */}
               <div className="px-6 py-4 border-t border-gray-200">
                 <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
-                  <a
-                    href="#"
+                  <button
+                    type="button"
                     className="hover:text-gray-700 transition-colors border-b border-dotted border-gray-400"
-                    onClick={(e) => {
-                      e.preventDefault()
-                      // Navigate to terms of service
-                      console.log("Terms of Service clicked")
-                    }}
+                    onClick={() => navigate("/restaurant/terms")}
                   >
                     Terms of Service
-                  </a>
+                  </button>
                   <span className="text-gray-400">|</span>
-                  <a
-                    href="#"
+                  <button
+                    type="button"
                     className="hover:text-gray-700 transition-colors border-b border-dotted border-gray-400"
-                    onClick={(e) => {
-                      e.preventDefault()
-                      // Navigate to privacy policy
-                      console.log("Privacy Policy clicked")
-                    }}
+                    onClick={() => navigate("/restaurant/privacy")}
                   >
                     Privacy Policy
-                  </a>
+                  </button>
                   <span className="text-gray-400">|</span>
-                  <a
-                    href="#"
+                  <button
+                    type="button"
                     className="hover:text-gray-700 transition-colors border-b border-dotted border-gray-400"
-                    onClick={(e) => {
-                      e.preventDefault()
-                      // Navigate to code of conduct
-                      console.log("Code of Conduct clicked")
-                    }}
+                    onClick={() => navigate("/restaurant/help-centre")}
                   >
                     Code of Conduct
-                  </a>
+                  </button>
                 </div>
               </div>
             </motion.div>
