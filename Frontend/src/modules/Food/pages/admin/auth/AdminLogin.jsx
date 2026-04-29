@@ -70,7 +70,7 @@ export default function AdminLogin() {
             >
               <img
                 src={logoNew}
-                alt="Tifun Box Logo"
+                alt="Tifunbox Logo"
                 className="w-32 h-32 md:w-36 md:h-36 object-contain mx-auto"
               />
             </motion.div>
@@ -114,7 +114,7 @@ export default function AdminLogin() {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       className="block w-full pl-12 pr-6 py-4 bg-[#fffaf0] dark:bg-gray-900/50 text-gray-900 dark:text-white border-2 border-[#ecd9a0] focus:border-[#c89b3c]/60 rounded-2xl outline-none transition-all placeholder:text-[#c7b690] font-bold"
-                      placeholder="tifunboxapp@gmail.com"
+                  placeholder="tifunboxteam@gmail.com"
                     />
                   </div>
                 </div>

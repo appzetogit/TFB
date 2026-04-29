@@ -136,7 +136,7 @@ export const getCachedSettings = () => {
 
 /**
  * Get company name from business settings with fallback
- * @returns {string} Company name or default "Tifunbox Food"
+ * @returns {string} Company name or default "Tifunbox"
  */
 export const getCompanyName = () => {
   const settings = getCachedSettings();
@@ -145,7 +145,7 @@ export const getCompanyName = () => {
 
 /**
  * Get company name asynchronously (loads if not cached)
- * @returns {Promise<string>} Company name or default "Tifunbox Food"
+ * @returns {Promise<string>} Company name or default "Tifunbox"
  */
 export const getCompanyNameAsync = async () => {
   try {

@@ -1,19 +1,18 @@
 import { useState, useEffect, useRef } from "react"
 import { useNavigate } from "react-router-dom"
-import { ArrowLeft, Loader2, Smartphone, AlertCircle } from "lucide-react"
+import { ArrowLeft, Loader2, AlertCircle } from "lucide-react"
 import AnimatedPage from "@food/components/user/AnimatedPage"
 import { Input } from "@food/components/ui/input"
 import { Button } from "@food/components/ui/button"
-import { authAPI } from "@food/api"
+import { authAPI, userAPI } from "@food/api"
 import { setAuthData as setUserAuthData } from "@food/utils/auth"
 
-export default function OTP() {
-  const gold = "#c89b3c"
-  const goldDark = "#a67b22"
-  const goldSoft = "#fff7e4"
+const OTP_LENGTH = 4
+const BRAND_GREEN = "#2A9C64"
 
+export default function OTP() {
   const navigate = useNavigate()
-  const [otp, setOtp] = useState(["", "", "", ""]) // exactly 4 digits
+  const [otp, setOtp] = useState(Array(OTP_LENGTH).fill("")) // exactly 4 digits
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
   const [success, setSuccess] = useState(false)
@@ -23,6 +22,7 @@ export default function OTP() {
   const [name, setName] = useState("")
   const [nameError, setNameError] = useState("")
   const [verifiedOtp, setVerifiedOtp] = useState("")
+  const [pendingSession, setPendingSession] = useState(null)
   const [contactInfo, setContactInfo] = useState("")
   const [contactType, setContactType] = useState("phone")
   const [deviceToken, setDeviceToken] = useState(null)
@@ -34,7 +34,7 @@ export default function OTP() {
     // Redirect to home if already authenticated
     const isAuthenticated = localStorage.getItem("user_authenticated") === "true"
     if (isAuthenticated) {
-      navigate("/food/user", { replace: true })
+      navigate("/user", { replace: true })
       return
     }
 
@@ -66,8 +66,8 @@ export default function OTP() {
       // OTP auto-fill removed - user must manually enter OTP
     }
 
-    // Start resend timer (60 seconds)
-    setResendTimer(60)
+    // Start resend timer
+    setResendTimer(59)
     const timer = setInterval(() => {
       setResendTimer((prev) => {
         if (prev <= 1) {
@@ -100,13 +100,12 @@ export default function OTP() {
     setError("")
 
     // Auto-focus next input (4 boxes only)
-    if (value && index < 3) {
+    if (value && index < OTP_LENGTH - 1) {
       inputRefs.current[index + 1]?.focus()
     }
 
-    // Auto-submit when all 4 digits are entered
-    if (!showNameInput && newOtp.slice(0, 4).every((digit) => digit !== "")) {
-      handleVerify(newOtp.slice(0, 4).join(""))
+    if (!showNameInput && newOtp.slice(0, OTP_LENGTH).every((digit) => digit !== "")) {
+      handleVerify(newOtp.slice(0, OTP_LENGTH).join(""))
     }
   }
 
@@ -130,16 +129,16 @@ export default function OTP() {
     if (e.key === "v" && (e.ctrlKey || e.metaKey)) {
       e.preventDefault()
       navigator.clipboard.readText().then((text) => {
-        const digits = text.replace(/\D/g, "").slice(0, 4).split("")
+        const digits = text.replace(/\D/g, "").slice(0, OTP_LENGTH).split("")
         const newOtp = [...otp]
         digits.forEach((digit, i) => {
-          if (i < 4) newOtp[i] = digit
+          if (i < OTP_LENGTH) newOtp[i] = digit
         })
         setOtp(newOtp)
-        if (!showNameInput && digits.length === 4) {
-          handleVerify(newOtp.slice(0, 4).join(""))
+        if (!showNameInput && digits.length === OTP_LENGTH) {
+          handleVerify(newOtp.slice(0, OTP_LENGTH).join(""))
         } else {
-          inputRefs.current[Math.min(digits.length, 3)]?.focus()
+          inputRefs.current[Math.min(digits.length, OTP_LENGTH - 1)]?.focus()
         }
       })
     }
@@ -148,16 +147,16 @@ export default function OTP() {
   const handlePaste = (e) => {
     e.preventDefault()
     const pastedData = e.clipboardData.getData("text")
-    const digits = pastedData.replace(/\D/g, "").slice(0, 4).split("")
+    const digits = pastedData.replace(/\D/g, "").slice(0, OTP_LENGTH).split("")
     const newOtp = [...otp]
     digits.forEach((digit, i) => {
-      if (i < 4) newOtp[i] = digit
+      if (i < OTP_LENGTH) newOtp[i] = digit
     })
     setOtp(newOtp)
-    if (!showNameInput && digits.length === 4) {
-      handleVerify(newOtp.slice(0, 4).join(""))
+    if (!showNameInput && digits.length === OTP_LENGTH) {
+      handleVerify(newOtp.slice(0, OTP_LENGTH).join(""))
     } else {
-      inputRefs.current[Math.min(digits.length, 3)]?.focus()
+      inputRefs.current[Math.min(digits.length, OTP_LENGTH - 1)]?.focus()
     }
   }
 
@@ -166,8 +165,8 @@ export default function OTP() {
     if (submittingRef.current) return
 
     const code = (otpValue || otp.join("")).replace(/\D/g, "")
-    const code4 = code.slice(0, 4)
-    if (code4.length !== 4) {
+    const code4 = code.slice(0, OTP_LENGTH)
+    if (code4.length !== OTP_LENGTH) {
       setError("OTP must be exactly 4 digits")
       return
     }
@@ -242,6 +241,11 @@ export default function OTP() {
 
       if (needsName) {
         setVerifiedOtp(code4)
+        setPendingSession({
+          accessToken,
+          refreshToken,
+          user,
+        })
         setShowNameInput(true)
         setIsLoading(false)
         submittingRef.current = false
@@ -260,7 +264,7 @@ export default function OTP() {
 
       // Redirect to user home after short delay
       setTimeout(() => {
-        navigate("/food/user")
+        navigate("/user")
       }, 500)
     } catch (err) {
       const status = err?.response?.status
@@ -316,12 +320,43 @@ export default function OTP() {
     setNameError("")
 
     try {
+      if (pendingSession?.accessToken && pendingSession?.refreshToken && pendingSession?.user) {
+        setUserAuthData(
+          "user",
+          pendingSession.accessToken,
+          {
+            ...pendingSession.user,
+            name: trimmedName,
+          },
+          pendingSession.refreshToken
+        )
+
+        const profileResponse = await userAPI.updateProfile({ name: trimmedName })
+        const updatedUser =
+          profileResponse?.data?.data?.user ||
+          profileResponse?.data?.user ||
+          profileResponse?.data?.data ||
+          {
+            ...pendingSession.user,
+            name: trimmedName,
+          }
+
+        sessionStorage.removeItem("userAuthData")
+        setUserAuthData("user", pendingSession.accessToken, updatedUser, pendingSession.refreshToken)
+        window.dispatchEvent(new Event("userAuthChanged"))
+        setSuccess(true)
+
+        setTimeout(() => {
+          navigate("/user")
+        }, 500)
+        return
+      }
+
       const phone = authData?.method === "phone" ? authData.phone : null
       const email = authData?.method === "email" ? authData.email : null
       const purpose = authData?.isSignUp ? "register" : "login"
       const referralCode = authData?.referralCode || null
 
-      // Second call with name to auto-register and login
       const response = await authAPI.verifyOTP(
         phone,
         verifiedOtp,
@@ -356,7 +391,7 @@ export default function OTP() {
       setSuccess(true)
 
       setTimeout(() => {
-        navigate("/food/user")
+        navigate("/user")
       }, 500)
     } catch (err) {
       const message =
@@ -394,8 +429,8 @@ export default function OTP() {
       setIsLoading(false)
     }
 
-    // Reset timer to 60 seconds
-    setResendTimer(60)
+    // Reset timer
+    setResendTimer(59)
     const timer = setInterval(() => {
       setResendTimer((prev) => {
         if (prev <= 1) {
@@ -406,11 +441,12 @@ export default function OTP() {
       })
     }, 1000)
 
-    setOtp(["", "", "", ""])
+    setOtp(Array(OTP_LENGTH).fill(""))
     setShowNameInput(false)
     setName("")
     setNameError("")
     setVerifiedOtp("")
+    setPendingSession(null)
     inputRefs.current[0]?.focus()
   }
 
@@ -419,57 +455,43 @@ export default function OTP() {
   }
 
   return (
-    <AnimatedPage className="min-h-screen bg-[#fffdf8] flex items-center justify-center p-4">
-      <div className="w-full max-w-[450px] bg-white rounded-[1.75rem] shadow-[0_24px_60px_rgba(200,155,60,0.16)] relative z-10 overflow-hidden border border-[#f1dfaa]">
-        {/* Header */}
-        <div className="flex items-center px-6 py-4 border-b border-[#f5ead0]">
+    <AnimatedPage className="min-h-screen bg-white">
+      <div className="mx-auto flex min-h-screen w-full max-w-[390px] flex-col bg-white">
+        <div className="flex items-center border-b border-[#e9e9e9] px-5 py-5">
           <button
-            onClick={() => navigate("/food/user/auth/login")}
-            className="p-1 rounded-full transition-colors hover:bg-[#fff5dc]"
+            onClick={() => navigate("/user/auth/login")}
+            className="p-1"
             aria-label="Go back"
           >
-            <ArrowLeft className="h-5 w-5 text-[#7c6322]" />
+            <ArrowLeft className="h-6 w-6 text-black" />
           </button>
-          <span className="ml-4 font-bold text-[#3d2d08]">
+          <span className="flex-1 pr-7 text-center text-[1.85rem] font-bold tracking-[-0.03em] text-black">
             {showNameInput ? "Welcome!" : "OTP Verification"}
           </span>
+          <span className="w-7 shrink-0" aria-hidden="true" />
         </div>
 
-        <div className="p-6 sm:p-8 md:p-10 space-y-6 md:space-y-8">
-          {/* Message */}
-          <div className="text-center space-y-4">
-            {showNameInput && (
-              <div className="flex justify-center">
-                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#f7ecd0]">
-                  <div
-                    className="flex h-10 w-10 items-center justify-center rounded-full text-white shadow-[0_10px_24px_rgba(200,155,60,0.25)]"
-                    style={{ background: `linear-gradient(135deg, ${gold} 0%, ${goldDark} 100%)` }}
-                  >
-                    <Smartphone className="h-5 w-5" />
-                  </div>
-                </div>
-              </div>
-            )}
-            <div className="space-y-2">
-              <h2 className="text-xl md:text-2xl font-bold text-[#2f2308] leading-tight">
+        <div className="flex flex-1 flex-col px-7 pt-10 pb-8">
+          <div className="text-center">
+            <div className="space-y-3">
+              <h2 className="text-[1.05rem] font-medium leading-7 text-black">
                 {showNameInput 
                   ? "Help us know you better" 
                   : contactType === "email"
                     ? "Verify your email"
-                    : "Verify your phone"}
+                    : "We have sent a verification code to"}
               </h2>
-              <p className="text-sm text-[#7f6f4d] max-w-xs mx-auto">
+              <p className="text-[1.05rem] font-semibold text-black">
                 {showNameInput
-                  ? "We're excited to have you join us! Please tell us your full name to get started."
-                  : `We've sent a 4-digit code to ${contactInfo}`}
+                  ? "Please enter your full name to continue."
+                  : contactInfo}
               </p>
             </div>
           </div>
 
-          {/* OTP Input Fields */}
           {!showNameInput && (
-            <div className="space-y-6">
-              <div className="flex justify-between gap-3 sm:gap-4 max-w-[280px] mx-auto">
+            <div className="mt-16">
+              <div className="flex justify-center gap-2.5">
                 {otp.map((digit, index) => (
                   <input
                     key={index}
@@ -484,32 +506,31 @@ export default function OTP() {
                     onPaste={index === 0 ? handlePaste : undefined}
                     disabled={isLoading}
                     aria-label={`OTP digit ${index + 1} of 4`}
-                    className="w-12 h-12 sm:w-14 sm:h-14 text-center text-xl font-bold border-2 border-[#ecd9a0] rounded-xl bg-[#fffdf8] text-[#2f2308] transition-all outline-none"
+                    className="h-14 w-12 rounded-[0.95rem] border-[2.25px] border-black bg-white text-center text-[1.35rem] font-semibold text-black outline-none transition-all focus:border-black"
                     style={{ boxShadow: "none" }}
                   />
                 ))}
               </div>
 
               {error && (
-                <div className="flex items-center justify-center gap-1.5 rounded-lg bg-red-50 py-2 text-xs text-red-500">
+                <div className="mt-5 flex items-center justify-center gap-1.5 rounded-lg bg-red-50 py-2 text-xs text-red-500">
                   <AlertCircle className="h-3.5 w-3.5" />
                   <span>{error}</span>
                 </div>
               )}
 
-              {/* Resend Section */}
-              <div className="text-center">
-                <p className="text-sm text-[#7f6f4d]">
-                  Didn't get the OTP?{" "}
+              <div className="mt-12 text-center">
+                <p className="text-[1.05rem] font-medium text-black">Didn&apos;t get the SMS?</p>
+                <p className="mt-1 text-[1rem] text-[#6a6a6a]">
                   {resendTimer > 0 ? (
-                    <span className="font-medium text-[#3d2d08]">Retry in {resendTimer}s</span>
+                    <span>Resend SMS in {resendTimer}s</span>
                   ) : (
                     <button
                       type="button"
                       onClick={handleResend}
                       disabled={isLoading}
-                      className="font-bold transition-colors disabled:opacity-50"
-                      style={{ color: goldDark }}
+                      className="font-medium transition-colors disabled:opacity-50"
+                      style={{ color: BRAND_GREEN }}
                     >
                       Resend SMS
                     </button>
@@ -519,9 +540,8 @@ export default function OTP() {
             </div>
           )}
 
-          {/* Name Input */}
           {showNameInput && (
-            <div className="space-y-6">
+            <div className="mt-14 space-y-6">
               <div className="space-y-2">
                 <Input
                   type="text"
@@ -532,8 +552,10 @@ export default function OTP() {
                   }}
                   disabled={isLoading}
                   placeholder="Full Name"
-                  className={`h-12 md:h-14 rounded-xl border text-lg text-[#3d2d08] placeholder:text-[#b18c45] ${nameError ? "border-red-500" : "border-[#d9bc73]"} transition-all`}
-                  style={{ backgroundColor: goldSoft, boxShadow: "none" }}
+                  className={`h-14 rounded-2xl border text-lg text-black placeholder:text-[#888888] ${
+                    nameError ? "border-red-500" : "border-[#d7d5d2]"
+                  } transition-all`}
+                  style={{ backgroundColor: "#ffffff", boxShadow: "none" }}
                 />
                 {nameError && (
                   <p className="text-xs text-red-500 pl-1">
@@ -545,27 +567,30 @@ export default function OTP() {
               <Button
                 onClick={handleSubmitName}
                 disabled={isLoading}
-                className="w-full h-12 md:h-14 rounded-xl text-lg font-bold text-[#3d2d08] transition-all active:scale-[0.98]"
-                style={{ background: `linear-gradient(135deg, #f4d97b 0%, ${gold} 55%, ${goldDark} 100%)` }}
+                className="h-14 w-full rounded-2xl text-lg font-bold text-white transition-all active:scale-[0.98]"
+                style={{ backgroundColor: BRAND_GREEN }}
               >
                 {isLoading ? "Getting things ready..." : "Finish Registration"}
               </Button>
             </div>
           )}
 
-          {/* Verification Loading Overlay */}
           {isLoading && !showNameInput && (
-            <div className="flex justify-center pt-2">
-              <Loader2 className="h-6 w-6 animate-spin" style={{ color: goldDark }} />
+            <div className="mt-6 flex justify-center">
+              <Loader2 className="h-6 w-6 animate-spin" style={{ color: BRAND_GREEN }} />
             </div>
           )}
-        </div>
-        
-        {/* Footer info */}
-        <div className="bg-[#fffaf0] p-6 text-center">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-[#b39b67]">
-                Tifunbox Food Delivery
-            </p>
+
+          <div className="mt-auto pt-10 text-center">
+            <button
+              type="button"
+              onClick={() => navigate("/user/auth/login")}
+              className="text-[1.05rem] font-medium"
+              style={{ color: BRAND_GREEN }}
+            >
+              Go back to login methods
+            </button>
+          </div>
         </div>
       </div>
     </AnimatedPage>

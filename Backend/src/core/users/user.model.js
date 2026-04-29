@@ -267,7 +267,24 @@ export const FoodUser = mongoose.model('FoodUser', userSchema);
 
 export const ensureFoodUserIndexes = async () => {
     const collection = FoodUser.collection;
-    const indexes = await collection.indexes();
+    try {
+        await FoodUser.createCollection();
+    } catch (error) {
+        if (error?.codeName !== 'NamespaceExists' && error?.code !== 48) {
+            throw error;
+        }
+    }
+
+    let indexes = [];
+    try {
+        indexes = await collection.indexes();
+    } catch (error) {
+        if (error?.codeName === 'NamespaceNotFound' || error?.code === 26) {
+            indexes = [];
+        } else {
+            throw error;
+        }
+    }
 
     const rebuildIndexIfNeeded = async (indexName, fieldName) => {
         const existing = indexes.find((index) => index.name === indexName);
@@ -275,6 +292,7 @@ export const ensureFoodUserIndexes = async () => {
 
         if (existing && !hasPartialFilter) {
             await collection.dropIndex(indexName);
+            indexes = indexes.filter((index) => index.name !== indexName);
         }
 
         await collection.createIndex(
@@ -287,6 +305,17 @@ export const ensureFoodUserIndexes = async () => {
                 }
             }
         );
+
+        indexes = [
+            ...indexes.filter((index) => index.name !== indexName),
+            {
+                name: indexName,
+                key: { [fieldName]: 1 },
+                partialFilterExpression: {
+                    [fieldName]: { $exists: true, $type: 'string' }
+                }
+            }
+        ];
     };
 
     await rebuildIndexIfNeeded('appleId_1', 'appleId');

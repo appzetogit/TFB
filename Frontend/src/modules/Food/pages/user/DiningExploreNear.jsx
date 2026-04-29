@@ -21,7 +21,7 @@ const popularRestaurants = [
     location: "Press Complex, Indore",
     distance: "2.9 km",
     cuisine: "Continental",
-    price: "â‚¹1500 for two",
+    price: "₹1500 for two",
     image: "",
     offer: "Flat 30% OFF + 3 more",
     deliveryTime: "30-35 mins",
@@ -35,7 +35,7 @@ const popularRestaurants = [
     location: "MG Road, Indore",
     distance: "3.2 km",
     cuisine: "Multi-cuisine",
-    price: "â‚¹2000 for two",
+    price: "₹2000 for two",
     image: "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=800&h=600&fit=crop",
     offer: "Flat 25% OFF + 2 more",
     deliveryTime: "35-40 mins",
@@ -49,7 +49,7 @@ const popularRestaurants = [
     location: "Vijay Nagar, Indore",
     distance: "1.8 km",
     cuisine: "Continental",
-    price: "â‚¹1800 for two",
+    price: "₹1800 for two",
     image: "https://images.unsplash.com/photo-1551218808-94e220e084d2?w=800&h=600&fit=crop",
     offer: "Flat 35% OFF + 4 more",
     deliveryTime: "25-30 mins",
@@ -63,7 +63,7 @@ const popularRestaurants = [
     location: "Palasia, Indore",
     distance: "2.1 km",
     cuisine: "Seafood",
-    price: "â‚¹1600 for two",
+    price: "₹1600 for two",
     image: "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800&h=600&fit=crop",
     offer: "Flat 20% OFF + 2 more",
     deliveryTime: "28-33 mins",
@@ -77,7 +77,7 @@ const popularRestaurants = [
     location: "Scheme 54, Indore",
     distance: "4.5 km",
     cuisine: "North Indian",
-    price: "â‚¹1200 for two",
+    price: "₹1200 for two",
     image: "https://images.unsplash.com/photo-1579584425555-c3ce17fd4351?w=800&h=600&fit=crop",
     offer: "Flat 30% OFF + 3 more",
     deliveryTime: "40-45 mins",
@@ -91,7 +91,7 @@ const popularRestaurants = [
     location: "Bhawarkua, Indore",
     distance: "3.8 km",
     cuisine: "Continental",
-    price: "â‚¹2200 for two",
+    price: "₹2200 for two",
     image: "",
     offer: "Flat 25% OFF + 2 more",
     deliveryTime: "35-40 mins",
@@ -254,7 +254,7 @@ export default function DiningExploreNear() {
                   }
                 }}
                 placeholder="Search for restaurants, cuisines, dishes..."
-                className="w-full h-12 sm:h-14 md:h-16 pl-12 sm:pl-14 pr-12 sm:pr-14 rounded-xl border-2 border-gray-200 focus:border-[#7e3866] bg-white shadow-sm text-base sm:text-lg md:text-xl"
+                className="w-full h-12 sm:h-14 md:h-16 pl-12 sm:pl-14 pr-12 sm:pr-14 rounded-xl border-2 border-gray-200 focus:border-[#2A9C64] bg-white shadow-sm text-base sm:text-lg md:text-xl"
               />
               <Search className="absolute left-4 sm:left-5 md:left-6 top-1/2 -translate-y-1/2 h-5 w-5 sm:h-6 sm:w-6 md:h-7 md:w-7 text-gray-400" />
               <Button
@@ -317,7 +317,7 @@ export default function DiningExploreNear() {
                       variant="outline"
                       onClick={() => toggleFilter(filter.id)}
                       className={`h-7 sm:h-8 px-2 sm:px-3 rounded-full flex items-center gap-1.5 whitespace-nowrap flex-shrink-0 transition-all font-medium ${isActive
-                        ? 'bg-[#7e3866] text-white border-[#7e3866] hover:bg-[#55254b]'
+                        ? 'bg-[#2A9C64] text-white border-[#2A9C64] hover:bg-[#1E7A4A]'
                         : 'bg-white border border-gray-200 hover:bg-gray-50 text-gray-600'
                         }`}
                     >
@@ -371,7 +371,7 @@ export default function DiningExploreNear() {
                         {/* Featured Dish Badge - Top Left */}
                         <div className="absolute top-3 left-3">
                           <div className="bg-gray-800/80 backdrop-blur-sm text-white px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium">
-                            {restaurant.featuredDish} â€¢ â‚¹{restaurant.featuredPrice}
+                            {restaurant.featuredDish} • ₹{restaurant.featuredPrice}
                           </div>
                         </div>
 
@@ -386,7 +386,7 @@ export default function DiningExploreNear() {
                         </Button>
 
                         {/* Blue Section - Bottom 40% */}
-                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-r from-[#7e3866] to-transparent" style={{ height: '40%' }}>
+                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-r from-[#2A9C64] to-transparent" style={{ height: '40%' }}>
                           <div className="h-full flex flex-col justify-end">
                             <div className="pl-4 sm:pl-5 pb-4 sm:pb-5">
                               <p className="text-white text-xs sm:text-sm font-medium uppercase tracking-wide mb-1">
@@ -427,7 +427,7 @@ export default function DiningExploreNear() {
                         {/* Offer Badge */}
                         {restaurant.offer && (
                           <div className="flex items-center gap-2 text-sm">
-                            <BadgePercent className="h-4 w-4 text-[#7e3866]" strokeWidth={2} />
+                            <BadgePercent className="h-4 w-4 text-[#2A9C64]" strokeWidth={2} />
                             <span className="text-gray-700 font-medium">{restaurant.offer}</span>
                           </div>
                         )}
@@ -461,7 +461,7 @@ export default function DiningExploreNear() {
                   setSortBy(null)
                   setSelectedCuisine(null)
                 }}
-                className="text-[#7e3866] font-medium text-sm"
+                className="text-[#2A9C64] font-medium text-sm"
               >
                 Clear all
               </button>
@@ -485,11 +485,11 @@ export default function DiningExploreNear() {
                     <button
                       key={tab.id}
                       onClick={() => setActiveFilterTab(tab.id)}
-                      className={`flex flex-col items-center gap-1 py-4 px-2 text-center relative transition-colors ${isActive ? 'bg-white text-[#7e3866]' : 'text-gray-500 hover:bg-gray-100'
+                      className={`flex flex-col items-center gap-1 py-4 px-2 text-center relative transition-colors ${isActive ? 'bg-white text-[#2A9C64]' : 'text-gray-500 hover:bg-gray-100'
                         }`}
                     >
                       {isActive && (
-                        <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#7e3866] rounded-r" />
+                        <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#2A9C64] rounded-r" />
                       )}
                       <Icon className="h-5 w-5" strokeWidth={1.5} />
                       <span className="text-xs font-medium leading-tight">{tab.label}</span>
@@ -636,7 +636,7 @@ export default function DiningExploreNear() {
                             : 'border-gray-200 hover:border-green-500'
                           }`}
                       >
-                        <span className={`text-sm font-medium ${activeFilters.has('price-under-200') ? 'text-green-600' : 'text-gray-700'}`}>Under â‚¹200</span>
+                        <span className={`text-sm font-medium ${activeFilters.has('price-under-200') ? 'text-green-600' : 'text-gray-700'}`}>Under ₹200</span>
                       </button>
                       <button
                         onClick={() => toggleFilter('price-under-500')}
@@ -645,7 +645,7 @@ export default function DiningExploreNear() {
                             : 'border-gray-200 hover:border-green-500'
                           }`}
                       >
-                        <span className={`text-sm font-medium ${activeFilters.has('price-under-500') ? 'text-green-600' : 'text-gray-700'}`}>Under â‚¹500</span>
+                        <span className={`text-sm font-medium ${activeFilters.has('price-under-500') ? 'text-green-600' : 'text-gray-700'}`}>Under ₹500</span>
                       </button>
                     </div>
                   </div>
@@ -702,4 +702,3 @@ export default function DiningExploreNear() {
     </AnimatedPage>
   )
 }
-

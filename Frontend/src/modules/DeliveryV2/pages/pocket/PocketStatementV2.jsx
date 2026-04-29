@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import WeekSelector from '@delivery/components/WeekSelector';
 import { deliveryAPI } from '@food/api';
+import { formatCurrency } from '@food/utils/currency';
 import { toast } from 'sonner';
 import useDeliveryBackNavigation from '../../hooks/useDeliveryBackNavigation';
 
@@ -147,19 +148,19 @@ export const PocketStatementV2 = () => {
                 <div className="text-left">
                    <p className="text-[10px] text-gray-400 font-bold uppercase mb-1">Orders</p>
                    <p className="text-base font-bold text-black leading-none">
-                      â‚¹{summary.totalEarning.toFixed(0)}
+                      {formatCurrency(summary.totalEarning, "\u20B9").replace(".00", "").replace("\u20B9 ", "\u20B9")}
                    </p>
                 </div>
                 <div>
                    <p className="text-[10px] text-gray-400 font-bold uppercase mb-1">Bonus</p>
                    <p className="text-base font-bold text-black leading-none">
-                      â‚¹{summary.totalBonus.toFixed(0)}
+                      {formatCurrency(summary.totalBonus, "\u20B9").replace(".00", "").replace("\u20B9 ", "\u20B9")}
                    </p>
                 </div>
                 <div className="text-right">
                    <p className="text-[10px] text-gray-400 font-bold uppercase mb-1">Total</p>
                    <p className="text-base font-bold text-[#ff8100] leading-none">
-                      â‚¹{summary.grandTotal.toFixed(0)}
+                      {formatCurrency(summary.grandTotal, "\u20B9").replace(".00", "").replace("\u20B9 ", "\u20B9")}
                    </p>
                 </div>
              </div>
@@ -220,21 +221,21 @@ export const PocketStatementV2 = () => {
                                <div className="mb-2">
                                   <p className="text-[10px] text-gray-400 font-bold uppercase">Earning</p>
                                   <p className="text-sm font-bold text-black">
-                                     â‚¹{amounts.earning}
+                                     ₹{amounts.earning}
                                   </p>
                                </div>
                                {amounts.bonus > 0 && (
                                   <div className="mb-2">
                                      <p className="text-[10px] text-emerald-500 font-bold uppercase">Bonus</p>
                                      <p className="text-sm font-bold text-emerald-600">
-                                        + â‚¹{amounts.bonus}
+                                        + ₹{amounts.bonus}
                                      </p>
                                   </div>
                                )}
                                <div className="pt-2 border-t border-gray-50">
                                   <p className="text-[10px] text-gray-800 font-bold uppercase">Total</p>
                                   <p className="text-base font-bold text-[#ff8100]">
-                                     â‚¹{amounts.total}
+                                     ₹{amounts.total}
                                   </p>
                                </div>
                             </div>

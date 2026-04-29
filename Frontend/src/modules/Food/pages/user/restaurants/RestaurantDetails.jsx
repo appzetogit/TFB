@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, Component, useMemo } from "react"
 import { createPortal } from "react-dom"
 import { motion, AnimatePresence } from "framer-motion"
-import { useParams, useNavigate, useSearchParams } from "react-router-dom"
+import { useParams, useNavigate, useSearchParams, useLocation as useRouterLocation } from "react-router-dom"
 import { restaurantAPI, diningAPI, orderAPI } from "@food/api"
 import { API_BASE_URL } from "@food/api/config"
 import { toast } from "sonner"
@@ -36,6 +36,9 @@ import {
   MessageCircle,
   Send,
   Mail,
+  Phone,
+  ExternalLink,
+  ShieldCheck,
 } from "lucide-react"
 import { Button } from "@food/components/ui/button"
 import { Badge } from "@food/components/ui/badge"
@@ -72,10 +75,12 @@ const RESTAURANT_DETAILS_FILTERS_STORAGE_KEY = "food-restaurant-details-filters"
 function RestaurantDetailsContent() {
   const { slug } = useParams()
   const navigate = useNavigate()
+  const routerLocation = useRouterLocation()
   const goBack = useAppBackNavigation()
   const [searchParams] = useSearchParams()
   const showOnlyUnder250 = searchParams.get('under250') === 'true'
   const targetDishId = useMemo(() => String(searchParams.get('dish') || '').trim(), [searchParams])
+  const routeRestaurant = routerLocation.state?.restaurant || null
   const { addToCart, updateQuantity, removeFromCart, getCartItem, cart } = useCart()
   const { vegMode, addDishFavorite, removeDishFavorite, isDishFavorite, getDishFavorites, getFavorites, addFavorite, removeFavorite, isFavorite } = useProfile()
   const { location: userLocation } = useLocation() // Get user's current location
@@ -101,6 +106,7 @@ function RestaurantDetailsContent() {
   const [showMenuOptionsSheet, setShowMenuOptionsSheet] = useState(false)
   const [showShareModal, setShowShareModal] = useState(false)
   const [sharePayload, setSharePayload] = useState(null)
+  const [showOutletInfoSheet, setShowOutletInfoSheet] = useState(false)
   const [expandedAddButtons, setExpandedAddButtons] = useState(new Set())
   const [expandedSections, setExpandedSections] = useState(new Set([0])) // Default: Recommended section is expanded
   const [highlightedDishId, setHighlightedDishId] = useState(null)
@@ -171,6 +177,16 @@ function RestaurantDetailsContent() {
   const fetchedRestaurantRef = useRef(false) // Track if restaurant has been fetched for current slug
   const fetchedSlugRef = useRef(null)
 
+  const zoneRequestParams = useMemo(() => {
+    const params = {}
+    if (zoneId) params.zoneId = zoneId
+    if (Number.isFinite(userLocation?.latitude) && Number.isFinite(userLocation?.longitude)) {
+      params.lat = userLocation.latitude
+      params.lng = userLocation.longitude
+    }
+    return params
+  }, [zoneId, userLocation?.latitude, userLocation?.longitude])
+
   useEffect(() => {
     const intervalId = setInterval(() => {
       setAvailabilityTick(Date.now())
@@ -186,7 +202,26 @@ function RestaurantDetailsContent() {
   // Fetch restaurant data from API
   useEffect(() => {
     const fetchRestaurant = async () => {
-      if (!slug) return
+      if (!slug && !routeRestaurant) return
+
+      const normalizeLookupValue = (value) =>
+        String(value || "")
+          .trim()
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/(^-|-$)/g, "")
+
+      const lookupCandidates = [
+        routeRestaurant?.mongoId,
+        routeRestaurant?._id,
+        routeRestaurant?.restaurantId,
+        routeRestaurant?.id,
+        routeRestaurant?.slug,
+        slug,
+      ]
+        .filter(Boolean)
+        .map((value) => String(value).trim())
+        .filter((value, index, arr) => arr.indexOf(value) === index)
 
       // Prevent re-fetching for the same slug. Mobile location/zone updates can
       // trigger transient refetch failures that clear already-rendered content.
@@ -225,48 +260,90 @@ function RestaurantDetailsContent() {
         // Restaurant API fallback (works for both ObjectId and slug)
         if (!apiRestaurant) {
           try {
-            // First, try to get restaurant directly by slug/ID (no zoneId needed)
-            try {
-              response = await restaurantAPI.getRestaurantById(slug)
-              if (response?.data?.success && response?.data?.data) {
-                apiRestaurant = response.data.data
-                debugLog('? Found restaurant in restaurant API by slug/ID:', apiRestaurant)
+            // Try all known route/state candidates so we can recover when the URL slug
+            // differs from the canonical backend slug but we still have the exact id.
+            for (const candidate of lookupCandidates) {
+              try {
+                response = await restaurantAPI.getRestaurantById(candidate, {
+                  params: zoneRequestParams,
+                })
+                const resolvedRestaurant =
+                  response?.data?.data?.restaurant || response?.data?.data || null
+                if (response?.data?.success && resolvedRestaurant) {
+                  apiRestaurant = resolvedRestaurant
+                  debugLog('? Found restaurant in restaurant API by candidate:', candidate, apiRestaurant)
+                  break
+                }
+              } catch (candidateLookupError) {
+                debugLog('? Direct lookup failed for candidate:', candidate, candidateLookupError?.message)
               }
-            } catch (directLookupError) {
+            }
+
+            if (!apiRestaurant) {
               // If direct lookup fails, try searching by name.
               // Fallback without zoneId so missing live location never blocks this page.
               debugLog('? Direct lookup failed, trying search by name...')
 
-                const searchVariants = zoneId
-                  ? [{ limit: 100, zoneId: zoneId, _ts: Date.now() }, { limit: 100, _ts: Date.now() }]
-                  : [{ limit: 100, _ts: Date.now() }]
+              const searchVariants = zoneId
+                ? [{ limit: 100, zoneId: zoneId, _ts: Date.now() }, { limit: 100, _ts: Date.now() }]
+                : [{ limit: 100, _ts: Date.now() }]
+              const normalizedLookupTargets = new Set(
+                lookupCandidates.map(normalizeLookupValue).filter(Boolean)
+              )
 
-                for (const searchParams of searchVariants) {
-                  try {
-                    const searchResponse = await restaurantAPI.getRestaurants(searchParams, { noCache: true })
-                    const restaurants = searchResponse?.data?.data?.restaurants || searchResponse?.data?.data || []
+              for (const searchParams of searchVariants) {
+                try {
+                  const searchResponse = await restaurantAPI.getRestaurants(searchParams, { noCache: true })
+                  const restaurants = searchResponse?.data?.data?.restaurants || searchResponse?.data?.data || []
 
-                    // Try to find by slug match or name match
-                    const restaurantName = slug.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
-                    const matchingRestaurant = restaurants.find(r =>
-                      r.slug === slug ||
-                      r.name?.toLowerCase().replace(/\s+/g, '-') === slug.toLowerCase() ||
-                      r.name?.toLowerCase() === restaurantName.toLowerCase()
-                    )
+                  const matchingRestaurant = restaurants.find((r) => {
+                    const restaurantLookupValues = [
+                      r?.slug,
+                      r?.name,
+                      r?.restaurantName,
+                      r?.restaurantId,
+                      r?._id,
+                      r?.id,
+                    ]
+                      .map(normalizeLookupValue)
+                      .filter(Boolean)
 
-                    if (matchingRestaurant) {
-                      // Get full restaurant details by ID
-                      const fullResponse = await restaurantAPI.getRestaurantById(matchingRestaurant._id || matchingRestaurant.restaurantId)
-                      if (fullResponse.data && fullResponse.data.success && fullResponse.data.data) {
-                        apiRestaurant = fullResponse.data.data
-                        debugLog('? Found restaurant in restaurant API by name search:', apiRestaurant)
-                        break
+                    return restaurantLookupValues.some((value) => normalizedLookupTargets.has(value))
+                  })
+
+                  if (matchingRestaurant) {
+                    const detailLookupCandidates = [
+                      matchingRestaurant?._id,
+                      matchingRestaurant?.restaurantId,
+                      matchingRestaurant?.id,
+                      matchingRestaurant?.slug,
+                    ].filter(Boolean)
+
+                    for (const detailCandidate of detailLookupCandidates) {
+                      try {
+                        const fullResponse = await restaurantAPI.getRestaurantById(detailCandidate, {
+                          params: zoneRequestParams,
+                        })
+                        const resolvedRestaurant =
+                          fullResponse?.data?.data?.restaurant || fullResponse?.data?.data || null
+                        if (fullResponse?.data?.success && resolvedRestaurant) {
+                          apiRestaurant = resolvedRestaurant
+                          debugLog('? Found restaurant in restaurant API by search fallback:', apiRestaurant)
+                          break
+                        }
+                      } catch (detailLookupError) {
+                        debugWarn('? Search match detail lookup failed for:', detailCandidate, detailLookupError?.message)
                       }
                     }
-                  } catch (searchError) {
-                    debugWarn('? Search fallback failed for params:', searchParams, searchError?.message)
                   }
+
+                  if (apiRestaurant) {
+                    break
+                  }
+                } catch (searchError) {
+                  debugWarn('? Search fallback failed for params:', searchParams, searchError?.message)
                 }
+              }
             }
           } catch (restaurantError) {
             debugError('? Restaurant not found in restaurant API either:', restaurantError)
@@ -516,9 +593,9 @@ function RestaurantDetailsContent() {
             restaurantOffers: {
               goldOffer: {
                 title: normalizedRestaurantOffers?.goldOffer?.title || "Gold exclusive offer",
-                description: apiRestaurant?.restaurantOffers?.goldOffer?.description || "Free delivery above â‚¹99",
+                description: apiRestaurant?.restaurantOffers?.goldOffer?.description || "Free delivery above ₹99",
                 unlockText: normalizedRestaurantOffers?.goldOffer?.unlockText || "join Gold to unlock",
-                buttonText: apiRestaurant?.restaurantOffers?.goldOffer?.buttonText || "Add Gold - â‚¹1",
+                buttonText: apiRestaurant?.restaurantOffers?.goldOffer?.buttonText || "Add Gold - ₹1",
               },
               coupons: Array.isArray(normalizedRestaurantOffers?.coupons)
                 ? normalizedRestaurantOffers.coupons
@@ -552,6 +629,9 @@ function RestaurantDetailsContent() {
             // Availability fields for grayscale styling
             isActive: actualRestaurant?.isActive !== false, // Default to true if not specified
             isAcceptingOrders: actualRestaurant?.isAcceptingOrders !== false, // Default to true if not specified
+            gstNumber: actualRestaurant?.gstNumber || apiRestaurant?.gstNumber || actualRestaurant?.onboarding?.step3?.gst?.gstNumber || apiRestaurant?.onboarding?.step3?.gst?.gstNumber || "",
+            fssaiNumber: actualRestaurant?.fssaiNumber || apiRestaurant?.fssaiNumber || actualRestaurant?.onboarding?.step3?.fssai?.registrationNumber || apiRestaurant?.onboarding?.step3?.fssai?.registrationNumber || "",
+            contactNumber: actualRestaurant?.primaryContactNumber || actualRestaurant?.ownerPhone || apiRestaurant?.primaryContactNumber || apiRestaurant?.ownerPhone || actualRestaurant?.ownerPhoneDigits || apiRestaurant?.ownerPhoneDigits || "",
           }
 
           debugLog('? Transformed restaurant:', transformedRestaurant)
@@ -722,7 +802,10 @@ function RestaurantDetailsContent() {
               for (const lookupId of normalizedLookupIds) {
                 try {
                   debugLog('? Fetching menu for restaurant lookup ID:', lookupId)
-                  const response = await restaurantAPI.getMenuByRestaurantId(lookupId, { noCache: true })
+                  const response = await restaurantAPI.getMenuByRestaurantId(lookupId, {
+                    noCache: true,
+                    params: zoneRequestParams,
+                  })
                   if (response?.data?.success) {
                     menuResponse = response
                     resolvedMenuLookupId = lookupId
@@ -999,7 +1082,7 @@ function RestaurantDetailsContent() {
     }
 
     fetchRestaurant()
-  }, [slug, zoneId, restaurant])
+  }, [slug, zoneId, restaurant, routeRestaurant, zoneRequestParams])
 
   // Track previous values to prevent unnecessary recalculations
   const prevCoordsRef = useRef({ userLat: null, userLng: null, restaurantLat: null, restaurantLng: null })
@@ -1146,7 +1229,9 @@ function RestaurantDetailsContent() {
     }
 
     // Ensure we have a valid restaurantId
-    const validRestaurantId = restaurant?.restaurantId || restaurant?._id || restaurant?.id;
+    const validRestaurantObjectId = restaurant?._id || restaurant?.id || null;
+    const validRestaurantPublicId = restaurant?.restaurantId || null;
+    const validRestaurantId = validRestaurantObjectId || validRestaurantPublicId;
     if (!validRestaurantId) {
       debugError('? Cannot add item to cart: Restaurant ID is missing!', {
         restaurant: restaurant,
@@ -1163,6 +1248,8 @@ function RestaurantDetailsContent() {
       itemName: item.name,
       restaurantName: restaurant.name,
       restaurantId: validRestaurantId,
+      restaurantObjectId: validRestaurantObjectId,
+      restaurantPublicId: validRestaurantPublicId,
       restaurant_id: restaurant._id,
       restaurant_restaurantId: restaurant.restaurantId
     });
@@ -1179,7 +1266,9 @@ function RestaurantDetailsContent() {
       variantPrice: resolvedVariant?.price ?? item.price,
       image: item.image,
       restaurant: restaurant.name, // Use restaurant.name directly (already validated)
-      restaurantId: validRestaurantId, // Use validated restaurantId
+      restaurantId: validRestaurantId,
+      restaurantObjectId: validRestaurantObjectId,
+      restaurantPublicId: validRestaurantPublicId,
       description: item.description,
       originalPrice: item.originalPrice,
       isVeg: item.isVeg !== false, // Add isVeg property
@@ -1962,7 +2051,7 @@ function RestaurantDetailsContent() {
       <AnimatedPage>
         <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
           <div className="flex flex-col items-center gap-4 text-center">
-            <AlertCircle className={`h-12 w-12 ${isNetworkError ? 'text-[#7e3866]' : 'text-red-500'}`} />
+            <AlertCircle className={`h-12 w-12 ${isNetworkError ? 'text-[#2A9C64]' : 'text-red-500'}`} />
             <div>
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
                 {isNetworkError ? 'Connection Error' : isNotFoundError ? 'Restaurant not found' : 'Error'}
@@ -2043,7 +2132,7 @@ function RestaurantDetailsContent() {
                     placeholder="Search for dishes..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-10 pr-10 py-2 rounded-full border border-gray-200 dark:border-gray-800 shadow-sm bg-white dark:bg-[#1a1a1a] text-sm dark:text-white focus:outline-none focus:ring-2 focus:ring-[#7e3866] focus:border-transparent"
+                    className="w-full pl-10 pr-10 py-2 rounded-full border border-gray-200 dark:border-gray-800 shadow-sm bg-white dark:bg-[#1a1a1a] text-sm dark:text-white focus:outline-none focus:ring-2 focus:ring-[#2A9C64] focus:border-transparent"
                     autoFocus
                     onBlur={() => {
                       if (!searchQuery) {
@@ -2083,14 +2172,19 @@ function RestaurantDetailsContent() {
           {/* Restaurant Summary */}
           <div className="relative">
             <div className="relative rounded-3xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-[#1a1a1a] shadow-[0_16px_40px_rgba(15,23,42,0.08)] p-4 sm:p-5 space-y-4 overflow-hidden">
-              <div className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-[#7e3866] via-[#8a4b77] to-[#b36b8f]" />
+              <div className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-[#2A9C64] via-[#8a4b77] to-[#b36b8f]" />
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <h1 className="text-2xl font-bold text-gray-900 dark:text-white truncate">
                     {restaurant?.name || "Unknown Restaurant"}
                   </h1>
-                  <Info className="h-5 w-5 text-gray-400" />
+                    <button 
+                      onClick={() => setShowOutletInfoSheet(true)}
+                      className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"
+                    >
+                      <Info className="h-5 w-5 text-gray-400" />
+                    </button>
                 </div>
                 <div className="mt-1 flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
                   <Utensils className="h-4 w-4" />
@@ -2255,7 +2349,7 @@ function RestaurantDetailsContent() {
                     onClick={() => setSelectedMenuCategory("all")}
                     className={`flex items-center gap-2 whitespace-nowrap rounded-full border px-3 py-1.5 text-sm font-semibold transition-colors ${
                       selectedMenuCategory === "all"
-                        ? "border-[#7e3866] bg-[#7e386615] text-[#7e3866]"
+                        ? "border-[#2A9C64] bg-[#2A9C6415] text-[#2A9C64]"
                         : "border-gray-300 dark:border-gray-700 bg-white dark:bg-[#1a1a1a] text-gray-700 dark:text-gray-300"
                     }`}
                   >
@@ -2268,7 +2362,7 @@ function RestaurantDetailsContent() {
                       onClick={() => setSelectedMenuCategory(category.id)}
                       className={`flex items-center gap-2 whitespace-nowrap rounded-full border px-3 py-1.5 text-sm font-semibold transition-colors ${
                         selectedMenuCategory === category.id
-                          ? "border-[#7e3866] bg-[#7e386615] text-[#7e3866]"
+                          ? "border-[#2A9C64] bg-[#2A9C6415] text-[#2A9C64]"
                           : "border-gray-300 dark:border-gray-700 bg-white dark:bg-[#1a1a1a] text-gray-700 dark:text-gray-300"
                       }`}
                     >
@@ -2428,7 +2522,7 @@ function RestaurantDetailsContent() {
                                 delete dishCardRefs.current[item.id]
                               }
                             }}
-                            className={`flex gap-4 p-4 border-b border-gray-100 dark:border-gray-800 last:border-none relative cursor-pointer transition-all duration-300 ${highlightedDishId === item.id ? "bg-[#7e386605] ring-2 ring-[#7e3866] ring-inset dark:bg-[#7e386610]" : ""}`}
+                            className={`flex gap-4 p-4 border-b border-gray-100 dark:border-gray-800 last:border-none relative cursor-pointer transition-all duration-300 ${highlightedDishId === item.id ? "bg-[#2A9C6405] ring-2 ring-[#2A9C64] ring-inset dark:bg-[#2A9C6410]" : ""}`}
                             onClick={() => handleItemClick(item)}
                           >
                             {/* Left Side - Details */}
@@ -2453,7 +2547,7 @@ function RestaurantDetailsContent() {
                               {isRecommendedItem(item) && (
                                 <div className="flex items-center gap-2 mt-1">
                                   <div className="h-1.5 w-16 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                                    <div className="h-full bg-[#7e3866] w-3/4"></div>
+                                    <div className="h-full bg-[#2A9C64] w-3/4"></div>
                                   </div>
                                   <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">Highly reordered</span>
                                 </div>
@@ -2510,29 +2604,34 @@ function RestaurantDetailsContent() {
 
                             {/* Right Side - Image and Add Button */}
                             <div className="relative w-32 h-32 flex-shrink-0">
-                              {item.image ? (
-                                <img
-                                  src={item.image}
-                                  alt={item.name}
-                                  className="w-full h-full object-cover rounded-2xl shadow-sm"
-                                  onError={(e) => {
-                                    if (e.currentTarget.src !== FOOD_IMAGE_FALLBACK) {
-                                      e.currentTarget.src = FOOD_IMAGE_FALLBACK
-                                    }
-                                  }}
-                                />
-                              ) : (
-                                <div className="w-full h-full bg-gray-200 dark:bg-gray-700 rounded-2xl flex items-center justify-center">
-                                  <span className="text-xs text-gray-400">No image</span>
-                                </div>
-                              )}
+                              {(() => {
+                                const categoryImage = getSectionCategoryImage(section)
+                                const finalImage = item.image || categoryImage
+                                
+                                return finalImage ? (
+                                  <img
+                                    src={finalImage}
+                                    alt={item.name}
+                                    className="w-full h-full object-cover rounded-2xl shadow-sm"
+                                    onError={(e) => {
+                                      if (e.currentTarget.src !== FOOD_IMAGE_FALLBACK) {
+                                        e.currentTarget.src = FOOD_IMAGE_FALLBACK
+                                      }
+                                    }}
+                                  />
+                                ) : (
+                                  <div className="w-full h-full bg-gray-200 dark:bg-gray-700 rounded-2xl flex items-center justify-center">
+                                    <span className="text-xs text-gray-400">No image</span>
+                                  </div>
+                                )
+                              })()}
                               {quantity > 0 ? (
                                 <motion.div
                                   initial={{ opacity: 0, scale: 0.8 }}
                                   animate={{ opacity: 1, scale: 1 }}
-                                  className={`absolute -bottom-2 left-1/2 -translate-x-1/2 bg-[#7e3866] text-white font-bold px-4 py-1.5 rounded-lg shadow-md flex items-center gap-1 ${shouldShowGrayscale
+                                  className={`absolute -bottom-2 left-1/2 -translate-x-1/2 bg-[#2A9C64] text-white font-bold px-4 py-1.5 rounded-lg shadow-md flex items-center gap-1 ${shouldShowGrayscale
                                     ? 'bg-gray-300 border-gray-300 text-gray-400 cursor-not-allowed opacity-50'
-                                    : 'hover:bg-[#55254b]'
+                                    : 'hover:bg-[#1E7A4A]'
                                     }`}
                                 >
                                   <button
@@ -2574,9 +2673,9 @@ function RestaurantDetailsContent() {
                                     }
                                   }}
                                   disabled={shouldShowGrayscale}
-                                  className={`absolute -bottom-2 left-1/2 -translate-x-1/2 bg-[#7e3866] text-white font-bold px-6 py-1.5 rounded-lg shadow-md flex items-center gap-1 transition-all ${shouldShowGrayscale
+                                  className={`absolute -bottom-2 left-1/2 -translate-x-1/2 bg-[#2A9C64] text-white font-bold px-6 py-1.5 rounded-lg shadow-md flex items-center gap-1 transition-all ${shouldShowGrayscale
                                     ? 'bg-gray-300 border-gray-300 text-gray-400 cursor-not-allowed opacity-50'
-                                    : 'hover:bg-[#55254b] hover:scale-105 active:scale-95'
+                                    : 'hover:bg-[#1E7A4A] hover:scale-105 active:scale-95'
                                     }`}
                                 >
                                   ADD <Plus size={14} className="stroke-[3px]" />
@@ -2649,7 +2748,7 @@ function RestaurantDetailsContent() {
                                           delete dishCardRefs.current[item.id]
                                         }
                                       }}
-                                      className={`flex gap-4 p-4 border-b border-gray-100 dark:border-gray-800 last:border-none relative cursor-pointer transition-all duration-300 ${highlightedDishId === item.id ? "bg-[#7e386605] ring-2 ring-[#7e3866] ring-inset dark:bg-[#7e386610]" : ""}`}
+                                      className={`flex gap-4 p-4 border-b border-gray-100 dark:border-gray-800 last:border-none relative cursor-pointer transition-all duration-300 ${highlightedDishId === item.id ? "bg-[#2A9C6405] ring-2 ring-[#2A9C64] ring-inset dark:bg-[#2A9C6410]" : ""}`}
                                       onClick={() => handleItemClick(item)}
                                     >
                                       {/* Left Side - Details */}
@@ -2661,8 +2760,8 @@ function RestaurantDetailsContent() {
                                               <div className="w-2 h-2 bg-[#8CC63F] rounded-full"></div>
                                             </div>
                                           ) : (
-                                            <div className="w-4 h-4 border-2 border-[#7e3866] flex items-center justify-center rounded-sm flex-shrink-0">
-                                              <div className="w-2 h-2 bg-[#7e3866] rounded-full"></div>
+                                            <div className="w-4 h-4 border-2 border-[#2A9C64] flex items-center justify-center rounded-sm flex-shrink-0">
+                                              <div className="w-2 h-2 bg-[#2A9C64] rounded-full"></div>
                                             </div>
                                           )}
                                           {item.isSpicy && <span className="text-xs font-semibold text-red-500">Spicy</span>}
@@ -2674,7 +2773,7 @@ function RestaurantDetailsContent() {
                                         {isRecommendedItem(item) && (
                                           <div className="flex items-center gap-2 mt-1">
                                             <div className="h-1.5 w-16 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                                              <div className="h-full bg-[#7e3866] w-3/4"></div>
+                                              <div className="h-full bg-[#2A9C64] w-3/4"></div>
                                             </div>
                                             <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">Highly reordered</span>
                                           </div>
@@ -2753,7 +2852,7 @@ function RestaurantDetailsContent() {
                                             animate={{ opacity: 1, scale: 1 }}
                                             className={`absolute -bottom-2 left-1/2 -translate-x-1/2 bg-white border font-bold px-4 py-1.5 rounded-lg shadow-md flex items-center gap-1 ${shouldShowGrayscale
                                               ? 'border-gray-300 text-gray-400 cursor-not-allowed opacity-50'
-                                              : 'border-[#7e3866] text-[#7e3866] hover:bg-[#7e386605]'
+                                              : 'border-[#2A9C64] text-[#2A9C64] hover:bg-[#2A9C6405]'
                                               }`}
                                           >
                                             <button
@@ -2764,7 +2863,7 @@ function RestaurantDetailsContent() {
                                                 }
                                               }}
                                               disabled={shouldShowGrayscale}
-                                              className={shouldShowGrayscale ? 'text-gray-400 cursor-not-allowed' : 'text-[#7e3866] hover:text-[#55254b]'}
+                                              className={shouldShowGrayscale ? 'text-gray-400 cursor-not-allowed' : 'text-[#2A9C64] hover:text-[#1E7A4A]'}
                                             >
                                               <Minus size={14} />
                                             </button>
@@ -2777,7 +2876,7 @@ function RestaurantDetailsContent() {
                                                 }
                                               }}
                                               disabled={shouldShowGrayscale}
-                                              className={shouldShowGrayscale ? 'text-gray-400 cursor-not-allowed' : 'text-[#7e3866] hover:text-[#55254b]'}
+                                              className={shouldShowGrayscale ? 'text-gray-400 cursor-not-allowed' : 'text-[#2A9C64] hover:text-[#1E7A4A]'}
                                             >
                                               <Plus size={14} className="stroke-[3px]" />
                                             </button>
@@ -2797,7 +2896,7 @@ function RestaurantDetailsContent() {
                                             disabled={shouldShowGrayscale}
                                             className={`absolute -bottom-2 left-1/2 -translate-x-1/2 bg-white border font-bold px-6 py-1.5 rounded-lg shadow-md flex items-center gap-1 transition-colors ${shouldShowGrayscale
                                               ? 'border-gray-300 text-gray-400 cursor-not-allowed opacity-50'
-                                              : 'border-[#7e3866] text-[#7e3866] hover:bg-magenta-50/10'
+                                              : 'border-[#2A9C64] text-[#2A9C64] hover:bg-magenta-50/10'
                                               }`}
                                           >
                                             ADD <Plus size={14} className="stroke-[3px]" />
@@ -2853,7 +2952,7 @@ function RestaurantDetailsContent() {
           className="fixed bottom-24 right-6 z-[60] pointer-events-auto sm:bottom-8 cursor-grab active:cursor-grabbing"
         >
           <Button
-            className="bg-[#7e3866] hover:bg-[#55254b] text-white flex items-center gap-2 shadow-[0_12px_40px_rgba(126,56,102,0.4)] border border-white/20 px-6 py-3.5 h-auto rounded-full font-bold transform transition-all duration-300 active:scale-95 group"
+            className="bg-[#2A9C64] hover:bg-[#1E7A4A] text-white flex items-center gap-2 shadow-[0_12px_40px_rgba(126,56,102,0.4)] border border-white/20 px-6 py-3.5 h-auto rounded-full font-bold transform transition-all duration-300 active:scale-95 group"
             size="lg"
             onClick={() => setShowMenuSheet(true)}
           >
@@ -2942,7 +3041,7 @@ function RestaurantDetailsContent() {
                   {/* Close Button */}
                   <div className="border-t border-gray-200 dark:border-gray-800 px-4 py-4 bg-white dark:bg-[#1a1a1a]">
                     <Button
-                      className="w-full bg-[#7e3866] hover:bg-[#55254b] text-white border-0 flex items-center justify-center gap-2 py-6 rounded-xl font-bold transition-all shadow-lg text-sm"
+                      className="w-full bg-[#2A9C64] hover:bg-[#1E7A4A] text-white border-0 flex items-center justify-center gap-2 py-6 rounded-xl font-bold transition-all shadow-lg text-sm"
                       onClick={() => setShowMenuSheet(false)}
                     >
                       <X className="h-4 w-4" />
@@ -3077,7 +3176,7 @@ function RestaurantDetailsContent() {
                           }))
                         }
                         className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border-2 transition-all w-full ${filters.highlyReordered
-                          ? "border-[#7e3866] dark:border-[#7e3866] bg-[#F9F9FB] dark:bg-[#7e3866]/20 text-[#7e3866] dark:text-[#7e3866]"
+                          ? "border-[#2A9C64] dark:border-[#2A9C64] bg-[#F9F9FB] dark:bg-[#2A9C64]/20 text-[#2A9C64] dark:text-[#2A9C64]"
                           : "border-gray-200 dark:border-gray-700 bg-white dark:bg-[#2a2a2a] text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600"
                           }`}
                       >
@@ -3123,7 +3222,7 @@ function RestaurantDetailsContent() {
                       Clear All
                     </button>
                     <Button
-                      className="bg-[#7e3866] hover:bg-[#55254b] text-white px-6 py-2.5 rounded-lg font-bold"
+                      className="bg-[#2A9C64] hover:bg-[#1E7A4A] text-white px-6 py-2.5 rounded-lg font-bold"
                       onClick={() => setShowFilterSheet(false)}
                     >
                       Apply {activeFilterCount > 0 && `(${activeFilterCount})`}
@@ -3182,9 +3281,9 @@ function RestaurantDetailsContent() {
                             className="p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#2a2a2a]"
                           >
                             {outlet?.isNearest && (
-                              <div className="flex items-center gap-1.5 mb-2 px-2 py-1 bg-[#F9F9FB] dark:bg-[#7e3866]/20 rounded-md">
-                                <Zap className="h-3.5 w-3.5 text-[#7e3866] dark:text-[#7e3866] fill-[#7e3866] dark:fill-[#7e3866]" />
-                                <span className="text-xs font-semibold text-[#7e3866] dark:text-[#7e3866]">
+                              <div className="flex items-center gap-1.5 mb-2 px-2 py-1 bg-[#F9F9FB] dark:bg-[#2A9C64]/20 rounded-md">
+                                <Zap className="h-3.5 w-3.5 text-[#2A9C64] dark:text-[#2A9C64] fill-[#2A9C64] dark:fill-[#2A9C64]" />
+                                <span className="text-xs font-semibold text-[#2A9C64] dark:text-[#2A9C64]">
                                   Nearest available outlet
                                 </span>
                               </div>
@@ -3337,7 +3436,7 @@ function RestaurantDetailsContent() {
                   {/* Done Button */}
                   <div className="border-t border-gray-200 dark:border-gray-800 px-4 py-4">
                     <Button
-                      className="w-full bg-[#7e3866] hover:bg-[#55254b] text-white py-3 rounded-lg font-bold"
+                      className="w-full bg-[#2A9C64] hover:bg-[#1E7A4A] text-white py-3 rounded-lg font-bold"
                       onClick={() => {
                         setShowManageCollections(false)
                       }}
@@ -3749,7 +3848,7 @@ function RestaurantDetailsContent() {
                             <Lock className="h-5 w-5 text-yellow-600 dark:text-yellow-500 flex-shrink-0 mt-0.5" />
                             <div className="flex-1">
                               <p className="text-sm font-medium text-gray-900 dark:text-white mb-1">
-                                {restaurant.restaurantOffers.goldOffer?.description || "Free delivery above â‚¹99"}
+                                {restaurant.restaurantOffers.goldOffer?.description || "Free delivery above ₹99"}
                               </p>
                               <p className="text-xs text-gray-500 dark:text-gray-400">
                                 {restaurant.restaurantOffers.goldOffer?.unlockText || "join Gold to unlock"}
@@ -3762,7 +3861,7 @@ function RestaurantDetailsContent() {
                               // Handle add gold
                             }}
                           >
-                            {restaurant.restaurantOffers.goldOffer?.buttonText || "Add Gold - â‚¹1"}
+                            {restaurant.restaurantOffers.goldOffer?.buttonText || "Add Gold - ₹1"}
                           </Button>
                         </div>
                       </div>
@@ -3843,7 +3942,7 @@ function RestaurantDetailsContent() {
                   {/* Close Button */}
                   <div className="border-t border-gray-200 dark:border-gray-800 px-4 py-4 bg-white dark:bg-[#1a1a1a]">
                     <Button
-                      className="w-full bg-[#7e3866] hover:bg-[#55254b] text-white border-0 flex items-center justify-center gap-2 py-6 rounded-xl font-bold transition-all shadow-lg text-sm"
+                      className="w-full bg-[#2A9C64] hover:bg-[#1E7A4A] text-white border-0 flex items-center justify-center gap-2 py-6 rounded-xl font-bold transition-all shadow-lg text-sm"
                       onClick={() => setShowOffersSheet(false)}
                     >
                       <X className="h-4 w-4" />
@@ -3856,6 +3955,217 @@ function RestaurantDetailsContent() {
           </AnimatePresence>,
           document.body
         )}
+
+      {/* Outlet Information Bottom Sheet - Rendered via Portal */}
+      {typeof window !== "undefined" &&
+        createPortal(
+          <AnimatePresence>
+            {showOutletInfoSheet && (
+              <>
+                {/* Backdrop */}
+                <motion.div
+                  className="fixed inset-0 bg-black/40 z-[9999]"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.15 }}
+                  onClick={() => setShowOutletInfoSheet(false)}
+                />
+
+                {/* Outlet Info Bottom Sheet */}
+                <motion.div
+                  className="fixed left-0 right-0 bottom-0 md:left-1/2 md:right-auto md:-translate-x-1/2 md:bottom-auto md:top-1/2 md:-translate-y-1/2 z-[10000] bg-white dark:bg-[#1a1a1a] rounded-t-[2.5rem] md:rounded-[2.5rem] shadow-2xl max-h-[85vh] md:max-h-[90vh] md:max-w-lg w-full md:w-auto flex flex-col overflow-hidden"
+                  initial={{ y: "100%" }}
+                  animate={{ y: 0 }}
+                  exit={{ y: "100%" }}
+                  transition={{ duration: 0.3, type: "spring", damping: 25, stiffness: 350 }}
+                  style={{ willChange: "transform" }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {/* Top Handle bar for mobile */}
+                  <div className="md:hidden flex justify-center pt-3 pb-1">
+                    <div className="w-12 h-1.5 bg-gray-200 dark:bg-gray-800 rounded-full" />
+                  </div>
+
+                  {/* Header */}
+                  <div className="px-6 pt-5 pb-4 flex items-center justify-between border-b border-gray-100 dark:border-gray-800">
+                    <div>
+                      <h2 className="text-xl font-black text-gray-900 dark:text-white tracking-tight">
+                        Outlet Information
+                      </h2>
+                      <p className="text-[10px] font-black text-[#2A9C64] uppercase tracking-[0.2em] mt-0.5">
+                        {restaurant?.name || "Restaurant Details"}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setShowOutletInfoSheet(false)}
+                      className="p-2.5 bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-2xl transition-all active:scale-95"
+                    >
+                      <X className="h-5 w-5 text-gray-500" />
+                    </button>
+                  </div>
+
+                  {/* Scrollable Content */}
+                  <div className="flex-1 overflow-y-auto px-6 py-6 space-y-8 custom-scrollbar">
+                    {/* Restaurant Name & Address Section */}
+                    <div className="space-y-4">
+                      <div className="flex items-start gap-4">
+                        <div className="p-3.5 bg-emerald-50 dark:bg-emerald-950/20 rounded-2xl border border-emerald-100 dark:border-emerald-900/30">
+                          <MapPin className="h-6 w-6 text-emerald-600" />
+                        </div>
+                        <div className="space-y-1.5 flex-1">
+                          <h3 className="text-[11px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">Store Location</h3>
+                          <p className="text-[15px] font-bold text-gray-700 dark:text-gray-200 leading-relaxed">
+                            {restaurant?.location || "Location not specified"}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Action Buttons: Call & Map */}
+                      <div className="grid grid-cols-2 gap-4 pt-2">
+                        <button
+                          onClick={() => {
+                            if (restaurant?.contactNumber) {
+                              window.location.href = `tel:${restaurant.contactNumber}`;
+                            } else {
+                              toast.error("Contact number not available");
+                            }
+                          }}
+                          className="flex items-center justify-center gap-3 py-4 px-4 bg-emerald-600 dark:bg-emerald-600 rounded-2xl hover:bg-emerald-700 dark:hover:bg-emerald-500 transition-all group active:scale-[0.98] shadow-lg shadow-emerald-600/20"
+                        >
+                          <Phone className="h-5 w-5 text-white" />
+                          <span className="text-sm font-black text-white uppercase tracking-wider">Call Now</span>
+                        </button>
+                        
+                        <button
+                          onClick={() => {
+                            const lat = restaurant?.locationObject?.latitude;
+                            const lng = restaurant?.locationObject?.longitude;
+                            const mapUrl = lat && lng 
+                              ? `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`
+                              : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(restaurant?.location || "")}`;
+                            window.open(mapUrl, "_blank");
+                          }}
+                          className="flex items-center justify-center gap-3 py-4 px-4 bg-white dark:bg-[#262626] border-2 border-gray-100 dark:border-gray-800 rounded-2xl hover:border-emerald-600/30 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 transition-all group active:scale-[0.98]"
+                        >
+                          <ExternalLink className="h-5 w-5 text-emerald-600 transition-transform" />
+                          <span className="text-sm font-black text-gray-900 dark:text-white uppercase tracking-wider">View Map</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Legal Information Section */}
+                    <div className="space-y-6 pt-2">
+                      <div className="flex items-center gap-3">
+                        <h3 className="text-[11px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">Legal Information</h3>
+                        <div className="h-[1px] flex-1 bg-gray-100 dark:bg-gray-800"></div>
+                      </div>
+
+                      <div className="space-y-5">
+                        {/* FSSAI License */}
+                        <div className="bg-emerald-50/50 dark:bg-emerald-950/10 p-5 rounded-[2rem] border border-emerald-100/50 dark:border-emerald-900/20 relative overflow-hidden group">
+                           <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                              <ShieldCheck className="h-16 w-16 text-emerald-600" />
+                           </div>
+                           <p className="text-[10px] text-emerald-600 font-black uppercase tracking-[0.15em] mb-3">FSSAI License Number</p>
+                           <div className="flex items-center justify-between gap-4">
+                              <div className="flex items-center gap-4">
+                                <div className="h-12 w-12 flex items-center justify-center bg-white dark:bg-[#1a1a1a] rounded-xl overflow-hidden border border-emerald-100 dark:border-emerald-900/30 shadow-sm">
+                                  {restaurant?.profileImage ? (
+                                    <img 
+                                      src={restaurant.profileImage} 
+                                      alt="Restaurant" 
+                                      className="h-full w-full object-cover" 
+                                      onError={(e) => {
+                                        e.target.onerror = null;
+                                        e.target.src = fssaiLogo;
+                                      }}
+                                    />
+                                  ) : (
+                                    <img src={fssaiLogo} alt="FSSAI" className="h-full w-auto object-contain p-1" />
+                                  )}
+                                </div>
+                                <p className="text-lg font-black text-gray-900 dark:text-white tracking-tight">
+                                  {restaurant?.fssaiNumber || "In Process"}
+                                </p>
+                              </div>
+                              {restaurant?.fssaiNumber && (
+                                <button 
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(restaurant.fssaiNumber);
+                                    toast.success("License number copied!");
+                                  }}
+                                  className="p-2.5 hover:bg-emerald-100 dark:hover:bg-emerald-900/30 rounded-xl transition-colors"
+                                >
+                                  <Copy className="h-4 w-4 text-emerald-600" />
+                                </button>
+                              )}
+                           </div>
+                        </div>
+
+                        {/* GST Registration - ONLY show if gstNumber exists and is not 'Not Registered' */}
+                        {restaurant?.gstNumber && 
+                         !String(restaurant.gstNumber).toLowerCase().includes("not register") && 
+                         !String(restaurant.gstNumber).toLowerCase().includes("in process") && (
+                          <div className="bg-emerald-50/50 dark:bg-emerald-950/10 p-5 rounded-[2rem] border border-emerald-100/50 dark:border-emerald-900/20 relative overflow-hidden group">
+                             <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                                <ShieldCheck className="h-16 w-16 text-emerald-600" />
+                             </div>
+                             <p className="text-[10px] text-emerald-600 font-black uppercase tracking-[0.15em] mb-3">GSTIN (Goods & Services Tax)</p>
+                             <div className="flex items-center justify-between gap-4">
+                                <div className="flex items-start gap-4">
+                                  <div className="p-3 bg-white dark:bg-[#1a1a1a] rounded-xl border border-emerald-100 dark:border-emerald-900/30 shadow-sm">
+                                    <Check className="h-5 w-5 text-emerald-600" />
+                                  </div>
+                                  <div>
+                                    <p className="text-lg font-black text-gray-900 dark:text-white tracking-tight">
+                                      {restaurant.gstNumber}
+                                    </p>
+                                    <p className="text-[10px] font-bold text-gray-500 uppercase mt-1 tracking-wide italic">
+                                      * Prices include applicable taxes
+                                    </p>
+                                  </div>
+                                </div>
+                                <button 
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(restaurant.gstNumber);
+                                    toast.success("GSTIN copied!");
+                                  }}
+                                  className="p-2.5 hover:bg-emerald-100 dark:hover:bg-emerald-900/30 rounded-xl transition-colors"
+                                >
+                                  <Copy className="h-4 w-4 text-emerald-600" />
+                                </button>
+                             </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Footer / Support */}
+                    <div className="pt-4 text-center">
+                       <p className="text-[11px] font-bold text-gray-400 dark:text-gray-500 leading-relaxed px-6">
+                         Legal numbers provided are for this specific outlet only. For further queries, please reach out to our support team.
+                       </p>
+                    </div>
+                  </div>
+
+
+                  {/* Close Button at bottom */}
+                  <div className="p-6 bg-white dark:bg-[#1a1a1a] border-t border-gray-100 dark:border-gray-800">
+                    <Button
+                      onClick={() => setShowOutletInfoSheet(false)}
+                      className="w-full h-14 bg-gray-900 dark:bg-white text-white dark:text-gray-900 hover:bg-black dark:hover:bg-gray-100 rounded-2xl font-black text-base transition-all active:scale-95"
+                    >
+                      DONE
+                    </Button>
+                  </div>
+                </motion.div>
+              </>
+            )}
+          </AnimatePresence>,
+          document.body
+        )}
+
 
       {/* Menu Options Bottom Sheet - Rendered via Portal */}
       {typeof window !== "undefined" &&

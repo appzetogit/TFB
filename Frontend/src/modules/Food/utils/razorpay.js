@@ -121,7 +121,7 @@ export const initRazorpayPayment = async (options) => {
     // Open Razorpay modal
     razorpay.open();
     
-    console.log('âœ… Razorpay checkout opened successfully');
+    console.log('✅ Razorpay checkout opened successfully');
     console.log('Razorpay options:', {
       key: razorpayOptions.key ? 'Present' : 'Missing',
       amount: razorpayOptions.amount,
@@ -144,6 +144,6 @@ export const initRazorpayPayment = async (options) => {
  * @returns {String} Formatted amount string
  */
 export const formatAmount = (amount) => {
-  return `â‚¹${(amount / 100).toFixed(2)}`;
+  return `₹${(amount / 100).toFixed(2)}`;
 };
 

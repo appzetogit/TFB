@@ -31,7 +31,7 @@ import { useRestaurantNotifications } from "@food/hooks/useRestaurantNotificatio
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import ResendNotificationButton from "@food/components/restaurant/ResendNotificationButton";
-const debugLog = (...args) => {};
+const debugLog = (...args) => console.log('[OrdersMain]', ...args);
 const debugWarn = (...args) => {};
 const debugError = (...args) => {};
 
@@ -292,7 +292,7 @@ function CompletedOrders({ onSelectOrder, refreshToken = 0 }) {
                           Amount
                         </span>
                         <span className="text-xs font-medium text-black">
-                          â‚¹{order.amount.toFixed(2)}
+                          ₹{order.amount.toFixed(2)}
                         </span>
                       </div>
                     </div>
@@ -524,7 +524,7 @@ function CancelledOrders({ onSelectOrder, refreshToken = 0 }) {
                           Amount
                         </span>
                         <span className="text-xs font-medium text-black">
-                          â‚¹{order.amount.toFixed(2)}
+                          ₹{order.amount.toFixed(2)}
                         </span>
                       </div>
                     </div>
@@ -1226,8 +1226,10 @@ export default function OrdersMain() {
             isLoading: false,
           });
 
-          // Check if onboarding is incomplete and redirect if needed
-          if (!isRestaurantOnboardingComplete(restaurant)) {
+          const isComplete = isRestaurantOnboardingComplete(restaurant);
+          debugLog("Onboarding completion check:", { restaurant, isComplete });
+          
+          if (!isComplete) {
             // Onboarding is incomplete, redirect to onboarding page
             const incompleteStep = await checkOnboardingStatus();
             if (incompleteStep) {
@@ -1378,7 +1380,9 @@ export default function OrdersMain() {
         markOrderAsShown(newOrder);
         setPopupOrder(newOrder);
         setShowNewOrderPopup(true);
-        setCountdown(240); // Reset countdown to 4 minutes
+        const orderTime = new Date(newOrder.updatedAt || newOrder.createdAt || Date.now()).getTime();
+        const elapsedSeconds = Math.floor((Date.now() - orderTime) / 1000);
+        setCountdown(Math.max(0, 240 - elapsedSeconds));
         requestOrdersRefresh();
       }
     }
@@ -1573,7 +1577,9 @@ export default function OrdersMain() {
             markOrderAsShown({ orderId, _id: orderToPopup._id });
             setPopupOrder(orderForPopup);
             setShowNewOrderPopup(true);
-            setCountdown(240);
+            const orderTime = new Date(orderForPopup.updatedAt || orderForPopup.createdAt || Date.now()).getTime();
+            const elapsedSeconds = Math.floor((Date.now() - orderTime) / 1000);
+            setCountdown(Math.max(0, 240 - elapsedSeconds));
           }
         }
       } catch (error) {
@@ -1610,13 +1616,39 @@ export default function OrdersMain() {
 
   // Countdown timer
   useEffect(() => {
-    if (showNewOrderPopup && countdown > 0) {
-      const timer = setInterval(() => {
-        setCountdown((prev) => prev - 1);
-      }, 1000);
-      return () => clearInterval(timer);
+    if (showNewOrderPopup) {
+      if (countdown > 0) {
+        const timer = setInterval(() => {
+          setCountdown((prev) => prev - 1);
+        }, 1000);
+        return () => clearInterval(timer);
+      } else if (countdown <= 0) {
+        // Auto-reject order when timer runs out
+        const activeOrder = popupOrder || newOrder;
+        if (activeOrder) {
+          const orderId = activeOrder.orderMongoId || activeOrder.orderId || activeOrder._id;
+          if (orderId) {
+            restaurantAPI.rejectOrder(orderId, "Restaurant did not accept in time")
+              .then(() => {
+                toast.error(`Order #${activeOrder.orderId || orderId} automatically rejected due to timeout.`);
+                requestOrdersRefresh();
+              })
+              .catch(err => debugError("Error auto-rejecting:", err));
+          }
+        }
+        
+        if (audioRef.current) {
+          audioRef.current.pause();
+          audioRef.current.currentTime = 0;
+        }
+        setShowRejectPopup(false);
+        setShowNewOrderPopup(false);
+        setPopupOrder(null);
+        if (typeof clearNewOrder === 'function') clearNewOrder();
+        setRejectReason("");
+      }
     }
-  }, [showNewOrderPopup, countdown]);
+  }, [showNewOrderPopup, countdown, popupOrder, newOrder]);
 
   useEffect(() => {
     if (!showNewOrderPopup) {
@@ -1977,8 +2009,8 @@ export default function OrdersMain() {
         const tableData = orderToPrint.items.map((item) => [
           item.name || "Item",
           item.quantity || 1,
-          `â‚¹${(item.price || 0).toFixed(2)}`,
-          `â‚¹${((item.price || 0) * (item.quantity || 1)).toFixed(2)}`,
+          `₹${(item.price || 0).toFixed(2)}`,
+          `₹${((item.price || 0) * (item.quantity || 1)).toFixed(2)}`,
         ]);
 
         autoTable(doc, {
@@ -2004,9 +2036,8 @@ export default function OrdersMain() {
       }
 
       // Total
-      doc.setFont("helvetica", "bold");
       doc.setFontSize(12);
-      doc.text(`Total: â‚¹${(orderToPrint.total || 0).toFixed(2)}`, 20, yPos);
+      doc.text(`Total: ₹${(orderToPrint.total || 0).toFixed(2)}`, 20, yPos);
 
       // Payment status
       yPos += 10;
@@ -2652,7 +2683,7 @@ export default function OrdersMain() {
                                         {item.quantity} x {item.name}
                                       </p>
                                       <p className="text-xs text-gray-600 ml-2">
-                                        â‚¹{item.price * item.quantity}
+                                        ₹{item.price * item.quantity}
                                       </p>
                                     </div>
                                   </div>
@@ -2719,7 +2750,7 @@ export default function OrdersMain() {
                       </span>
                     </div>
                     <span className="text-base font-bold text-gray-900">
-                      â‚¹{getPopupOrderTotal(popupOrder || newOrder)}
+                      ₹{getPopupOrderTotal(popupOrder || newOrder)}
                     </span>
                   </div>
 
@@ -2841,7 +2872,7 @@ export default function OrdersMain() {
                             onTouchCancel={handleAcceptSwipeEnd}
                             onClick={triggerSwipeAccept}
                             disabled={isAcceptingOrder}>
-                            <span className="text-lg font-bold">â€º</span>
+                            <span className="text-lg font-bold">›</span>
                           </motion.button>
                         </div>
 
@@ -3087,7 +3118,7 @@ export default function OrdersMain() {
                   <p className="text-[11px] text-gray-500 mt-1">
                     {selectedOrder.type}
                     {selectedOrder.tableOrToken
-                      ? ` â€¢ ${selectedOrder.tableOrToken}`
+                      ? ` • ${selectedOrder.tableOrToken}`
                       : ""}
                   </p>
                 </div>
@@ -3217,7 +3248,7 @@ function OrderCard({
   const normalizedStatus = String(status || "").toLowerCase();
   const isReady = normalizedStatus === "ready";
   const isPreparing = normalizedStatus === "preparing";
-  const brandColor = "#7e3866";
+  const brandColor = "#2A9C64";
 
   const statusLabel = String(status || "")
     .replace(/_/g, " ")

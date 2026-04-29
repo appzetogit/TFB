@@ -1,7 +1,7 @@
 import { api, restaurantAPI } from "@food/api"
-const debugLog = (...args) => {}
+const debugLog = (...args) => console.log('[OnboardingUtils]', ...args)
 const debugWarn = (...args) => {}
-const debugError = (...args) => {}
+const debugError = (...args) => console.error('[OnboardingUtils]', ...args)
 
 
 const getOnboardingStorageKey = () => {
@@ -15,23 +15,46 @@ const getOnboardingStorageKey = () => {
     } catch (e) {}
     return "restaurant_onboarding_data"
 }
-const ONBOARDING_STORAGE_KEY = getOnboardingStorageKey()
+
+const getOnboardingStorageKeys = () => {
+  const keys = new Set(["restaurant_onboarding_data", getOnboardingStorageKey()])
+
+  try {
+    const userStr = localStorage.getItem("restaurant_user")
+    if (userStr) {
+      const user = JSON.parse(userStr)
+      const userId = user?._id || user?.id
+      if (userId) {
+        keys.add(`restaurant_onboarding_data_${userId}`)
+      }
+    }
+  } catch (e) {}
+
+  return Array.from(keys).filter(Boolean)
+}
+
+const clearRestaurantOnboardingStorage = () => {
+  try {
+    getOnboardingStorageKeys().forEach((key) => localStorage.removeItem(key))
+  } catch (e) {}
+}
 
 // Helper function to check if a step is complete
 const isStepComplete = (stepData, stepNumber) => {
   if (!stepData) return false
 
   if (stepNumber === 1) {
-    return (
+    const isStep1DataValid = 
       stepData.restaurantName &&
       typeof stepData.pureVegRestaurant === "boolean" &&
       stepData.ownerName &&
       stepData.ownerEmail &&
       stepData.ownerPhone &&
       stepData.primaryContactNumber &&
-      stepData.location?.area &&
-      stepData.location?.city
-    )
+      (stepData.location?.area || stepData.area) &&
+      (stepData.location?.city || stepData.city)
+
+    return Boolean(isStep1DataValid)
   }
 
   if (stepNumber === 2) {
@@ -160,12 +183,20 @@ const buildOnboardingLikeDataFromRestaurant = (restaurant) => {
 export const isRestaurantOnboardingComplete = (restaurant) => {
   if (!restaurant) return false
 
-  // Approved restaurants should never be forced into onboarding again.
-  if (restaurant?.status === "approved") {
-    return true
+  const status = String(restaurant?.status || "").toLowerCase()
+  
+  // If the restaurant is approved or pending, they have already submitted their 
+  // initial profile. We shouldn't force them back into onboarding unless they 
+  // are completely missing basic information.
+  if (status === "approved" || status === "pending") {
+    if (restaurant?.name || restaurant?.restaurantName) {
+      clearRestaurantOnboardingStorage()
+      return true
+    }
   }
 
-  if (restaurant?.isActive === true) {
+  if (restaurant?.isActive === true || restaurant?.isAcceptingOrders === true) {
+    clearRestaurantOnboardingStorage()
     return true
   }
 
@@ -179,24 +210,32 @@ export const isRestaurantOnboardingComplete = (restaurant) => {
   const step3Complete = isStepComplete(onboardingLikeData.step3, 3)
 
   if (step1Complete && step2Complete && step3Complete) {
+    clearRestaurantOnboardingStorage()
     return true
   }
 
   // Some older or migrated restaurant accounts have complete live profile data
   // without a reliable onboarding.completedSteps value.
   const hasOperationalProfile =
-    Boolean(String(restaurant?.name || "").trim()) &&
-    Boolean(String(restaurant?.restaurantId || "").trim()) &&
-    Boolean(String(restaurant?.slug || "").trim()) &&
+    Boolean(String(restaurant?.name || restaurant?.restaurantName || "").trim()) &&
+    Boolean(String(restaurant?.ownerPhone || "").trim()) &&
     step1Complete &&
     step2Complete &&
-    (restaurant?.approvedAt || restaurant?.rejectedAt || restaurant?.rejectionReason || restaurant?.isActive === false)
+    (restaurant?.status === "pending" || restaurant?.status === "approved" || restaurant?.approvedAt || restaurant?.rejectedAt || restaurant?.rejectionReason)
+
+  debugLog("Final check:", {
+    isApproved: restaurant?.status === "approved",
+    isPending: restaurant?.status === "pending",
+    step1Complete,
+    step2Complete,
+    step3Complete,
+    hasOperationalProfile,
+  })
 
   if (hasOperationalProfile) {
+    clearRestaurantOnboardingStorage()
     return true
   }
-
-  return false
 }
 
 // Determine which step to show based on completeness
@@ -253,10 +292,24 @@ export const checkOnboardingStatus = async () => {
   } catch (err) {
     // If API call fails, check localStorage
     try {
-      const localData = localStorage.getItem(getOnboardingStorageKey())
-      if (localData) {
-        const parsed = JSON.parse(localData)
-        return parsed.currentStep || 1
+      const storedUser = localStorage.getItem("restaurant_user")
+      if (storedUser) {
+        const parsedUser = JSON.parse(storedUser)
+        if (
+          String(parsedUser?.status || "").toLowerCase() === "approved" ||
+          parsedUser?.isActive === true
+        ) {
+          clearRestaurantOnboardingStorage()
+          return null
+        }
+      }
+
+      for (const key of getOnboardingStorageKeys()) {
+        const localData = localStorage.getItem(key)
+        if (localData) {
+          const parsed = JSON.parse(localData)
+          return parsed.currentStep || 1
+        }
       }
     } catch (localErr) {
       debugError("Failed to check localStorage:", localErr)

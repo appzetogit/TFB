@@ -4,7 +4,11 @@ import jwt from "jsonwebtoken";
 import { FoodUser } from "../users/user.model.js";
 import { FoodAdmin } from "../admin/admin.model.js";
 import { AdminResetOtp } from "../admin/adminResetOtp.model.js";
-import { FoodRestaurant } from "../../modules/food/restaurant/models/restaurant.model.js";
+import {
+  FoodRestaurant,
+  getEffectiveRestaurantStatus,
+  isRestaurantApproved,
+} from "../../modules/food/restaurant/models/restaurant.model.js";
 import { FoodDeliveryPartner } from "../../modules/food/delivery/models/deliveryPartner.model.js";
 import { FoodReferralSettings } from "../../modules/food/admin/models/referralSettings.model.js";
 import { FoodReferralLog } from "../../modules/food/admin/models/referralLog.model.js";
@@ -486,11 +490,6 @@ export const verifyUserOtpAndLogin = async (
   const trimmedName = typeof name === "string" ? name.trim() : "";
   const existingUser = await FoodUser.findOne({ phone });
 
-  // For first-time signup, require name before OTP verification so OTP is not consumed prematurely.
-  if (!existingUser && !trimmedName) {
-    throw new ValidationError("Name is required for first-time signup");
-  }
-
   const result = await verifyOtp(phone, otp);
 
   if (!result.valid) {
@@ -498,9 +497,9 @@ export const verifyUserOtpAndLogin = async (
   }
 
   let userDoc = existingUser;
-  
-  // Ensure user exists and mark as verified on successful OTP.
-  // Check if user is new or hasn't provided a name yet
+
+  // Keep OTP verification and first-run profile completion in one session.
+  // New users can finish their name after login from the onboarding UI.
   const needsNamePrompt = !userDoc || !userDoc.name || String(userDoc.name).trim() === "" || String(userDoc.name).toLowerCase() === "null";
   const isNewUser = needsNamePrompt;
 
@@ -735,13 +734,46 @@ export const verifyRestaurantOtpAndLogin = async (phone, otp, fcmToken, platform
     }
   }
 
-  // If restaurant approval status is used, only allow login for approved restaurants.
-  if (restaurant.status && restaurant.status !== "approved") {
-    throw new AuthError(
-      restaurant.status === "pending"
-        ? "Your restaurant registration is pending approval."
-        : "Your restaurant registration has been rejected. Please contact support.",
+  const effectiveRestaurantStatus = getEffectiveRestaurantStatus(restaurant);
+
+  if (isRestaurantApproved(restaurant) && restaurant.status !== "approved") {
+    await FoodRestaurant.updateOne(
+      { _id: restaurant._id },
+      {
+        $set: {
+          status: "approved",
+          isAdminApproved: true,
+          approvedAt: restaurant.approvedAt || new Date(),
+        },
+        $unset: {
+          rejectedAt: 1,
+          rejectionReason: 1,
+        },
+      },
     );
+    restaurant.status = "approved";
+    restaurant.isAdminApproved = true;
+    restaurant.approvedAt = restaurant.approvedAt || new Date();
+    restaurant.rejectedAt = undefined;
+    restaurant.rejectionReason = undefined;
+  }
+
+  if (effectiveRestaurantStatus !== "approved") {
+    const isRejected = effectiveRestaurantStatus === "rejected";
+    return {
+      pendingApproval: true,
+      isRejected,
+      rejectionReason: isRejected ? restaurant.rejectionReason || null : null,
+      message: isRejected
+        ? (
+            restaurant.rejectionReason
+              ? `Your restaurant registration was rejected: ${restaurant.rejectionReason}`
+              : "Your restaurant registration has been rejected. Please contact support."
+          )
+        : "Your restaurant registration is pending approval.",
+      needsRegistration: false,
+      phone,
+    };
   }
 
   const payload = { userId: restaurant._id.toString(), role: ROLES.RESTAURANT };
@@ -909,7 +941,10 @@ export const getProfile = async (userId, role) => {
 
   switch (role) {
     case ROLES.USER:
-      profile = await FoodUser.findById(id).lean();
+      {
+        const userDoc = await FoodUser.findById(id).lean();
+        profile = userDoc ? sanitizeUserForAuthResponse(userDoc) : null;
+      }
       break;
     case ROLES.ADMIN:
       profile = await FoodAdmin.findById(id).select("-password").lean();

@@ -39,6 +39,7 @@ import { orderAPI, restaurantAPI } from "@food/api"
 import { useCompanyName } from "@food/hooks/useCompanyName"
 import { useUserNotifications } from "@food/hooks/useUserNotifications"
 import { RESTAURANT_PIN_SVG, CUSTOMER_PIN_SVG, RIDER_BIKE_SVG } from "@food/constants/mapIcons"
+import { formatCurrency } from "@food/utils/currency"
 
 // Fallback definitions in case imports fail at runtime or are shadowed
 const DEFAULT_CUSTOMER_PIN = `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="#10B981"><path d="M12 2C8.13 2 5 5.13 5 9c0 4.17 4.42 9.92 6.24 12.11.4.48 1.08.48 1.52 0C14.58 18.92 19 13.17 19 9c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5 12 6.5 14.5 7.62 14.5 9 13.38 11.5 12 11.5z"/><circle cx="12" cy="9" r="3" fill="#FFFFFF"/></svg>`;
@@ -425,7 +426,7 @@ const transformOrderForTracking = (apiOrder, previousOrder = null, explicitResta
 
 /**
  * Backend uses `orderStatus` (created, confirmed, preparing, ready_for_pickup, picked_up, delivered, cancelled_*).
- * This page used to read legacy `status` only â€” so UI never updated. Map canonical + legacy values to tracking steps.
+ * This page used to read legacy `status` only — so UI never updated. Map canonical + legacy values to tracking steps.
  */
 function mapBackendOrderStatusToUi(raw) {
   const s = String(raw || "").toLowerCase()
@@ -628,7 +629,7 @@ export default function OrderTracking() {
   // DATA FETCHING & POLLING STABILITY (FIXED FOR HAMMERING)
   // --------------------------------------------------------------------------
 
-  // Socket notifications include order ids â€” keep a set so events match this page.
+  // Socket notifications include order ids — keep a set so events match this page.
   useEffect(() => {
     const s = trackingOrderIdsRef.current
     s.add(String(orderId))
@@ -1025,7 +1026,7 @@ export default function OrderTracking() {
     terminalPollStopRef.current = ui === 'delivered' || ui === 'cancelled'
   }, [order])
 
-  // Post-checkout splash only â€” real status comes from API / poll / socket.
+  // Post-checkout splash only — real status comes from API / poll / socket.
   useEffect(() => {
     if (!confirmed) return
     const timer1 = setTimeout(() => setShowConfirmation(false), 3000)
@@ -1440,7 +1441,7 @@ export default function OrderTracking() {
                 transition={{ delay: 1.5 }}
                 className="mt-8"
               >
-                <div className="w-8 h-8 border-2 border-[#7e3866] border-t-transparent rounded-full animate-spin mx-auto" />
+                <div className="w-8 h-8 border-2 border-[#2A9C64] border-t-transparent rounded-full animate-spin mx-auto" />
                 <p className="text-sm text-gray-500 mt-3">Loading order details...</p>
               </motion.div>
 
@@ -1450,7 +1451,7 @@ export default function OrderTracking() {
                 transition={{ delay: 2.0 }}
                 className="mt-12 pt-8 border-t border-gray-100 dark:border-gray-800"
               >
-                <div className="flex items-center justify-center gap-2 text-[#7e3866] dark:text-orange-400 font-medium cursor-pointer hover:opacity-80 transition-opacity" onClick={() => navigate('/user/profile/report-safety-emergency')}>
+                <div className="flex items-center justify-center gap-2 text-[#2A9C64] dark:text-orange-400 font-medium cursor-pointer hover:opacity-80 transition-opacity" onClick={() => navigate('/user/profile/report-safety-emergency')}>
                   <Shield className="w-4 h-4" />
                   <span className="text-sm">Learn about delivery partner safety</span>
                 </div>
@@ -1840,7 +1841,7 @@ export default function OrderTracking() {
               onClick={handleCallRestaurant}
               whileTap={{ scale: 0.9 }}
             >
-              <Phone className="w-5 h-5 text-[#7e3866]" />
+              <Phone className="w-5 h-5 text-[#2A9C64]" />
             </motion.button>
           </div>
 
@@ -2020,9 +2021,9 @@ export default function OrderTracking() {
             {/* Delivery Instructions Section */}
             {order?.note && (
               <div className="bg-orange-50/50 rounded-xl p-4 border border-orange-100 flex gap-3">
-                <MessageSquare className="w-5 h-5 text-[#7e3866] shrink-0 mt-0.5" />
+                <MessageSquare className="w-5 h-5 text-[#2A9C64] shrink-0 mt-0.5" />
                 <div>
-                  <p className="text-xs text-#55254b font-bold uppercase tracking-wider mb-1">Delivery Instructions</p>
+                  <p className="text-xs text-#1E7A4A font-bold uppercase tracking-wider mb-1">Delivery Instructions</p>
                   <p className="text-sm text-gray-800 leading-relaxed font-medium capitalize">
                     {order.note}
                   </p>
@@ -2048,7 +2049,7 @@ export default function OrderTracking() {
                         <p className="text-sm text-gray-500 mt-0.5">Quantity: {item.quantity}</p>
                       </div>
                     </div>
-                    <p className="font-semibold text-gray-900">â‚¹{((item?.price || 0) * (item?.quantity || 0)).toFixed(2)}</p>
+                    <p className="font-semibold text-gray-900">{formatCurrency((item?.price || 0) * (item?.quantity || 0), "\u20B9").replace("\u20B9 ", "\u20B9")}</p>
                   </div>
                 ))}
               </div>
@@ -2060,43 +2061,43 @@ export default function OrderTracking() {
               
               <div className="flex justify-between items-center text-sm">
                 <span className="text-gray-600">Item Total</span>
-                <span className="text-gray-900 font-medium">â‚¹{Number(order?.subtotal || 0).toFixed(2)}</span>
+                <span className="text-gray-900 font-medium">{formatCurrency(order?.subtotal || 0, "\u20B9").replace("\u20B9 ", "\u20B9")}</span>
               </div>
 
               {Number(order?.packagingFee) > 0 && (
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-gray-600">Packaging Charges</span>
-                  <span className="text-gray-900 font-medium">â‚¹{Number(order.packagingFee).toFixed(2)}</span>
+                  <span className="text-gray-900 font-medium">{formatCurrency(order.packagingFee, "\u20B9").replace("\u20B9 ", "\u20B9")}</span>
                 </div>
               )}
 
               {Number(order?.platformFee) > 0 && (
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-gray-600">Platform Fee</span>
-                  <span className="text-gray-900 font-medium">â‚¹{Number(order.platformFee).toFixed(2)}</span>
+                  <span className="text-gray-900 font-medium">{formatCurrency(order.platformFee, "\u20B9").replace("\u20B9 ", "\u20B9")}</span>
                 </div>
               )}
 
               <div className="flex justify-between items-center text-sm">
                 <span className="text-gray-600">Delivery Fee</span>
-                <span className="text-gray-900 font-medium">â‚¹{Number(order?.deliveryFee || 0).toFixed(2)}</span>
+                <span className="text-gray-900 font-medium">{formatCurrency(order?.deliveryFee || 0, "\u20B9").replace("\u20B9 ", "\u20B9")}</span>
               </div>
 
               <div className="flex justify-between items-center text-sm">
                 <span className="text-gray-600">GST</span>
-                <span className="text-gray-900 font-medium">â‚¹{Number(order?.gst || 0).toFixed(2)}</span>
+                <span className="text-gray-900 font-medium">{formatCurrency(order?.gst || 0, "\u20B9").replace("\u20B9 ", "\u20B9")}</span>
               </div>
 
               {Number(order?.discount) > 0 && (
                 <div className="flex justify-between items-center text-sm text-green-600 font-medium">
                   <span>Discount Applied</span>
-                  <span>-â‚¹{Number(order.discount).toFixed(2)}</span>
+                  <span>-{formatCurrency(order.discount, "\u20B9").replace("\u20B9 ", "\u20B9")}</span>
                 </div>
               )}
 
               <div className="pt-2 border-t border-gray-200 dark:border-gray-800 flex justify-between items-center">
                 <span className="text-base font-bold text-gray-900 dark:text-white">Total Amount</span>
-                <span className="text-lg font-bold text-gray-900 dark:text-white">â‚¹{Number(order?.totalAmount || 0).toFixed(2)}</span>
+                <span className="text-lg font-bold text-gray-900 dark:text-white">{formatCurrency(order?.totalAmount || 0, "\u20B9").replace("\u20B9 ", "\u20B9")}</span>
               </div>
             </div>
 
@@ -2129,7 +2130,7 @@ export default function OrderTracking() {
       <Dialog open={isInstructionsModalOpen} onOpenChange={setIsInstructionsModalOpen}>
         <DialogContent className="sm:max-w-md w-[95vw] rounded-3xl p-6 border-0 shadow-2xl bg-white dark:bg-[#1a1a1a] max-h-[90vh] overflow-y-auto z-[200]">
           <DialogHeader className="mb-2">
-            <DialogTitle className="text-xl font-bold bg-gradient-to-r from-#55254b to-orange-400 bg-clip-text text-transparent">
+            <DialogTitle className="text-xl font-bold bg-gradient-to-r from-#1E7A4A to-orange-400 bg-clip-text text-transparent">
               Delivery Instructions
             </DialogTitle>
           </DialogHeader>
@@ -2141,12 +2142,12 @@ export default function OrderTracking() {
               value={deliveryInstructions}
               onChange={(e) => setDeliveryInstructions(e.target.value)}
               placeholder="E.g. Ring the doorbell, leave at the front desk..."
-              className="min-h-[120px] resize-none border-gray-200 focus:ring-[#7e3866] rounded-xl bg-gray-50 text-base"
+              className="min-h-[120px] resize-none border-gray-200 focus:ring-[#2A9C64] rounded-xl bg-gray-50 text-base"
             />
             <Button 
               onClick={handleUpdateInstructions} 
               disabled={isUpdatingInstructions}
-              className="w-full bg-gradient-to-r from-[#7e3866] to-amber-500 hover:from-#55254b hover:to-amber-600 text-white font-bold h-12 rounded-xl border-none"
+              className="w-full bg-gradient-to-r from-[#2A9C64] to-amber-500 hover:from-#1E7A4A hover:to-amber-600 text-white font-bold h-12 rounded-xl border-none"
             >
               {isUpdatingInstructions ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : "Save Instructions"}
             </Button>

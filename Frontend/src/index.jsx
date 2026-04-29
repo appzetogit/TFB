@@ -7,12 +7,12 @@ import './shared/styles/global.css'
 
 const NATIVE_LAST_ROUTE_KEY = 'native_last_route'
 
-// â”€â”€â”€ Quick-spicy Food Module Initialization â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Quick-spicy Food Module Initialization ───────────────────────────────────
 
-// Load food module business settings (favicon, title) â€” non-critical
+// Load food module business settings (favicon, title) — non-critical
 import('./modules/Food/utils/businessSettings.js')
   .then(({ loadBusinessSettings }) => loadBusinessSettings())
-  .catch(() => { /* Silently fail â€” settings load when admin authenticates */ })
+  .catch(() => { /* Silently fail — settings load when admin authenticates */ })
 
 // Apply saved theme
 const savedTheme = localStorage.getItem('appTheme') || 'light'
@@ -38,27 +38,30 @@ function isNativeLikeShell() {
 }
 
 function resolveNativeInitialRoute() {
-  if (typeof window === 'undefined') return '/food/user'
+  if (typeof window === 'undefined') return '/user'
 
   const rawPathname = String(window.location?.pathname || '')
   const pathname = rawPathname.replace(/\/index\.html$/i, '') || '/'
   const storedRoute = String(localStorage.getItem(NATIVE_LAST_ROUTE_KEY) || '').trim()
 
-  if (pathname.startsWith('/food/')) return pathname
-  if (pathname.startsWith('/restaurant')) return `/food${pathname}`
-  if (pathname.startsWith('/delivery')) return `/food${pathname}`
-  if (pathname.startsWith('/user')) return `/food${pathname}`
+  if (pathname.startsWith('/food/')) return pathname.replace(/^\/food/, '') || '/user'
+  if (pathname.startsWith('/restaurant')) return pathname
+  if (pathname.startsWith('/delivery')) return pathname
+  if (pathname.startsWith('/user')) return pathname
   if (pathname.startsWith('/admin')) return pathname
-  if (storedRoute.startsWith('/food/') || storedRoute.startsWith('/admin')) {
+  if (storedRoute.startsWith('/food/')) {
+    return storedRoute.replace(/^\/food/, '') || '/user'
+  }
+  if (storedRoute.startsWith('/admin')) {
     return storedRoute
   }
 
-  if (isModuleAuthenticated('restaurant')) return '/food/restaurant'
-  if (isModuleAuthenticated('delivery')) return '/food/delivery'
+  if (isModuleAuthenticated('restaurant')) return '/restaurant'
+  if (isModuleAuthenticated('delivery')) return '/delivery'
   if (isModuleAuthenticated('admin')) return '/admin'
-  if (isModuleAuthenticated('user')) return '/food/user'
+  if (isModuleAuthenticated('user')) return '/user'
 
-  return '/food/user'
+  return '/user'
 }
 
 function bootstrapNativeHashRoute() {
@@ -74,7 +77,7 @@ function bootstrapNativeHashRoute() {
 
 bootstrapNativeHashRoute()
 
-// â”€â”€â”€ Suppress known non-critical errors â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Suppress known non-critical errors ──────────────────────────────────────
 
 const originalError = console.error
 console.error = (...args) => {
@@ -132,7 +135,7 @@ window.addEventListener('unhandledrejection', (event) => {
   }
 })
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
 
 import { AppProviders } from './app/providers.jsx'
 

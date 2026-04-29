@@ -258,7 +258,7 @@ export default function ProfessionalSearch() {
             {results.dishes.length > 0 && (
               <section>
                 <div className="flex items-center gap-2 mb-4">
-                   <div className="w-1 h-5 bg-[#7e3866] rounded-full" />
+                   <div className="w-1 h-5 bg-[#2A9C64] rounded-full" />
                    <h2 className="text-lg font-bold dark:text-white">Dishes from restaurants</h2>
                 </div>
                 <div className="grid gap-4">
@@ -283,12 +283,12 @@ export default function ProfessionalSearch() {
                           <h3 className="font-bold text-slate-900 dark:text-white line-clamp-1">{r.restaurantName}</h3>
                           <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-zinc-400 mt-1">
                              <div className="flex items-center gap-1">
-                                <Star className="w-3 h-3 text-[#7e3866] fill-[#7e3866]" />
+                                <Star className="w-3 h-3 text-[#2A9C64] fill-[#2A9C64]" />
                                 <span className="font-semibold text-slate-700 dark:text-white">{r.rating || "New"}</span>
                              </div>
-                             <span>â€¢</span>
+                             <span>•</span>
                              <span>{r.estimatedDeliveryTime || "30-40 mins"}</span>
-                             <span>â€¢</span>
+                             <span>•</span>
                              <span className="line-clamp-1">{r.cuisines?.slice(0, 2).join(", ")}</span>
                           </div>
                        </div>
@@ -338,7 +338,7 @@ export default function ProfessionalSearch() {
                                <Clock className="w-3 h-3" />
                                {r.estimatedDeliveryTime || "30 mins"}
                             </div>
-                            <span>â€¢</span>
+                            <span>•</span>
                             <span>{r.location?.area || "Nearby"}</span>
                          </div>
                          <div className="text-[10px] font-bold text-rose-500 bg-rose-50 dark:bg-rose-500/10 px-2 py-0.5 rounded-full uppercase tracking-wider">

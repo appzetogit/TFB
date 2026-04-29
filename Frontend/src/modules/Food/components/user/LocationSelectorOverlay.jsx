@@ -13,10 +13,6 @@ const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
 
-// Enable Maps if API Key is available, otherwise fallback to coordinates-only mode
-const MAPS_ENABLED = !!import.meta.env.VITE_GOOGLE_MAPS_API_KEY
-
-
 // Google Maps implementation - Leaflet components removed
 
 // Google Maps implementation - removed Leaflet components
@@ -175,7 +171,6 @@ export default function LocationSelectorOverlay({ isOpen, onClose }) {
 
   // Load Google Maps API key from backend
   useEffect(() => {
-    if (!MAPS_ENABLED) return
     import('@food/utils/googleMapsApiKey.js').then(({ getGoogleMapsApiKey }) => {
       getGoogleMapsApiKey().then(key => {
         setGOOGLE_MAPS_API_KEY(key)
@@ -187,7 +182,6 @@ export default function LocationSelectorOverlay({ isOpen, onClose }) {
 
   // Debug: Log API key status (only first few characters for security)
   useEffect(() => {
-    if (!MAPS_ENABLED) return
     if (GOOGLE_MAPS_API_KEY) {
       debugLog("? Google Maps API Key loaded:", GOOGLE_MAPS_API_KEY.substring(0, 10) + "...")
     } else {
@@ -439,12 +433,6 @@ export default function LocationSelectorOverlay({ isOpen, onClose }) {
 
   // Initialize Google Maps with Loader (ZOMATO-STYLE)
   useEffect(() => {
-    if (!MAPS_ENABLED) {
-      // Maps disabled: ensure loading spinner is off and rely on coordinates-only UX
-      if (mapLoading) setMapLoading(false)
-      return
-    }
-
     if (!showAddressForm || !mapContainerRef.current || !GOOGLE_MAPS_API_KEY) {
       return
     }
@@ -1560,12 +1548,12 @@ export default function LocationSelectorOverlay({ isOpen, onClose }) {
       const lastLat = parseFloat(last.lat.toFixed(6))
       const lastLng = parseFloat(last.lng.toFixed(6))
       if (lastLat === roundedLat && lastLng === roundedLng) {
-        debugLog("?? Skipping map move handler â€” same coordinates as last call")
+        debugLog("?? Skipping map move handler — same coordinates as last call")
         return
       }
       const movedM = calculateDistance(last.lat, last.lng, roundedLat, roundedLng)
       if (movedM < MAP_MOVE_MIN_PAN_METERS) {
-        debugLog("?? Skipping map move handler â€” pan below threshold (m):", movedM)
+        debugLog("?? Skipping map move handler — pan below threshold (m):", movedM)
         return
       }
     }
@@ -1577,7 +1565,7 @@ export default function LocationSelectorOverlay({ isOpen, onClose }) {
     reverseGeocodeTimeoutRef.current = setTimeout(async () => {
       lastReverseGeocodeCoordsRef.current = { lat: roundedLat, lng: roundedLng }
 
-      // Default: no reverse geocode â€” coordinates only (no network on every pan)
+      // Default: no reverse geocode — coordinates only (no network on every pan)
       if (!ENABLE_LOCATION_REVERSE_GEOCODE) {
         setCurrentAddress(coordLabel)
         setAddressFormData((prev) => ({
@@ -2259,7 +2247,7 @@ export default function LocationSelectorOverlay({ isOpen, onClose }) {
                   <div className="absolute z-50 left-0 right-0 mt-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1a1a1a] shadow-xl overflow-hidden">
                     {isKeywordSearching && (
                       <div className="px-4 py-3 text-xs text-gray-600 dark:text-gray-400">
-                        Searchingâ€¦
+                        Searching...
                       </div>
                     )}
 

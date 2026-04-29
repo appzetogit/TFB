@@ -13,18 +13,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@food/components/ui/select"
-import { restaurantAPI, zoneAPI, uploadAPI, api } from "@food/api"
+import { restaurantAPI, uploadAPI, api } from "@food/api"
 import { MobileTimePicker } from "@mui/x-date-pickers/MobileTimePicker"
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider"
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns"
-import { determineStepToShow } from "@food/utils/onboardingUtils"
+import { determineStepToShow, isRestaurantOnboardingComplete } from "@food/utils/onboardingUtils"
 import { toast } from "sonner"
 import { useCompanyName } from "@food/hooks/useCompanyName"
 import { getGoogleMapsApiKey } from "@food/utils/googleMapsApiKey"
 import { clearModuleAuth, clearAuthData } from "@food/utils/auth"
 import { ImageSourcePicker } from "@food/components/ImageSourcePicker"
 import { EMAIL_REGEX } from "@/shared/utils/emailValidation"
-const debugLog = (...args) => {}
+const debugLog = (...args) => console.log('[Onboarding]', ...args)
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
 
@@ -521,8 +521,6 @@ export default function RestaurantOnboarding() {
   const [isEditing, setIsEditing] = useState(true)
   const [hasExistingRestaurantProfile, setHasExistingRestaurantProfile] = useState(false)
   const [isFssaiCalendarOpen, setIsFssaiCalendarOpen] = useState(false)
-  const [zones, setZones] = useState([])
-  const [zonesLoading, setZonesLoading] = useState(false)
   const [isOnboardingHydrated, setIsOnboardingHydrated] = useState(false)
 
   const [step1, setStep1] = useState({
@@ -824,6 +822,8 @@ export default function RestaurantOnboarding() {
 
     // Check if step is specified in URL (from OTP login redirect)
     const stepParam = searchParams.get("step")
+    const isEditMode = Boolean(searchParams.get("edit"))
+    const shouldRestoreDraft = Boolean(stepParam || isEditMode)
     if (stepParam) {
       const stepNum = parseInt(stepParam, 10)
       if (stepNum >= 1 && stepNum <= 3) {
@@ -835,8 +835,12 @@ export default function RestaurantOnboarding() {
       try {
         const currentPhone = getVerifiedPhoneFromStoredRestaurant()
         const localData = loadOnboardingFromLocalStorage()
-        
-        if (localData) {
+
+        if (!shouldRestoreDraft) {
+          clearOnboardingFromLocalStorage()
+          clearOnboardingFileCache()
+          await clearAllFilesFromDB()
+        } else if (localData) {
           // SECURITY CHECK: If the saved data's phone number doesn't match current login, clear it.
           // This prevents data leakage when logging in with a different account on the same device.
           const savedPhone = normalizePhoneDigits(localData.step1?.ownerPhone || "")
@@ -1150,20 +1154,39 @@ export default function RestaurantOnboarding() {
                 bankData.accountHolderName || data.accountHolderName || prev.accountHolderName || "",
               accountType: normalizeAccountTypeValue(bankData.accountType || data.accountType || prev.accountType || ""),
             }))
+            
+            // If already onboarded, redirect to dashboard unless editing
+            if (!searchParams.get("edit")) {
+              const isComplete = isRestaurantOnboardingComplete(data);
+              if (isComplete) {
+                debugLog("Restaurant already onboarded, redirecting to dashboard");
+                navigate("/restaurant", { replace: true });
+                return;
+              }
+            }
 
-          // Only determine step automatically if not specified in URL
+          // Determine step automatically if not specified in URL
           const stepParam = searchParams.get("step")
           if (!stepParam) {
-            // If already registered/pending, stay on step 1 for editing
+            const stepToShow = determineStepToShow({
+              step1: onboardingData.step1 || data,
+              step2: onboardingData.step2 || data,
+              step3: onboardingData.step3 || data,
+            })
+            
+            // For pending/approved, we don't want to jump ahead if they came here to edit,
+            // but we also don't want to force step 1 if they were at step 3.
+            // If they are pending/approved, they are "done" with the initial flow, 
+            // so we default to 1 for editing unless they have a clear incomplete step.
             if (data.status === "approved" || data.status === "pending") {
-               setStep(1)
-            } else {
-               const stepToShow = determineStepToShow({ step1: data, step2: data, step3: data })
-               // Only overwrite if backend says we are further along (step > 1) 
-               // or if we are currently at step 1 and backend has data
-               if (stepToShow > 1) {
-                  setStep(stepToShow)
+               // Only jump if it's a clear incomplete step and we aren't editing existing data
+               if (stepToShow > 1 && !hasExistingRestaurantProfile) {
+                 setStep(stepToShow)
+               } else {
+                 setStep(1)
                }
+            } else {
+               setStep(stepToShow)
             }
           }
         } else {
@@ -1259,9 +1282,6 @@ export default function RestaurantOnboarding() {
     if (!step1.primaryContactNumber?.trim()) {
       errors.push("Primary contact number is required")
     }
-    if (!step1.zoneId?.trim()) {
-      errors.push("Service zone is required")
-    }
     if (!step1.location?.area?.trim()) {
       errors.push("Area/Sector/Locality is required")
     }
@@ -1275,23 +1295,6 @@ export default function RestaurantOnboarding() {
   const validateStep2 = () => {
     const errors = []
 
-    // Check menu images - must have at least one File or existing URL
-    const hasMenuImages = step2.menuImages && step2.menuImages.length > 0
-    if (!hasMenuImages) {
-      errors.push("At least one menu image is required")
-    } else {
-      // Verify that menu images are either File objects or have valid URLs
-      const validMenuImages = step2.menuImages.filter(img => {
-        if (isUploadableFile(img)) return true
-        if (img?.url && typeof img.url === 'string') return true
-        if (typeof img === 'string' && img.trim()) return true
-        return false
-      })
-      if (validMenuImages.length === 0) {
-        errors.push("Please upload at least one valid menu image")
-      }
-    }
-
     // Check profile image - must be a File or existing URL
     if (!step2.profileImage) {
       errors.push("Restaurant profile image is required")
@@ -1303,18 +1306,6 @@ export default function RestaurantOnboarding() {
         (typeof step2.profileImage === 'string' && step2.profileImage.trim())
       if (!isValidProfileImage) {
         errors.push("Please upload a valid restaurant profile image")
-      }
-    }
-
-    if (!step2.menuPdf) {
-      errors.push("Menu PDF is required")
-    } else {
-      const isValidMenuPdf =
-        isUploadableFile(step2.menuPdf) ||
-        (step2.menuPdf?.url && typeof step2.menuPdf.url === "string") ||
-        (typeof step2.menuPdf === "string" && step2.menuPdf.trim())
-      if (!isValidMenuPdf) {
-        errors.push("Please upload a valid menu PDF")
       }
     }
 
@@ -1489,21 +1480,17 @@ export default function RestaurantOnboarding() {
       } else if (step === 3) {
         if (hasExistingRestaurantProfile) {
           const [
-            menuImagesPayload,
             profileImagePayload,
             panImagePayload,
             gstImagePayload,
             fssaiImagePayload,
-            menuPdfPayload,
           ] = await Promise.all([
-            resolveMenuImagesForProfileUpdate(step2.menuImages || []),
             resolveImageForProfileUpdate(step2.profileImage, "food/restaurants/profile"),
             resolveImageForProfileUpdate(step3.panImage, "food/restaurants/pan"),
             step3.gstRegistered
               ? resolveImageForProfileUpdate(step3.gstImage, "food/restaurants/gst")
               : Promise.resolve(null),
             resolveImageForProfileUpdate(step3.fssaiImage, "food/restaurants/fssai"),
-            resolveMenuPdfForProfileUpdate(step2.menuPdf),
           ])
 
           const updatePayload = {
@@ -1531,7 +1518,6 @@ export default function RestaurantOnboarding() {
             openingTime: normalizeTimeValue(step2.openingTime) || "",
             closingTime: normalizeTimeValue(step2.closingTime) || "",
             openDays: Array.isArray(step2.openDays) ? step2.openDays : [],
-            menuImages: menuImagesPayload,
             profileImage: profileImagePayload || "",
             panNumber: step3.panNumber || "",
             nameOnPan: step3.nameOnPan || "",
@@ -1548,10 +1534,6 @@ export default function RestaurantOnboarding() {
             ifscCode: (step3.ifscCode || "").toUpperCase(),
             accountHolderName: step3.accountHolderName || "",
             accountType: step3.accountType || "",
-          }
-
-          if (menuPdfPayload) {
-            updatePayload.menuPdf = menuPdfPayload
           }
 
           await restaurantAPI.updateProfile(updatePayload)
@@ -1578,7 +1560,6 @@ export default function RestaurantOnboarding() {
         formData.append("ownerEmail", (step1.ownerEmail || "").trim())
         formData.append("ownerPhone", normalizePhoneDigits(step1.ownerPhone))
         formData.append("primaryContactNumber", normalizePhoneDigits(step1.primaryContactNumber))
-        formData.append("zoneId", step1.zoneId || "")
         formData.append("addressLine1", step1.location?.addressLine1 || "")
         formData.append("addressLine2", step1.location?.addressLine2 || "")
         formData.append("area", step1.location?.area || "")
@@ -1596,17 +1577,6 @@ export default function RestaurantOnboarding() {
         formData.append("openingTime", normalizeTimeValue(step2.openingTime) || "")
         formData.append("closingTime", normalizeTimeValue(step2.closingTime) || "")
         formData.append("openDays", (step2.openDays || []).join(","))
-
-        const menuFiles = (step2.menuImages || []).filter((f) => isUploadableFile(f))
-        if (menuFiles.length === 0) {
-          throw new Error("At least one menu image must be uploaded")
-        }
-        menuFiles.forEach((file) => formData.append("menuImages", file))
-
-        if (!isUploadableFile(step2.menuPdf)) {
-          throw new Error("Menu PDF is required")
-        }
-        formData.append("menuPdf", step2.menuPdf)
 
         if (!isUploadableFile(step2.profileImage)) {
           throw new Error("Restaurant profile image is required")
@@ -1813,29 +1783,6 @@ export default function RestaurantOnboarding() {
           <p className="text-sm text-gray-700">
             Add your restaurant's location for order pick-up.
           </p>
-          <div>
-            <Label className="text-xs text-gray-700">Service zone*</Label>
-            <select
-              value={step1.zoneId || ""}
-              onChange={(e) => setStep1({ ...step1, zoneId: e.target.value })}
-              className="mt-1 w-full h-9 rounded-md border border-input bg-white px-3 text-sm"
-              disabled={zonesLoading || !isEditing}
-            >
-              <option value="">{zonesLoading ? "Loading zones..." : "Select a zone"}</option>
-              {zones.map((z) => {
-                const id = String(z?._id || z?.id || "")
-                const label = z?.name || z?.zoneName || z?.serviceLocation || id
-                return (
-                  <option key={id} value={id}>
-                    {label}
-                  </option>
-                )
-              })}
-            </select>
-            <p className="text-[11px] text-gray-500 mt-1">
-              Choose the service zone where your restaurant will be available.
-            </p>
-          </div>
           <div className="relative">
             <Label className="text-xs text-gray-700">Search location</Label>
             <div className="relative">
@@ -2195,23 +2142,6 @@ export default function RestaurantOnboarding() {
   }, [locationSearchValue, step])
 
   // Load zones for onboarding dropdown (public endpoint).
-  useEffect(() => {
-    if (step !== 1) return
-    let cancelled = false
-    setZonesLoading(true)
-    zoneAPI.getPublicZones()
-      .then((res) => {
-        const list = res?.data?.data?.zones || res?.data?.zones || []
-        if (!cancelled) setZones(Array.isArray(list) ? list : [])
-      })
-      .catch(() => {
-        if (!cancelled) setZones([])
-      })
-      .finally(() => {
-        if (!cancelled) setZonesLoading(false)
-      })
-    return () => { cancelled = true }
-  }, [step])
 
 
   const renderStep2 = () => (
@@ -2220,175 +2150,8 @@ export default function RestaurantOnboarding() {
       <section className="bg-white p-4 sm:p-6 rounded-md space-y-5">
         <h2 className="text-lg font-semibold text-black">Menu & photos</h2>
         <p className="text-xs text-gray-500">
-          Add clear photos of your printed menu and a primary profile image. This helps customers
-          understand what you serve.
+          Add a clear primary profile image. This helps customers recognize your restaurant.
         </p>
-
-        {/* Menu images */}
-        <div className="space-y-2">
-          <Label className="text-xs font-medium text-gray-700">Menu images</Label>
-          <div className="mt-1 border border-dashed border-gray-300 rounded-md bg-gray-50/70 px-4 py-3 flex items-center justify-between flex-col gap-3">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-md bg-white flex items-center justify-center">
-                <ImageIcon className="w-5 h-5 text-gray-700" />
-              </div>
-              <div className="flex flex-col">
-                <span className="text-xs font-medium text-gray-900">Upload menu images</span>
-                <span className="text-[11px] text-gray-500">
-                  JPG, PNG, WebP ? You can select multiple files
-                </span>
-              </div>
-            </div>
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full text-xs"
-              onClick={() =>
-                openImageSourcePicker({
-                  title: "Add menu image",
-                  fileNamePrefix: "menu-image",
-                  fallbackInputRef: menuImagesInputRef,
-                  onSelectFile: (file) => handleMenuImagesSelected(file ? [file] : []),
-                })
-              }
-            >
-              <Upload className="w-4 h-4 mr-1.5" />
-              Upload
-            </Button>
-            <input
-              id="menuImagesInput"
-              type="file"
-              multiple
-              accept={LOCAL_IMAGE_FILE_ACCEPT}
-              className="hidden"
-              ref={menuImagesInputRef}
-              onChange={(e) => {
-                const files = Array.from(e.target.files || [])
-                if (!files.length) return
-                debugLog('?? Menu images selected:', files.length, 'files')
-                handleMenuImagesSelected(files)
-                // Reset input to allow selecting same file again
-                e.target.value = ''
-              }}
-            />
-          </div>
-
-          {/* Menu image previews */}
-          {!!step2.menuImages.length && (
-            <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {step2.menuImages.map((file, idx) => {
-                // Handle both File objects and URL objects
-                let imageUrl = null
-                let imageName = `Image ${idx + 1}`
-
-                if (isUploadableFile(file)) {
-                  imageUrl = getPreviewImageUrl(file)
-                  imageName = file.name || imageName
-                } else if (file?.url) {
-                  // If it's an object with url property (from backend)
-                  imageUrl = file.url
-                  imageName = file.name || `Image ${idx + 1}`
-                } else if (typeof file === 'string') {
-                  // If it's a direct URL string
-                  imageUrl = file
-                }
-
-                return (
-                  <div
-                    key={idx}
-                    className="relative aspect-4/5 rounded-md overflow-hidden bg-gray-100"
-                  >
-                    <div className="absolute top-1 right-1 z-30">
-                      <button
-                        type="button"
-                        onClick={async (e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          await handleRemoveMenuImage(idx)
-                        }}
-                        className="bg-red-500 text-white rounded-full p-1 shadow-md hover:bg-red-600 transition-colors"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </div>
-                    {imageUrl ? (
-                      <img
-                        src={imageUrl}
-                        alt={`Menu ${idx + 1}`}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-[11px] text-gray-500 px-2 text-center">
-                        Preview unavailable
-                      </div>
-                    )}
-                    <div className="absolute bottom-0 inset-x-0 bg-black/60 px-2 py-1">
-                      <p className="text-[10px] text-white truncate">
-                        {imageName}
-                      </p>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* Menu PDF */}
-        <div className="space-y-2">
-          <Label className="text-xs font-medium text-gray-700">Menu PDF <span className="text-red-500">*</span></Label>
-          <div className="mt-1 border border-dashed border-gray-300 rounded-md bg-gray-50/70 px-4 py-3 flex items-center justify-between flex-col gap-3">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-md bg-white flex items-center justify-center">
-                <FileText className="w-5 h-5 text-gray-700" />
-              </div>
-              <div className="flex flex-col">
-                <span className="text-xs font-medium text-gray-900">Upload menu PDF</span>
-                <span className="text-[11px] text-gray-500">PDF only, max 1 file</span>
-              </div>
-            </div>
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full text-xs"
-              onClick={() => menuPdfInputRef.current?.click()}
-            >
-              <Upload className="w-4 h-4 mr-1.5" />
-              Upload PDF
-            </Button>
-            <input
-              id="menuPdfInput"
-              type="file"
-              accept={LOCAL_PDF_FILE_ACCEPT}
-              className="hidden"
-              ref={menuPdfInputRef}
-              onChange={(e) => {
-                const file = e.target.files?.[0] || null
-                if (file) {
-                  handleMenuPdfSelected(file)
-                }
-                e.target.value = ""
-              }}
-            />
-          </div>
-          {step2.menuPdf && (
-            <div className="mt-2 flex items-center justify-between rounded-md border border-gray-200 bg-white px-3 py-2">
-              <div className="flex items-center gap-2">
-                <FileText className="w-4 h-4 text-gray-600" />
-                <span className="text-xs text-gray-700">
-                  {typeof step2.menuPdf === "object" ? step2.menuPdf.name || "Menu.pdf" : "Menu.pdf"}
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={handleRemoveMenuPdf}
-                className="text-xs text-red-600 hover:text-red-700"
-              >
-                Remove
-              </button>
-            </div>
-          )}
-        </div>
 
         {/* Profile image */}
         <div className="space-y-2">

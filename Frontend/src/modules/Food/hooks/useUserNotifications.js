@@ -15,7 +15,8 @@ const debugLog = (...args) => {
  * Hook for user to receive real-time order notifications.
  * Dispatches 'orderStatusNotification' custom event for OrderTrackingCard.
  */
-export const useUserNotifications = () => {
+export const useUserNotifications = (options = {}) => {
+  const { enabled = true } = options;
   const socketRef = useRef(null);
   const [isConnected, setIsConnected] = useState(false);
   const [userId, setUserId] = useState(null);
@@ -45,6 +46,16 @@ export const useUserNotifications = () => {
   }, []);
 
   useEffect(() => {
+    if (!enabled) {
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
+      setIsConnected(false);
+      if (typeof window !== 'undefined') window.orderSocketConnected = false;
+      return;
+    }
+
     if (!API_BASE_URL || !String(API_BASE_URL).trim()) {
       setIsConnected(false);
       return;
@@ -74,7 +85,7 @@ export const useUserNotifications = () => {
 
     socketRef.current = io(socketUrl, {
       path: '/socket.io/',
-      transports: ['polling', 'websocket'],
+      transports: ['websocket'],
       reconnection: true,
       auth: { token }
     });
@@ -169,7 +180,7 @@ export const useUserNotifications = () => {
       toast.dismiss(DROP_OTP_TOAST_ID);
       toast.message(title, {
         id: DROP_OTP_TOAST_ID,
-        description: parts.join(' â€” ') || 'Handover OTP from your delivery partner.',
+        description: parts.join(' — ') || 'Handover OTP from your delivery partner.',
         duration: 12_000
       });
     });
@@ -202,7 +213,7 @@ export const useUserNotifications = () => {
         socketRef.current = null;
       }
     };
-  }, [userId]);
+  }, [enabled, userId]);
 
   return { isConnected };
 };

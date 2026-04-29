@@ -6,6 +6,7 @@ import { Input } from "@food/components/ui/input"
 import { Label } from "@food/components/ui/label"
 import { useLocation as useGeoLocation } from "@food/hooks/useLocation"
 import { useProfile } from "@food/context/ProfileContext"
+import { locationAPI, userAPI } from "@food/api"
 import { toast } from "sonner"
 import { Loader } from '@googlemaps/js-api-loader'
 import AnimatedPage from "@food/components/user/AnimatedPage"
@@ -16,8 +17,159 @@ const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
 
-// Enable Maps if API Key is available, otherwise fallback to coordinates-only mode
-const MAPS_ENABLED = !!import.meta.env.VITE_GOOGLE_MAPS_API_KEY
+function cleanLocationDisplayLine(str) {
+  if (!str || typeof str !== "string") return ""
+  return str.replace(/,\s*India\s*$/i, "").trim()
+}
+
+function raceWithTimeout(promise, ms, errorTag = "TIMEOUT") {
+  return new Promise((resolve, reject) => {
+    const tid = setTimeout(() => reject(new Error(errorTag)), ms)
+    promise
+      .then((value) => {
+        clearTimeout(tid)
+        resolve(value)
+      })
+      .catch((error) => {
+        clearTimeout(tid)
+        reject(error)
+      })
+  })
+}
+
+function geometryPrecisionRank(result) {
+  const type = result?.geometry?.location_type || result?.geometry?.locationType
+  const order = {
+    ROOFTOP: 0,
+    RANGE_INTERPOLATED: 1,
+    GEOMETRIC_CENTER: 2,
+    APPROXIMATE: 3,
+  }
+  return order[type] ?? 4
+}
+
+function pickBestGoogleGeocodeResult(results) {
+  if (!results?.length) return null
+
+  const typeRank = (result) => {
+    const types = result?.types || []
+    if (types.includes("street_address")) return 0
+    if (types.includes("premise")) return 1
+    if (types.includes("point_of_interest") || types.includes("establishment")) return 2
+    if (types.includes("subpremise")) return 3
+    if (types.includes("route")) return 4
+    if (types.some((type) => type.startsWith("sublocality"))) return 5
+    if (types.includes("locality")) return 6
+    return 10
+  }
+
+  let best = results[0]
+  let bestGeometryRank = geometryPrecisionRank(best)
+  let bestTypeRank = typeRank(best)
+
+  for (const result of results.slice(1, 15)) {
+    const nextGeometryRank = geometryPrecisionRank(result)
+    const nextTypeRank = typeRank(result)
+    if (
+      nextGeometryRank < bestGeometryRank ||
+      (nextGeometryRank === bestGeometryRank && nextTypeRank < bestTypeRank)
+    ) {
+      best = result
+      bestGeometryRank = nextGeometryRank
+      bestTypeRank = nextTypeRank
+    }
+  }
+
+  return best
+}
+
+function parseGoogleGeocodeResult(bestResult) {
+  if (!bestResult) {
+    return {
+      formattedAddress: "",
+      city: "",
+      state: "",
+      area: "",
+      street: "",
+      streetNumber: "",
+      postalCode: "",
+      pointOfInterest: "",
+      premise: "",
+    }
+  }
+
+  let city = ""
+  let state = ""
+  let area = ""
+  let street = ""
+  let streetNumber = ""
+  let postalCode = ""
+  let pointOfInterest = ""
+  let premise = ""
+  let areaGranularity = -1
+
+  const considerArea = (types, name) => {
+    const normalized = String(name || "").trim()
+    if (!normalized) return
+
+    let score = -1
+    if (types.includes("sublocality_level_3")) score = 6
+    else if (types.includes("sublocality_level_2")) score = 5
+    else if (types.includes("neighborhood")) score = 4
+    else if (types.includes("sublocality_level_1")) score = 3
+    else if (types.includes("sublocality")) score = 2
+    else if (types.includes("colloquial_area")) score = 2
+
+    if (score > areaGranularity) {
+      areaGranularity = score
+      area = normalized
+    }
+  }
+
+  for (const component of bestResult.address_components || []) {
+    const types = component.types || []
+    if (types.includes("point_of_interest") && !pointOfInterest) pointOfInterest = component.long_name
+    if (types.includes("premise") && !premise) premise = component.long_name
+    if (types.includes("street_number") && !streetNumber) streetNumber = component.long_name
+    if (types.includes("route") && !street) street = component.long_name
+    if (types.includes("locality") && !city) city = component.long_name
+    if (types.includes("administrative_area_level_1") && !state) state = component.long_name
+    if (types.includes("postal_code") && !postalCode) postalCode = component.long_name
+    considerArea(types, component.long_name)
+  }
+
+  return {
+    formattedAddress: cleanLocationDisplayLine(bestResult.formatted_address || ""),
+    city,
+    state,
+    area,
+    street,
+    streetNumber,
+    postalCode,
+    pointOfInterest,
+    premise,
+  }
+}
+
+function geocodeLatLngWithGoogleMaps(googleNs, lat, lng) {
+  const inner = new Promise((resolve, reject) => {
+    if (!googleNs?.maps?.Geocoder) {
+      reject(new Error("Geocoder unavailable"))
+      return
+    }
+
+    const geocoder = new googleNs.maps.Geocoder()
+    geocoder.geocode({ location: { lat, lng }, region: "in" }, (results, status) => {
+      if (status === "OK" && results?.length) {
+        resolve(parseGoogleGeocodeResult(pickBestGoogleGeocodeResult(results)))
+        return
+      }
+      reject(new Error(`Geocoder: ${status}`))
+    })
+  })
+
+  return raceWithTimeout(inner, 12000, "GEOCODE_JS_TIMEOUT")
+}
 
 // Calculate distance between two coordinates using Haversine formula
 function calculateDistance(lat1, lon1, lat2, lon2) {
@@ -47,7 +199,16 @@ const getAddressIcon = (address) => {
 export default function AddressSelectorPage() {
   const navigate = useNavigate()
   const goBack = useAppBackNavigation()
-  const { location, loading, requestLocation, selectSavedAddress, saveAddressFromLocation } = useGeoLocation()
+  const {
+    location,
+    loading,
+    requestLocation,
+    selectSavedAddress,
+    saveAddressFromLocation,
+    setLocationState,
+    deliveryAddressMode,
+    selectedAddressId,
+  } = useGeoLocation()
   const { addresses = [], userProfile } = useProfile()
   const [showAddressForm, setShowAddressForm] = useState(false)
   const [mapPosition, setMapPosition] = useState([22.7196, 75.8577]) // Default Indore coordinates [lat, lng]
@@ -78,6 +239,8 @@ export default function AddressSelectorPage() {
   const [baseMapHeight, setBaseMapHeight] = useState(320)
   const formBodyRef = useRef(null)
   const manualFieldRefs = useRef({})
+  const reverseGeocodeTimeoutRef = useRef(null)
+  const lastReverseGeocodeCoordsRef = useRef(null)
   
   const ENABLE_LOCATION_REVERSE_GEOCODE = import.meta.env.VITE_ENABLE_LOCATION_REVERSE_GEOCODE !== "false"
   const ENABLE_NOMINATIM_SEARCH = import.meta.env.VITE_ENABLE_NOMINATIM_SEARCH !== "false"
@@ -112,7 +275,6 @@ export default function AddressSelectorPage() {
 
   // Load Google Maps API key
   useEffect(() => {
-    if (!MAPS_ENABLED) return
     import('@food/utils/googleMapsApiKey.js').then(({ getGoogleMapsApiKey }) => {
       getGoogleMapsApiKey().then(key => {
         setGOOGLE_MAPS_API_KEY(key)
@@ -162,7 +324,7 @@ export default function AddressSelectorPage() {
 
   // Map Initialization logic
   useEffect(() => {
-    if (!MAPS_ENABLED || !showAddressForm || !mapContainerRef.current || !GOOGLE_MAPS_API_KEY) return
+    if (!showAddressForm || !mapContainerRef.current || !GOOGLE_MAPS_API_KEY) return
 
     let isMounted = true
     setMapLoading(true)
@@ -207,31 +369,106 @@ export default function AddressSelectorPage() {
     return () => { isMounted = false }
   }, [showAddressForm, GOOGLE_MAPS_API_KEY])
 
+  const persistRefinedLocationToBackend = useCallback(async (coordsSource) => {
+    if (!coordsSource?.latitude || !coordsSource?.longitude) return
+    try {
+      let storedParsed = null
+      try {
+        const raw = localStorage.getItem("userLocation")
+        if (raw) storedParsed = JSON.parse(raw)
+      } catch {
+        storedParsed = null
+      }
+
+      const fmt =
+        cleanLocationDisplayLine(storedParsed?.formattedAddress || "") ||
+        storedParsed?.formattedAddress ||
+        coordsSource.formattedAddress ||
+        ""
+
+      await userAPI.updateLocation({
+        latitude: coordsSource.latitude,
+        longitude: coordsSource.longitude,
+        address: storedParsed?.address || coordsSource.address || "",
+        city: storedParsed?.city || coordsSource.city || "",
+        state: storedParsed?.state || coordsSource.state || "",
+        area: storedParsed?.area || coordsSource.area || "",
+        formattedAddress: fmt || coordsSource.formattedAddress || coordsSource.address || "",
+        accuracy: storedParsed?.accuracy ?? coordsSource.accuracy,
+        postalCode: storedParsed?.postalCode || storedParsed?.zipCode || coordsSource.postalCode || coordsSource.zipCode,
+        street: storedParsed?.street || coordsSource.street,
+        streetNumber: storedParsed?.streetNumber || coordsSource.streetNumber,
+      })
+    } catch (error) {
+      debugWarn("Failed to persist refined location", error)
+    }
+  }, [])
+
   const handleUseCurrentLocation = async () => {
     try {
-      toast.loading("Getting location...", { id: "geo" })
-      const loc = await requestLocation()
-      if (loc?.latitude) {
-        const newPos = [loc.latitude, loc.longitude]
-        setMapPosition(newPos)
-        setCurrentAddress(loc.formattedAddress || loc.address || "")
-        setAddressFormData((prev) => ({
-          ...prev,
-          street: loc.street || prev.street,
-          additionalDetails: loc.additionalDetails || prev.additionalDetails,
-          city: loc.city || prev.city,
-          state: loc.state || prev.state,
-          zipCode: loc.zipCode || prev.zipCode,
-        }))
-        
-        // Explicitly pan the map to center the user location
-        if (googleMapRef.current) {
-          googleMapRef.current.panTo({ lat: loc.latitude, lng: loc.longitude })
-          googleMapRef.current.setZoom(17)
-        }
-        toast.success("Location updated", { id: "geo" })
-        // Removed handleBack() to prevent unwanted redirection
+      if (!navigator.geolocation) {
+        toast.error("Location services are not supported", { id: "geo" })
+        return
       }
+
+      toast.loading("Getting your fresh location...", { id: "geo" })
+
+      const locationPromise = requestLocation({ skipDatabaseUpdate: true })
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Location timeout")), 25000),
+      )
+
+      let loc
+      try {
+        loc = await Promise.race([locationPromise, timeoutPromise])
+      } catch {
+        const raw = localStorage.getItem("userLocation")
+        if (raw) {
+          const cachedLocation = JSON.parse(raw)
+          if (cachedLocation?.latitude && cachedLocation?.longitude) {
+            loc = cachedLocation
+          }
+        }
+      }
+
+      if (!loc?.latitude || !loc?.longitude) {
+        toast.error("Could not get location. Please try again.", { id: "geo" })
+        return
+      }
+
+      const newPos = [Number(loc.latitude), Number(loc.longitude)]
+      setMapPosition(newPos)
+      setCurrentAddress(cleanLocationDisplayLine(loc.formattedAddress || loc.address || ""))
+      setAddressFormData((prev) => ({
+        ...prev,
+        street: loc.street || loc.area || prev.street,
+        additionalDetails:
+          cleanLocationDisplayLine(loc.formattedAddress || "") ||
+          loc.additionalDetails ||
+          prev.additionalDetails,
+        city: loc.city || prev.city,
+        state: loc.state || prev.state,
+        zipCode: loc.postalCode || loc.zipCode || prev.zipCode,
+      }))
+
+      if (googleMapRef.current) {
+        googleMapRef.current.panTo({ lat: newPos[0], lng: newPos[1] })
+        googleMapRef.current.setZoom(17)
+      }
+
+      let resolvedLocation = null
+      try {
+        resolvedLocation = await raceWithTimeout(
+          handleMapMoveEnd(newPos[0], newPos[1], { force: true }),
+          16000,
+          "USE_LOCATION_MAP_TIMEOUT",
+        )
+      } catch (error) {
+        debugWarn("Map refinement skipped or timed out", error)
+      }
+
+      await persistRefinedLocationToBackend(resolvedLocation || loc)
+      toast.success("Location updated", { id: "geo" })
     } catch (e) {
       toast.error("Failed to get location", { id: "geo" })
     }
@@ -295,47 +532,141 @@ export default function AddressSelectorPage() {
 
   const clamp = (value, min, max) => Math.min(max, Math.max(min, value))
 
-  const handleMapMoveEnd = async (lat, lng) => {
+  const handleMapMoveEnd = async (lat, lng, options = {}) => {
     if (!ENABLE_LOCATION_REVERSE_GEOCODE) return
-    try {
-      // Use Nominatim for free reverse geocoding on the client side
-      const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`
-      const response = await fetch(url, { 
-        headers: { 
-          "Accept-Language": "en",
-          "User-Agent": "AppZeto-Food-App" 
-        } 
-      })
-      const json = await response.json()
-      
-      if (json && json.address) {
-        const addr = json.address
-        const formatted = json.display_name
-        
-        // Extract meaningful street/area info
-        const street = [
-          addr.road,
-          addr.suburb,
-          addr.neighbourhood,
-          addr.house_number
-        ].filter(Boolean).slice(0, 2).join(", ") || addr.amenity || addr.industrial || ""
+    const { force = false, suppressPersist = false } = options
+    const roundedLat = parseFloat(Number(lat).toFixed(6))
+    const roundedLng = parseFloat(Number(lng).toFixed(6))
 
-        const city = addr.city || addr.town || addr.village || addr.municipality || addr.county || ""
-        const state = addr.state || ""
-        const postcode = addr.postcode || ""
-
-        setCurrentAddress(formatted)
-        setAddressFormData(prev => ({
-          ...prev,
-          street: street || formatted.split(",")[0] || prev.street,
-          city: city || prev.city,
-          state: state || prev.state,
-          zipCode: postcode || prev.zipCode,
-        }))
+    if (!force && lastReverseGeocodeCoordsRef.current) {
+      const lastLat = parseFloat(Number(lastReverseGeocodeCoordsRef.current.lat).toFixed(6))
+      const lastLng = parseFloat(Number(lastReverseGeocodeCoordsRef.current.lng).toFixed(6))
+      if (lastLat === roundedLat && lastLng === roundedLng) {
+        return undefined
       }
-    } catch (e) {
-      debugError("Reverse geocode error:", e)
     }
+
+    if (reverseGeocodeTimeoutRef.current) {
+      clearTimeout(reverseGeocodeTimeoutRef.current)
+    }
+
+    const debounceMs = force ? 0 : 300
+
+    return new Promise((resolve) => {
+      reverseGeocodeTimeoutRef.current = setTimeout(async () => {
+        lastReverseGeocodeCoordsRef.current = { lat: roundedLat, lng: roundedLng }
+
+        try {
+          let formatted = ""
+          let city = ""
+          let state = ""
+          let area = ""
+          let street = ""
+          let streetNumber = ""
+          let postalCode = ""
+          let pointOfInterest = ""
+          let premise = ""
+
+          try {
+            const googleNs =
+              typeof window !== "undefined" && window.google?.maps?.Geocoder ? window.google : null
+            if (!googleNs) {
+              throw new Error("Google geocoder unavailable")
+            }
+
+            const parsed = await geocodeLatLngWithGoogleMaps(googleNs, roundedLat, roundedLng)
+            formatted = parsed.formattedAddress || ""
+            city = parsed.city || ""
+            state = parsed.state || ""
+            area = parsed.area || ""
+            street = parsed.street || ""
+            streetNumber = parsed.streetNumber || ""
+            postalCode = parsed.postalCode || ""
+            pointOfInterest = parsed.pointOfInterest || ""
+            premise = parsed.premise || ""
+          } catch (googleError) {
+            debugWarn("Google Maps geocode failed, falling back to backend", googleError)
+            const response = await locationAPI.reverseGeocode(roundedLat, roundedLng, { force: true })
+            const raw = response?.data?.data
+            const result = raw?.results?.[0] || raw?.result?.[0] || raw || null
+            const addr = result?.address_components || {}
+            formatted = cleanLocationDisplayLine(result?.formatted_address || "")
+            city = addr.city || ""
+            state = addr.state || ""
+            area =
+              addr.area ||
+              addr.neighbourhood ||
+              addr.suburb ||
+              addr.residential ||
+              addr.quarter ||
+              ""
+            streetNumber = addr.house_number || ""
+            street = addr.road || addr.building || area || ""
+            postalCode = addr.postcode || ""
+            pointOfInterest = addr.building || ""
+          }
+
+          if (!formatted) {
+            formatted = [
+              pointOfInterest,
+              premise,
+              [streetNumber, street].filter(Boolean).join(" ").trim(),
+              area,
+              city,
+              state,
+              postalCode,
+            ]
+              .filter(Boolean)
+              .join(", ")
+          }
+
+          const displayAddress =
+            [streetNumber, street].filter(Boolean).join(" ").trim() ||
+            street ||
+            area ||
+            (formatted ? formatted.split(",")[0].trim() : "")
+
+          const refinedLocation = {
+            latitude: roundedLat,
+            longitude: roundedLng,
+            city,
+            state,
+            area,
+            street,
+            streetNumber,
+            postalCode,
+            zipCode: postalCode,
+            address: displayAddress,
+            formattedAddress: formatted,
+            additionalDetails: formatted,
+            sourceType: "gps",
+          }
+
+          setCurrentAddress(formatted || `${roundedLat.toFixed(6)}, ${roundedLng.toFixed(6)}`)
+          setAddressFormData((prev) => ({
+            ...prev,
+            street: street || prev.street,
+            city: city || prev.city,
+            state: state || prev.state,
+            zipCode: postalCode || prev.zipCode,
+            additionalDetails: formatted || prev.additionalDetails,
+          }))
+
+          if (!suppressPersist) {
+            await setLocationState(refinedLocation, {
+              mode: "current",
+              selectedAddress: null,
+              syncBackend: false,
+            })
+          }
+
+          resolve(refinedLocation)
+        } catch (e) {
+          debugError("Reverse geocode error:", e)
+          resolve(undefined)
+        }
+      }, debounceMs)
+    })
   }
 
   const handleAddressFormSubmit = async (e) => {
@@ -441,11 +772,11 @@ export default function AddressSelectorPage() {
                   value={addressAutocompleteValue}
                   onChange={(e) => setAddressAutocompleteValue(e.target.value)}
                   placeholder="Search area, street, landmark..."
-                  className="pl-10 h-12 bg-white/95 dark:bg-[#1a1a1a]/95 backdrop-blur-md border-none rounded-xl shadow-lg focus:ring-2 focus:ring-[#7e3866] transition-all"
+                  className="pl-10 h-12 bg-white/95 dark:bg-[#1a1a1a]/95 backdrop-blur-md border-none rounded-xl shadow-lg focus:ring-2 focus:ring-[#2A9C64] transition-all"
                 />
                 {isKeywordSearching && (
                   <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                     <div className="animate-spin rounded-full h-4 w-4 border-2 border-[#7e3866] border-t-transparent" />
+                     <div className="animate-spin rounded-full h-4 w-4 border-2 border-[#2A9C64] border-t-transparent" />
                   </div>
                 )}
 
@@ -475,7 +806,7 @@ export default function AddressSelectorPage() {
                           }))
                           setKeywordAddressSuggestions([])
                         }}
-                        className="w-full px-4 py-3 flex items-start gap-3 hover:bg-[#7e3866]/5 dark:hover:bg-[#7e3866]/10 transition-colors text-left border-b border-gray-50 dark:border-gray-800 last:border-none"
+                        className="w-full px-4 py-3 flex items-start gap-3 hover:bg-[#2A9C64]/5 dark:hover:bg-[#2A9C64]/10 transition-colors text-left border-b border-gray-50 dark:border-gray-800 last:border-none"
                       >
                         <MapPin className="h-4 w-4 text-gray-400 mt-1 flex-shrink-0" />
                         <div className="min-w-0">
@@ -505,7 +836,7 @@ export default function AddressSelectorPage() {
 
             {mapLoading && (
               <div className="absolute inset-0 flex items-center justify-center bg-white/50 backdrop-blur-sm z-10">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#7e3866]" />
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#2A9C64]" />
               </div>
             )}
             
@@ -514,16 +845,16 @@ export default function AddressSelectorPage() {
                   onClick={handleUseCurrentLocation} 
                   className="bg-white text-black hover:bg-gray-100 shadow-xl border border-gray-200 rounded-full h-12 px-6"
               >
-                <Navigation className="h-4 w-4 mr-2 text-[#7e3866]" /> Use My Location
+                <Navigation className="h-4 w-4 mr-2 text-[#2A9C64]" /> Use My Location
               </Button>
             </div>
           </div>
 
           <div className="relative bg-white dark:bg-[#0a0a0a] rounded-t-[32px] -mt-8 z-10 p-4 space-y-6 shadow-[0_-12px_24px_-10px_rgba(0,0,0,0.1)]">
-            <div className="bg-[#7e3866]/5 dark:bg-[#7e3866]/10 border border-[#7e3866]/10 dark:border-[#7e3866]/20 rounded-xl p-4 flex gap-3">
-               <MapPin className="h-5 w-5 text-[#7e3866] mt-0.5" />
+            <div className="bg-[#2A9C64]/5 dark:bg-[#2A9C64]/10 border border-[#2A9C64]/10 dark:border-[#2A9C64]/20 rounded-xl p-4 flex gap-3">
+               <MapPin className="h-5 w-5 text-[#2A9C64] mt-0.5" />
                <div className="min-w-0">
-                  <p className="text-xs font-bold text-[#7e3866] dark:text-[#7e3866]/80 uppercase mb-1">Pinnned Location</p>
+                  <p className="text-xs font-bold text-[#2A9C64] dark:text-[#2A9C64]/80 uppercase mb-1">Pinnned Location</p>
                   <p className="text-sm text-gray-700 dark:text-gray-300 line-clamp-2">{currentAddress || "Select a location on map"}</p>
                </div>
             </div>
@@ -547,7 +878,7 @@ export default function AddressSelectorPage() {
                 onChange={e => setAddressFormData({...addressFormData, additionalDetails: e.target.value})}
                 onFocus={() => scrollFieldIntoView("additionalDetails")}
                 ref={(el) => { manualFieldRefs.current.additionalDetails = el }}
-                className="h-12 rounded-xl border-gray-200 dark:border-gray-800 focus:ring-[#7e3866]"
+                className="h-12 rounded-xl border-gray-200 dark:border-gray-800 focus:ring-[#2A9C64]"
               />
             </div>
 
@@ -597,7 +928,7 @@ export default function AddressSelectorPage() {
                      variant={addressFormData.label === l ? "default" : "outline"}
                      onClick={() => setAddressFormData({...addressFormData, label: l})}
                      className="flex-1"
-                     style={addressFormData.label === l ? {backgroundColor: '#7e3866', color: 'white'} : {}}
+                     style={addressFormData.label === l ? {backgroundColor: '#2A9C64', color: 'white'} : {}}
                    >
                      {l}
                    </Button>
@@ -613,7 +944,7 @@ export default function AddressSelectorPage() {
         >
           <Button 
             className="w-full h-12 text-white font-bold text-lg" 
-            style={{backgroundColor: '#7e3866'}}
+            style={{backgroundColor: '#2A9C64'}}
             onClick={handleAddressFormSubmit}
             disabled={loadingAddress}
           >
@@ -635,30 +966,55 @@ export default function AddressSelectorPage() {
 
       <div className="flex-1 overflow-y-auto pb-10">
         <div className="p-4 bg-gray-50 dark:bg-gray-900 border-b dark:border-gray-800">
-          <button 
+          <button
             onClick={handleUseCurrentLocation}
-            className="w-full flex items-center gap-4 p-4 bg-white dark:bg-[#1a1a1a] rounded-xl shadow-sm hover:shadow-md transition-all group"
+            className="w-full flex items-center gap-4 p-4 shadow-sm transition-all"
+            style={deliveryAddressMode === 'current' ? {
+              background: 'rgba(42,156,100,0.10)',
+              border: '2px solid #2A9C64',
+              borderRadius: '12px',
+            } : {
+              background: 'white',
+              border: '2px solid transparent',
+              borderRadius: '12px',
+            }}
           >
-            <div className="h-10 w-10 rounded-full bg-[#7e386610] dark:bg-[#7e386620] flex items-center justify-center">
-              <Navigation className="h-5 w-5 text-[#7e3866]" />
+            <div
+              className="h-10 w-10 rounded-full flex items-center justify-center flex-shrink-0"
+              style={deliveryAddressMode === 'current'
+                ? { background: '#2A9C64', boxShadow: '0 4px 14px rgba(42,156,100,0.4)' }
+                : { background: 'rgba(42,156,100,0.10)' }}
+            >
+              <Navigation className="h-5 w-5" style={{ color: deliveryAddressMode === 'current' ? 'white' : '#2A9C64' }} />
             </div>
-            <div className="text-left flex-1">
-              <p className="font-bold text-[#7e3866]">Use Current Location</p>
+            <div className="text-left flex-1 min-w-0">
+              <p className="font-bold" style={{ color: '#2A9C64' }}>Use Current Location</p>
               <p className="text-xs text-gray-500 line-clamp-1">{currentAddress || "Enable GPS for accuracy"}</p>
             </div>
-            <ChevronRight className="h-5 w-5 text-gray-400" />
+            {deliveryAddressMode === 'current' ? (
+              <div
+                className="h-6 w-6 rounded-full flex items-center justify-center flex-shrink-0"
+                style={{ background: '#2A9C64' }}
+              >
+                <svg className="h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+            ) : (
+              <ChevronRight className="h-5 w-5 text-gray-400" />
+            )}
           </button>
         </div>
 
         <div className="p-4">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-bold uppercase tracking-wider text-gray-500">Saved Addresses</h2>
-            <Button variant="ghost" className="text-[#7e3866] p-0 h-auto font-bold" onClick={handleAddAddressClick}>
+            <Button variant="ghost" className="text-[#2A9C64] p-0 h-auto font-bold" onClick={handleAddAddressClick}>
               <Plus className="h-4 w-4 mr-1" /> Add New
             </Button>
           </div>
 
-          <div className="space-y-4">
+          <div className="space-y-3">
             {addresses.length === 0 ? (
               <div className="text-center py-10 opacity-50">
                  <MapPin className="h-12 w-12 mx-auto mb-2 text-gray-400" />
@@ -667,24 +1023,64 @@ export default function AddressSelectorPage() {
             ) : (
               addresses.map((addr, idx) => {
                 const Icon = getAddressIcon(addr)
+                const addrId = getAddressId(addr)
+                const isActive = deliveryAddressMode === 'saved' && String(addrId) === String(selectedAddressId)
                 return (
                   <button
-                    key={getAddressId(addr) || idx}
+                    key={addrId || idx}
                     onClick={() => handleSelectSavedAddress(addr)}
-                    className="w-full flex items-start gap-4 p-4 bg-slate-50 dark:bg-[#1a1a1a] rounded-xl hover:bg-[#7e386610] dark:hover:bg-[#7e386620] transition-colors text-left group"
+                    className="w-full flex items-start gap-4 p-4 transition-colors text-left"
+                    style={isActive ? {
+                      background: 'rgba(42,156,100,0.10)',
+                      border: '2px solid #2A9C64',
+                      borderRadius: '12px',
+                    } : {
+                      background: '#f8fafc',
+                      border: '2px solid transparent',
+                      borderRadius: '12px',
+                    }}
                   >
-                    <div className="h-10 w-10 rounded-full bg-white dark:bg-gray-800 flex items-center justify-center shadow-sm">
-                      <Icon className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                    <div
+                      className="h-10 w-10 rounded-full flex items-center justify-center shadow-sm flex-shrink-0"
+                      style={isActive
+                        ? { background: '#2A9C64', boxShadow: '0 4px 14px rgba(42,156,100,0.4)' }
+                        : { background: 'white' }}
+                    >
+                      <Icon className="h-5 w-5" style={{ color: isActive ? 'white' : '#6b7280' }} />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-bold text-gray-900 dark:text-white capitalize">{addr.label || "Address"}</p>
+                      <p
+                        className="font-bold capitalize flex items-center gap-2 flex-wrap"
+                        style={{ color: isActive ? '#2A9C64' : '#111827' }}
+                      >
+                        {addr.label || "Address"}
+                        {isActive && (
+                          <span
+                            className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full uppercase tracking-wide"
+                            style={{ background: '#2A9C64', color: 'white' }}
+                          >
+                            Active
+                          </span>
+                        )}
+                      </p>
                       <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 mt-0.5">
                         {formatAddressLine(addr)}
                       </p>
                     </div>
-                    <div className="h-6 w-6 rounded-full border border-gray-200 dark:border-gray-700 mt-2 flex items-center justify-center group-hover:border-[#7e3866]">
-                       <ChevronRight className="h-3 w-3 text-gray-400 group-hover:text-[#7e3866]" />
-                    </div>
+                    {isActive ? (
+                      <div
+                        className="h-6 w-6 rounded-full flex items-center justify-center flex-shrink-0 mt-1"
+                        style={{ background: '#2A9C64' }}
+                      >
+                        <svg className="h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                      </div>
+                    ) : (
+                      <div className="h-6 w-6 rounded-full border border-gray-200 dark:border-gray-700 mt-1 flex items-center justify-center flex-shrink-0">
+                        <ChevronRight className="h-3 w-3 text-gray-400" />
+                      </div>
+                    )}
                   </button>
                 )
               })

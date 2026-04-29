@@ -26,8 +26,7 @@ const DeliveryRouter = lazy(() => import("../DeliveryV2"))
 
 function UserPathRedirect() {
   const location = useLocation()
-  // Correctly handle the /food/user -> /food redirect regardless of where it starts
-  const newPath = location.pathname.replace("/user", "") || "/food"
+  const newPath = location.pathname.replace("/user", "") || "/"
   return <Navigate to={newPath} replace />
 }
 
@@ -48,21 +47,21 @@ function RestaurantGlobalNotificationListenerInner() {
 function RestaurantGlobalNotificationListener() {
   const location = useLocation()
   const isRestaurantRoute =
-    location.pathname.startsWith("/food/restaurant") &&
-    !location.pathname.startsWith("/food/restaurants")
+    location.pathname.startsWith("/restaurant") &&
+    !location.pathname.startsWith("/restaurants")
   const isRestaurantAuthRoute =
-    location.pathname === "/food/restaurant/login" ||
-    location.pathname === "/food/restaurant/auth/sign-in" ||
-    location.pathname === "/food/restaurant/signup" ||
-    location.pathname === "/food/restaurant/signup-email" ||
-    location.pathname === "/food/restaurant/forgot-password" ||
-    location.pathname === "/food/restaurant/otp" ||
-    location.pathname === "/food/restaurant/welcome" ||
-    location.pathname === "/food/restaurant/auth/google-callback"
+    location.pathname === "/restaurant/login" ||
+    location.pathname === "/restaurant/auth/sign-in" ||
+    location.pathname === "/restaurant/signup" ||
+    location.pathname === "/restaurant/signup-email" ||
+    location.pathname === "/restaurant/forgot-password" ||
+    location.pathname === "/restaurant/otp" ||
+    location.pathname === "/restaurant/welcome" ||
+    location.pathname === "/restaurant/auth/google-callback"
   const isOrderManagedRoute =
-    location.pathname === "/food/restaurant" ||
-    location.pathname === "/food/restaurant/orders" ||
-    location.pathname.startsWith("/food/restaurant/orders/")
+    location.pathname === "/restaurant" ||
+    location.pathname === "/restaurant/orders" ||
+    location.pathname.startsWith("/restaurant/orders/")
 
   const shouldListen =
     isRestaurantRoute &&
@@ -108,7 +107,7 @@ export default function App() {
 
             {/* User Module - Explicitly mapped to /user and the catch-all for /food/ and / */}
             {/* NOTE: /user/food is a common mis-navigation - redirect to correct /food/user home */}
-            <Route path="user/food" element={<Navigate to="/food/user" replace />} />
+            <Route path="user/food" element={<Navigate to="/user" replace />} />
             <Route
               path="user/*"
               element={<UserRouter />}

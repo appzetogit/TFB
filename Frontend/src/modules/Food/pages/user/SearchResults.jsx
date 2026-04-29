@@ -21,7 +21,7 @@ const filterOptions = [
   { id: 'under-30-mins', label: 'Under 30 mins' },
   { id: 'price-match', label: 'Price Match', hasIcon: true },
   { id: 'flat-50-off', label: 'Flat 50% OFF', hasIcon: true },
-  { id: 'under-250', label: 'Under â‚¹250' },
+  { id: 'under-250', label: 'Under ₹250' },
   { id: 'rating-4-plus', label: 'Rating 4.0+' },
 ]
 const SEARCH_HISTORY_KEY = "user_recent_searches_v1"
@@ -216,9 +216,9 @@ export default function SearchResults() {
 
             // Common default values from backend model
             const defaultOffers = [
-              "Flat â‚¹50 OFF above â‚¹199",
+              "Flat ₹50 OFF above ₹199",
               "Flat 50% OFF",
-              "Flat â‚¹40 OFF above â‚¹149"
+              "Flat ₹40 OFF above ₹149"
             ]
             const defaultDeliveryTimes = ["25-30 mins", "20-25 mins", "30-35 mins"]
             const defaultDistances = ["1.2 km", "1 km", "0.8 km"]
@@ -808,15 +808,15 @@ export default function SearchResults() {
                 <button
                   key={cat.id}
                   onClick={() => handleCategorySelect(cat.id)}
-                  className={`flex flex-col items-center gap-1.5 flex-shrink-0 pb-2 transition-all ${isSelected ? 'border-b-2 border-[#7e3866]' : ''
+                  className={`flex flex-col items-center gap-1.5 flex-shrink-0 pb-2 transition-all ${isSelected ? 'border-b-2 border-[#2A9C64]' : ''
                     }`}
                 >
                   {isAllCategory ? (
-                    <div className={`w-16 h-16 rounded-full border-2 transition-all flex items-center justify-center ${isSelected ? 'border-[#7e3866] dark:border-[#7e3866] shadow-lg bg-[#F9F9FB] dark:bg-[#7e3866]/20' : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-[#222222]'}`}>
-                      <Grid2x2 className={`h-6 w-6 ${isSelected ? 'text-[#7e3866]' : 'text-gray-500 dark:text-gray-400'}`} />
+                    <div className={`w-16 h-16 rounded-full border-2 transition-all flex items-center justify-center ${isSelected ? 'border-[#2A9C64] dark:border-[#2A9C64] shadow-lg bg-[#F9F9FB] dark:bg-[#2A9C64]/20' : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-[#222222]'}`}>
+                      <Grid2x2 className={`h-6 w-6 ${isSelected ? 'text-[#2A9C64]' : 'text-gray-500 dark:text-gray-400'}`} />
                     </div>
                   ) : cat.image ? (
-                    <div className={`w-16 h-16 rounded-full overflow-hidden border-2 transition-all ${isSelected ? 'border-[#7e3866] dark:border-[#7e3866] shadow-lg' : 'border-transparent'
+                    <div className={`w-16 h-16 rounded-full overflow-hidden border-2 transition-all ${isSelected ? 'border-[#2A9C64] dark:border-[#2A9C64] shadow-lg' : 'border-transparent'
                       }`}>
                       <img
                         src={cat.image}
@@ -825,12 +825,12 @@ export default function SearchResults() {
                       />
                     </div>
                   ) : (
-                    <div className={`w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center border-2 transition-all ${isSelected ? 'border-[#7e3866] dark:border-[#7e3866] shadow-lg bg-[#F9F9FB] dark:bg-[#7e3866]/20' : 'border-transparent'
+                    <div className={`w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center border-2 transition-all ${isSelected ? 'border-[#2A9C64] dark:border-[#2A9C64] shadow-lg bg-[#F9F9FB] dark:bg-[#2A9C64]/20' : 'border-transparent'
                       }`}>
                       <span className="text-xl">???</span>
                     </div>
                   )}
-                  <span className={`text-xs font-medium whitespace-nowrap ${isSelected ? 'text-[#7e3866] dark:text-[#7e3866]' : 'text-gray-600 dark:text-gray-400'
+                  <span className={`text-xs font-medium whitespace-nowrap ${isSelected ? 'text-[#2A9C64] dark:text-[#2A9C64]' : 'text-gray-600 dark:text-gray-400'
                     }`}>
                     {cat.name}
                   </span>
@@ -866,15 +866,15 @@ export default function SearchResults() {
                   variant="outline"
                   onClick={() => toggleFilter(filter.id)}
                   className={`h-9 px-3 rounded-lg flex items-center gap-1.5 whitespace-nowrap flex-shrink-0 transition-all font-medium ${isActive
-                    ? 'bg-[#7e3866] text-white border-[#7e3866] hover:bg-[#55254b] dark:bg-[#7e3866] dark:hover:bg-[#55254b]'
+                    ? 'bg-[#2A9C64] text-white border-[#2A9C64] hover:bg-[#1E7A4A] dark:bg-[#2A9C64] dark:hover:bg-[#1E7A4A]'
                     : 'bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300'
                     }`}
                 >
                   {filter.hasIcon && filter.id === 'price-match' && (
-                    <span className={`text-xs ${isActive ? 'text-white' : 'text-[#7e3866] dark:text-[#7e3866]'}`}>?</span>
+                    <span className={`text-xs ${isActive ? 'text-white' : 'text-[#2A9C64] dark:text-[#2A9C64]'}`}>?</span>
                   )}
                   {filter.hasIcon && filter.id === 'flat-50-off' && (
-                    <span className={`text-xs ${isActive ? 'text-white' : 'text-[#7e3866] dark:text-[#7e3866]'}`}>?</span>
+                    <span className={`text-xs ${isActive ? 'text-white' : 'text-[#2A9C64] dark:text-[#2A9C64]'}`}>?</span>
                   )}
                   <span className={`text-sm font-bold ${isActive ? 'text-white' : 'text-black dark:text-white'}`}>{filter.label}</span>
                 </Button>
@@ -924,7 +924,7 @@ export default function SearchResults() {
                         )}
                         {/* Offer Badge - Only show if offer exists */}
                         {restaurant.offer && (
-                          <div className="absolute top-1.5 left-1.5 bg-gradient-to-r from-[#7e3866] to-[#55254b] text-white text-[10px] font-semibold px-1.5 py-0.5 rounded">
+                          <div className="absolute top-1.5 left-1.5 bg-gradient-to-r from-[#2A9C64] to-[#1E7A4A] text-white text-[10px] font-semibold px-1.5 py-0.5 rounded">
                             {restaurant.offer}
                           </div>
                         )}
@@ -999,13 +999,13 @@ export default function SearchResults() {
                         if (selectedCategory && selectedCategory !== 'all' && restaurant.menu) {
                           const categoryDish = getCategoryDishFromMenu(restaurant.menu, selectedCategory)
                           if (categoryDish && restaurant.featuredPrice) {
-                            displayText = `${categoryDish} â€¢ â‚¹${restaurant.featuredPrice}`
+                            displayText = `${categoryDish} • ₹${restaurant.featuredPrice}`
                           }
                         }
 
                         // Fallback to featured dish
                         if (!displayText && restaurant.featuredDish && restaurant.featuredPrice) {
-                          displayText = `${restaurant.featuredDish} â€¢ â‚¹${restaurant.featuredPrice}`
+                          displayText = `${restaurant.featuredDish} • ₹${restaurant.featuredPrice}`
                         }
 
                         return displayText ? (
@@ -1077,7 +1077,7 @@ export default function SearchResults() {
                       {/* Offer Badge */}
                       {restaurant.offer && (
                         <div className="flex items-center gap-2 text-sm lg:text-base mt-auto">
-                          <BadgePercent className="h-4 w-4 lg:h-5 lg:w-5 text-[#7e3866] dark:text-[#7e3866]" strokeWidth={2} />
+                          <BadgePercent className="h-4 w-4 lg:h-5 lg:w-5 text-[#2A9C64] dark:text-[#2A9C64]" strokeWidth={2} />
                           <span className="text-gray-700 dark:text-gray-300 font-medium">{restaurant.offer}</span>
                         </div>
                       )}

@@ -1,5 +1,5 @@
 // Routing file
-import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { Suspense, lazy, useEffect } from 'react'
 import { AppShellSkeleton } from '@food/components/ui/loading-skeletons'
 
@@ -8,12 +8,10 @@ const NATIVE_LAST_ROUTE_KEY = 'native_last_route'
 // Lazy load the Food service module (Quick-spicy app)
 const FoodApp = lazy(() => import('../modules/Food/routes'))
 const AuthApp = lazy(() => import('../modules/auth/routes'))
-import ProtectedRoute from '@food/components/ProtectedRoute'
-
 const PageLoader = () => <AppShellSkeleton />
 
 /**
- * FoodAppWrapper â€” Quick-spicy App. à¤•à¥‹ /food prefix à¤•à¥‡ à¤¸à¤¾à¤¥ render à¤•à¤°à¤¤à¤¾ à¤¹à¥ˆ.
+ * FoodAppWrapper — Quick-spicy App. à¤•à¥‹ /food prefix à¤•à¥‡ à¤¸à¤¾à¤¥ render à¤•à¤°à¤¤à¤¾ à¤¹à¥ˆ.
  * 
  * Quick-spicy à¤•à¥€ App.jsx à¤®à¥‡à¤‚ routes /restaurant, /usermain, /admin, /delivery
  * à¤œà¥ˆà¤¸à¥‡ hain (bina /food prefix ke). Yahan hum useLocation se /food ke baad wala
@@ -28,13 +26,11 @@ const FoodAppWrapper = () => {
   )
 }
 
-const RedirectToFood = () => {
-  const location = useLocation();
-  // We safely replace the exact current pathname with a /food prefixed pathname
-  // This effectively catches programmatic navigation to absolute paths like '/restaurant/login'
-  // and turns them into '/food/restaurant/login'
-  return <Navigate to={`/food${location.pathname}${location.search}`} replace />;
-};
+const RedirectLegacyFoodRoute = () => {
+  const location = useLocation()
+  const normalizedPath = location.pathname.replace(/^\/food(?=\/|$)/, '') || '/user'
+  return <Navigate to={`${normalizedPath}${location.search}`} replace />
+}
 
 // const MasterLandingPage = lazy(() => import('./MasterLandingPage'))
 const AdminRouter = lazy(() => import('../modules/Food/components/admin/AdminRouter'))
@@ -57,7 +53,17 @@ const AppRoutes = () => {
     if (!isNativeLikeShell) return
 
     const route = `${location.pathname || ''}${location.search || ''}`
-    if (route.startsWith('/food/') || route.startsWith('/admin')) {
+    if (route.startsWith('/food/')) {
+      localStorage.setItem(NATIVE_LAST_ROUTE_KEY, route.replace(/^\/food/, '') || '/user')
+      return
+    }
+
+    if (
+      route.startsWith('/admin') ||
+      route.startsWith('/restaurant') ||
+      route.startsWith('/delivery') ||
+      route.startsWith('/user')
+    ) {
       localStorage.setItem(NATIVE_LAST_ROUTE_KEY, route)
     }
   }, [location.pathname, location.search])
@@ -67,8 +73,8 @@ const AppRoutes = () => {
       {/* Auth Module */}
       <Route path="/user/auth/*" element={<AuthApp />} />
 
-      {/* Food Module - Handle both /food and root / for the user app */}
-      <Route path="/food/*" element={<FoodAppWrapper />} />
+      {/* Legacy /food URLs redirect to the same page without the prefix */}
+      <Route path="/food/*" element={<RedirectLegacyFoodRoute />} />
 
       {/* Global Admin Portal - AdminRouter handles its own protection for sub-routes */}
       <Route path="/admin/*" element={<AdminRouter />} />

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react"
-import { useNavigate, Link, useSearchParams } from "react-router-dom"
-import { Apple, AlertCircle, ChevronDown, Loader2, Mail, Check } from "lucide-react"
+import { Link, useNavigate, useSearchParams } from "react-router-dom"
+import { AlertCircle, Check, ChevronDown, Loader2, Mail } from "lucide-react"
 import AnimatedPage from "@food/components/user/AnimatedPage"
 import { Button } from "@food/components/ui/button"
 import { Input } from "@food/components/ui/input"
@@ -11,10 +11,14 @@ import { toast } from "sonner"
 import logoNew from "@food/assets/logo.png"
 
 const REMEMBER_LOGIN_KEY = "user_login_phone"
+const BRAND_MAROON = "#922727"
+const INPUT_BORDER = "#d9d1c8"
+const INPUT_TEXT = "#8f5a28"
 const APPLE_SDK_SRC = "https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js"
 const APPLE_CLIENT_ID_FALLBACK = import.meta.env.VITE_APPLE_CLIENT_ID || ""
 const APPLE_REDIRECT_URI_FALLBACK =
   import.meta.env.VITE_APPLE_USER_REDIRECT_URI || import.meta.env.VITE_APPLE_REDIRECT_URI || ""
+const headingWords = ["India's", "#1", "Food", "Delivery", "and", "Dining", "App"]
 
 const sanitizeConfigValue = (value) => (value ? String(value).trim() : "")
 
@@ -46,6 +50,52 @@ const loadAppleSdk = () =>
     script.onerror = () => reject(new Error("Failed to load Apple sign-in SDK"))
     document.head.appendChild(script)
   })
+
+function GoogleIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" className="h-6 w-6">
+      <path
+        fill="#EA4335"
+        d="M12.24 10.286v3.821h5.414c-.233 1.229-.932 2.271-1.98 2.972l3.2 2.482c1.864-1.718 2.938-4.248 2.938-7.261 0-.699-.063-1.372-.179-2.014z"
+      />
+      <path
+        fill="#34A853"
+        d="M12 22c2.7 0 4.964-.895 6.619-2.439l-3.2-2.482c-.895.6-2.034.958-3.419.958-2.622 0-4.847-1.77-5.64-4.152H3.057v2.56A9.997 9.997 0 0 0 12 22"
+      />
+      <path
+        fill="#4A90E2"
+        d="M6.36 13.885a5.998 5.998 0 0 1 0-3.77v-2.56H3.057a10.001 10.001 0 0 0 0 8.89z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M12 5.964c1.469 0 2.788.505 3.826 1.498l2.867-2.867C16.959 2.979 14.694 2 12 2a9.997 9.997 0 0 0-8.943 5.555l3.303 2.56C7.153 7.733 9.378 5.964 12 5.964"
+      />
+    </svg>
+  )
+}
+
+function AppleIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" className="h-6 w-6 fill-current">
+      <path d="M16.365 12.71c.026 2.824 2.48 3.764 2.507 3.777-.021.066-.389 1.336-1.28 2.648-.771 1.135-1.57 2.266-2.83 2.289-1.237.023-1.635-.734-3.048-.734-1.412 0-1.855.711-3.026.758-1.216.046-2.142-1.218-2.919-2.349-1.587-2.295-2.8-6.486-1.172-9.31.808-1.403 2.252-2.289 3.817-2.312 1.193-.023 2.319.804 3.048.804.728 0 2.097-.994 3.535-.848.602.025 2.292.242 3.377 1.83-.088.055-2.014 1.176-1.989 3.447Zm-2.829-6.562c.647-.785 1.083-1.875.964-2.963-.932.037-2.06.621-2.729 1.406-.6.697-1.125 1.809-.982 2.873 1.039.08 2.1-.529 2.747-1.316Z" />
+    </svg>
+  )
+}
+
+function SocialButton({ children, onClick, disabled = false, className = "", style, ariaLabel }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={ariaLabel}
+      style={style}
+      className={`flex h-14 w-14 items-center justify-center rounded-full transition-transform active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-60 ${className}`}
+    >
+      {children}
+    </button>
+  )
+}
 
 export default function SignIn() {
   const navigate = useNavigate()
@@ -107,9 +157,9 @@ export default function SignIn() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    const phoneError = validatePhone(formData.phone)
-    setPhoneError(phoneError)
-    if (phoneError) return
+    const currentPhoneError = validatePhone(formData.phone)
+    setPhoneError(currentPhoneError)
+    if (currentPhoneError) return
     if (submittingRef.current) return
 
     submittingRef.current = true
@@ -141,7 +191,7 @@ export default function SignIn() {
       }
 
       sessionStorage.setItem("userAuthData", JSON.stringify(authData))
-      navigate("/food/user/auth/otp")
+      navigate("/user/auth/otp")
     } catch (apiError) {
       const message =
         apiError?.response?.data?.message ||
@@ -152,10 +202,6 @@ export default function SignIn() {
       setIsLoading(false)
       submittingRef.current = false
     }
-  }
-
-  const showProviderComingSoon = (provider) => {
-    toast.message(`${provider} sign-in will be added on this screen soon.`)
   }
 
   const handleAppleSignIn = async () => {
@@ -171,14 +217,13 @@ export default function SignIn() {
       const clientId = sanitizeConfigValue(
         publicConfig.APPLE_CLIENT_ID || publicConfig.VITE_APPLE_CLIENT_ID || APPLE_CLIENT_ID_FALLBACK
       )
-      const redirectURI =
-        sanitizeConfigValue(
-          publicConfig.APPLE_USER_REDIRECT_URI ||
-            publicConfig.VITE_APPLE_USER_REDIRECT_URI ||
-            publicConfig.APPLE_REDIRECT_URI ||
-            publicConfig.VITE_APPLE_REDIRECT_URI ||
-            APPLE_REDIRECT_URI_FALLBACK
-        )
+      const redirectURI = sanitizeConfigValue(
+        publicConfig.APPLE_USER_REDIRECT_URI ||
+          publicConfig.VITE_APPLE_USER_REDIRECT_URI ||
+          publicConfig.APPLE_REDIRECT_URI ||
+          publicConfig.VITE_APPLE_REDIRECT_URI ||
+          APPLE_REDIRECT_URI_FALLBACK
+      )
 
       if (!clientId || !redirectURI) {
         throw new Error("Apple sign-in is not configured yet")
@@ -203,8 +248,7 @@ export default function SignIn() {
 
       await window.AppleID.auth.signIn()
     } catch (providerError) {
-      const message =
-        providerError?.message || "Apple sign-in could not be started. Please try again."
+      const message = providerError?.message || "Apple sign-in could not be started. Please try again."
       toast.error(message)
       setIsAppleLoading(false)
     }
@@ -265,7 +309,7 @@ export default function SignIn() {
       sessionStorage.removeItem("userAuthData")
       setUserAuthData("user", accessToken, user, refreshToken)
       window.dispatchEvent(new Event("userAuthChanged"))
-      navigate("/food/user")
+      navigate("/user")
     } catch (providerError) {
       const message =
         providerError?.response?.data?.message ||
@@ -278,174 +322,160 @@ export default function SignIn() {
     }
   }
 
+  const handleEmailSignIn = () => {
+    toast.message("Email sign-in will be added on this screen soon.")
+  }
+
   return (
-    <AnimatedPage className="min-h-screen bg-white flex items-start justify-center overflow-hidden px-4 py-3 sm:px-6">
-      <div className="w-full max-w-[390px] bg-white px-5 py-5 pb-1 sm:px-7 sm:pt-7 sm:pb-1">
-        <div className="flex flex-col">
-          <div>
-            <div className="flex min-h-[220px] items-center justify-center pt-3">
-              <img
-                src={logoNew}
-                alt="Tifun Box"
-                className="h-24 w-auto object-contain sm:h-28"
+    <AnimatedPage className="min-h-screen bg-white">
+      <div className="mx-auto flex min-h-screen w-full max-w-[390px] flex-col bg-white px-8 pt-20 pb-0">
+        <div className="flex flex-1 flex-col">
+          <div className="pt-4 text-center">
+            <img
+              src={logoNew}
+              alt="Tifunbox"
+              className="mx-auto h-auto w-full max-w-[320px] object-contain"
+            />
+          </div>
+
+          <div className="mt-16 text-center">
+            <h1 className="mx-auto max-w-[325px] text-[2.05rem] font-semibold leading-[1.15] tracking-[-0.035em] text-black">
+              {headingWords.map((word, index) => (
+                <span key={`${word}-${index}`} className="mr-[0.28em] inline-block last:mr-0">
+                  {word}
+                </span>
+              ))}
+            </h1>
+          </div>
+
+          <form onSubmit={handleSubmit} className="mt-10">
+            <div className="flex items-stretch gap-3">
+              <button
+                type="button"
+                className="flex h-14 w-[102px] shrink-0 items-center justify-between rounded-[1.1rem] border bg-white px-4 text-[1rem] font-semibold text-[#2b211a]"
+                style={{ borderColor: INPUT_BORDER }}
+              >
+                <span className="flex items-center gap-2">
+                  <span>IN</span>
+                  <span className="font-medium text-[#6d665f]">+91</span>
+                </span>
+                <ChevronDown className="h-4 w-4 text-[#8a847d]" />
+              </button>
+
+              <Input
+                id="phone"
+                name="phone"
+                type="tel"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={10}
+                placeholder="7610416911"
+                value={formData.phone}
+                onChange={handleChange}
+                aria-invalid={phoneError ? "true" : "false"}
+                className="h-14 flex-1 rounded-[1.1rem] border bg-white px-4 text-[1rem] font-medium focus-visible:ring-0"
+                style={{
+                  borderColor: phoneError ? "#ef4444" : INPUT_BORDER,
+                  color: INPUT_TEXT,
+                  boxShadow: "none",
+                }}
               />
             </div>
 
-            <div className="mt-10 text-center">
-              <h1 className="text-[1.6rem] sm:text-[1.8rem] font-semibold leading-[1.18] tracking-[-0.03em] text-black">
-                India&apos;s #1 Food Delivery and Dining App
-              </h1>
-            </div>
-
-            <form onSubmit={handleSubmit} className="mt-6 space-y-3.5">
-              <div className="flex items-stretch gap-3">
-                <button
-                  type="button"
-                  className="flex min-w-[102px] items-center justify-between rounded-2xl border border-[#d7d5d2] bg-white px-4 text-[1rem] font-medium text-[#221f1b]"
-                >
-                  <span className="flex items-center gap-2">
-                    <span className="font-semibold">IN</span>
-                    <span className="text-[#6a6662]">+91</span>
-                  </span>
-                  <ChevronDown className="h-4 w-4 text-[#8a847d]" />
-                </button>
-
-                <Input
-                  id="phone"
-                  name="phone"
-                  type="tel"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  maxLength={10}
-                  placeholder="Enter Phone Number"
-                  value={formData.phone}
-                  onChange={handleChange}
-                  className={`h-14 flex-1 rounded-2xl border bg-white px-4 text-lg text-[#7d4f1c] placeholder:text-[#9f6d37] focus-visible:ring-0 focus-visible:border-[#8a2323] ${
-                    phoneError ? "border-red-400" : "border-[#d7d5d2]"
-                  }`}
-                  aria-invalid={phoneError ? "true" : "false"}
-                />
+            {phoneError ? (
+              <div className="mt-3 flex items-center gap-1.5 pl-1 text-sm text-red-600">
+                <AlertCircle className="h-4 w-4" />
+                <span>{phoneError}</span>
               </div>
+            ) : null}
 
-              {phoneError ? (
-                <div className="flex items-center gap-1.5 pl-1 text-sm text-red-600">
-                  <AlertCircle className="h-4 w-4" />
-                  <span>{phoneError}</span>
-                </div>
-              ) : null}
-
-              <label className="flex cursor-pointer items-center gap-3 pt-1 text-[0.98rem] text-[#3e3a36]">
-                <input
-                  type="checkbox"
-                  checked={rememberLogin}
-                  onChange={(e) => setRememberLogin(e.target.checked)}
-                  className="peer sr-only"
-                />
-                <span
-                  className={`flex h-5 w-5 items-center justify-center rounded-md transition-colors ${
-                    rememberLogin ? "bg-[#7d2323] text-white" : "border border-[#cfc7bf] bg-white text-transparent"
-                  }`}
-                >
-                  <Check className="h-3.5 w-3.5" />
-                </span>
-                <span>Remember my login for faster sign-in</span>
-              </label>
-
-              <Button
-                type="submit"
-                className="mt-2 h-14 w-full rounded-2xl bg-[#7d2323] text-lg font-bold text-white transition-all hover:bg-[#681b1b] active:scale-[0.99]"
-                disabled={isLoading}
+            <label className="mt-5 flex cursor-pointer items-center gap-3 text-[0.98rem] text-[#3f372f]">
+              <input
+                type="checkbox"
+                checked={rememberLogin}
+                onChange={(e) => setRememberLogin(e.target.checked)}
+                className="sr-only"
+              />
+              <span
+                className={`flex h-5 w-5 items-center justify-center rounded-full transition-colors ${
+                  rememberLogin ? "text-white" : "border bg-white text-transparent"
+                }`}
+                style={{
+                  backgroundColor: rememberLogin ? BRAND_MAROON : "#ffffff",
+                  borderColor: rememberLogin ? BRAND_MAROON : INPUT_BORDER,
+                }}
               >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                    Sending OTP...
-                  </>
-                ) : (
-                  "Continue"
-                )}
-              </Button>
-            </form>
-          </div>
+                <Check className="h-3.5 w-3.5" strokeWidth={3} />
+              </span>
+              <span>Remember my login for faster sign-in</span>
+            </label>
 
-          <div className="mt-12">
+            <Button
+              type="submit"
+              disabled={isLoading}
+              className="mt-7 h-14 w-full rounded-[1.1rem] text-lg font-bold text-white transition-all hover:opacity-95 active:scale-[0.99]"
+              style={{ backgroundColor: BRAND_MAROON }}
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                  Sending OTP...
+                </>
+              ) : (
+                "Continue"
+              )}
+            </Button>
+          </form>
+
+          <div className="mt-9">
             <div className="flex items-center gap-4">
-              <div className="h-px flex-1 bg-[#d8d8d8]" />
-              <span className="text-lg text-[#66615d]">or</span>
-              <div className="h-px flex-1 bg-[#d8d8d8]" />
+              <div className="h-px flex-1 bg-[#d8d1cb]" />
+              <span className="text-[0.9rem] font-medium text-[#5d5550]">or</span>
+              <div className="h-px flex-1 bg-[#d8d1cb]" />
             </div>
 
-            <div className="mt-3 flex items-center justify-center gap-5">
-              <button
-                type="button"
+            <div className="mt-7 flex items-center justify-center gap-6">
+              <SocialButton
                 onClick={handleAppleSignIn}
                 disabled={isAppleLoading}
-                className="flex h-14 w-14 items-center justify-center rounded-full bg-black text-white transition-transform hover:scale-[1.03] disabled:cursor-not-allowed disabled:opacity-70"
-                aria-label="Continue with Apple"
+                ariaLabel="Continue with Apple"
+                className="bg-black text-white shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
               >
-                {isAppleLoading ? (
-                  <Loader2 className="h-6 w-6 animate-spin" />
-                ) : (
-                  <Apple className="h-7 w-7 fill-current" />
-                )}
-              </button>
-
-              <button
-                type="button"
+                {isAppleLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : <AppleIcon />}
+              </SocialButton>
+              <SocialButton
                 onClick={handleGoogleSignIn}
                 disabled={isGoogleLoading}
-                className="flex h-14 w-14 items-center justify-center rounded-full border border-[#d8d8d8] bg-white transition-transform hover:scale-[1.03] disabled:cursor-not-allowed disabled:opacity-70"
-                aria-label="Continue with Google"
+                ariaLabel="Continue with Google"
+                className="border border-[#ddd6cf] bg-white text-black shadow-[0_8px_24px_rgba(0,0,0,0.06)]"
               >
-                {isGoogleLoading ? (
-                  <Loader2 className="h-6 w-6 animate-spin text-[#5f6368]" />
-                ) : (
-                  <svg className="h-7 w-7" viewBox="0 0 24 24" aria-hidden="true">
-                    <path
-                      fill="#4285F4"
-                      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                    />
-                    <path
-                      fill="#34A853"
-                      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                    />
-                    <path
-                      fill="#FBBC05"
-                      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"
-                    />
-                    <path
-                      fill="#EA4335"
-                      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.14-4.53z"
-                    />
-                  </svg>
-                )}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => showProviderComingSoon("Email")}
-                className="flex h-14 w-14 items-center justify-center rounded-full bg-[#7d2323] text-white transition-transform hover:scale-[1.03]"
-                aria-label="Continue with Email"
+                {isGoogleLoading ? <Loader2 className="h-6 w-6 animate-spin text-[#5f6368]" /> : <GoogleIcon />}
+              </SocialButton>
+              <SocialButton
+                onClick={handleEmailSignIn}
+                ariaLabel="Continue with Email"
+                className="text-white shadow-[0_8px_24px_rgba(146,39,39,0.18)]"
+                style={{ backgroundColor: BRAND_MAROON }}
               >
                 <Mail className="h-6 w-6" />
-              </button>
+              </SocialButton>
             </div>
+          </div>
 
-            <div className="mt-6 text-center text-[0.78rem] leading-5 text-[#67635f]">
-              <p>By continuing, you agree to our</p>
-              <div className="mt-1 flex flex-wrap items-center justify-center gap-1.5">
-                <Link to="/profile/terms" className="underline underline-offset-2 hover:text-black transition-colors">
-                  Terms of Service
-                </Link>
-                <span>â€¢</span>
-                <Link to="/profile/privacy" className="underline underline-offset-2 hover:text-black transition-colors">
-                  Privacy Policy
-                </Link>
-                <span>â€¢</span>
-                <Link to="/profile/refund" className="underline underline-offset-2 hover:text-black transition-colors">
-                  Content Policy
-                </Link>
-              </div>
+          <div className="pt-6 text-center text-[0.78rem] leading-6 text-[#5e5853]">
+            <p>By continuing, you agree to our</p>
+            <div className="mt-1 flex flex-wrap items-center justify-center gap-x-2">
+              <Link to="/profile/terms" className="underline underline-offset-2 transition-colors hover:text-black">
+                Terms of Service
+              </Link>
+              <span>&bull;</span>
+              <Link to="/profile/privacy" className="underline underline-offset-2 transition-colors hover:text-black">
+                Privacy Policy
+              </Link>
+              <span>&bull;</span>
+              <Link to="/profile/refund" className="underline underline-offset-2 transition-colors hover:text-black">
+                Content Policy
+              </Link>
             </div>
           </div>
         </div>

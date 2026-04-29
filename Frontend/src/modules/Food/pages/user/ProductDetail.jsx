@@ -33,7 +33,7 @@ const productsData = {
   10: { id: 10, name: "French Fries", restaurant: "Burger Paradise", restaurantSlug: "burger-paradise", price: 4.99, image: "https://images.unsplash.com/photo-1573080496219-bb080dd4f877?w=600&h=400&fit=crop&q=80", rating: 4.7, description: "Golden crispy fries made from premium potatoes. Served hot with ketchup.", category: "Sides", ingredients: ["Potatoes", "Salt", "Oil"], preparationTime: "8-10 min", calories: 320 },
   11: { id: 11, name: "Onion Rings", restaurant: "Burger Paradise", restaurantSlug: "burger-paradise", price: 5.99, image: "https://images.unsplash.com/photo-1621996346565-e3dbc646d9a9?w=600&h=400&fit=crop&q=80", rating: 4.6, description: "Crispy battered onion rings, perfectly golden and crunchy. Served with dipping sauce.", category: "Sides", ingredients: ["Onions", "Batter", "Oil"], preparationTime: "10-12 min", calories: 280 },
   12: { id: 12, name: "Mozzarella Sticks", restaurant: "Pizza Corner", restaurantSlug: "pizza-corner", price: 6.99, image: "https://images.unsplash.com/photo-1621996346565-e3dbc646d9a9?w=600&h=400&fit=crop&q=80", rating: 4.9, description: "Golden fried mozzarella sticks with a crispy exterior and gooey center. Served with marinara sauce.", category: "Appetizers", ingredients: ["Mozzarella cheese", "Breadcrumbs", "Marinara sauce"], preparationTime: "8-10 min", calories: 350 },
-  13: { id: 13, name: "Nachos", restaurant: "Taco Fiesta", restaurantSlug: "taco-fiesta", price: 7.99, image: "https://images.unsplash.com/photo-1573080496219-bb080dd4f877?w=600&h=400&fit=crop&q=80", rating: 4.8, description: "Crispy tortilla chips loaded with melted cheese, jalapeï¿½os, and your choice of toppings.", category: "Appetizers", ingredients: ["Tortilla chips", "Cheese", "Jalapeï¿½os", "Sour cream", "Salsa"], preparationTime: "10-12 min", calories: 420 },
+  13: { id: 13, name: "Nachos", restaurant: "Taco Fiesta", restaurantSlug: "taco-fiesta", price: 7.99, image: "https://images.unsplash.com/photo-1573080496219-bb080dd4f877?w=600&h=400&fit=crop&q=80", rating: 4.8, description: "Crispy tortilla chips loaded with melted cheese, jalapeños, and your choice of toppings.", category: "Appetizers", ingredients: ["Tortilla chips", "Cheese", "Jalapeños", "Sour cream", "Salsa"], preparationTime: "10-12 min", calories: 420 },
   14: { id: 14, name: "Garlic Bread", restaurant: "Pizza Corner", restaurantSlug: "pizza-corner", price: 4.49, image: "https://images.unsplash.com/photo-1621996346565-e3dbc646d9a9?w=600&h=400&fit=crop&q=80", rating: 4.7, description: "Fresh baked bread brushed with garlic butter and herbs. Perfect as a side or appetizer.", category: "Sides", ingredients: ["Bread", "Garlic", "Butter", "Herbs"], preparationTime: "5-8 min", calories: 220 },
   // Trending Now
   15: { id: 15, name: "Spicy Ramen", restaurant: "Noodle House", restaurantSlug: "noodle-house", price: 11.99, image: "https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=600&h=400&fit=crop&q=80", rating: 4.9, description: "Rich and spicy ramen broth with tender noodles, soft-boiled egg, and fresh vegetables.", category: "Noodles", ingredients: ["Ramen noodles", "Broth", "Egg", "Vegetables", "Spices"], preparationTime: "20-25 min", calories: 480 },
@@ -294,7 +294,7 @@ export default function ProductDetail() {
 
           {/* Rating Badge - Top Right */}
           <div className="absolute top-4 right-4 z-10">
-            <Badge className="bg-[#7e3866] text-white shadow-lg">
+            <Badge className="bg-[#2A9C64] text-white shadow-lg">
               <Star className="h-3 w-3 fill-white text-white mr-1" />
               {averageRating}
             </Badge>
@@ -328,8 +328,8 @@ export default function ProductDetail() {
                 </div>
               </div>
               <div className="flex-shrink-0 text-right">
-                <div className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-extrabold text-[#7e3866]">
-                  â‚¹{(product.price * 83).toFixed(0)}
+                <div className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-extrabold text-[#2A9C64]">
+                  ₹{(product.price * 83).toFixed(0)}
                 </div>
                 <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">per serving</p>
               </div>
@@ -344,7 +344,7 @@ export default function ProductDetail() {
             <div className="space-y-4">
               {/* Breadcrumb */}
               <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground flex-wrap">
-                <Link to="/user" className="hover:text-[#7e3866] transition-colors">Home</Link>
+                <Link to="/user" className="hover:text-[#2A9C64] transition-colors">Home</Link>
                 <span>/</span>
                 <span className="text-foreground font-medium truncate">{restaurant?.name || "Restaurant"}</span>
                 <span>/</span>
@@ -360,7 +360,7 @@ export default function ProductDetail() {
               <h2 className="text-xl font-bold">Order</h2>
               {inCart ? (
                 <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-2 border border-[#7e3866] rounded-lg">
+                  <div className="flex items-center gap-2 border border-[#2A9C64] rounded-lg">
                     <Button
                       variant="ghost"
                       size="icon"
@@ -383,8 +383,8 @@ export default function ProductDetail() {
                   </div>
                   <div className="flex-1">
                     <p className="text-sm text-muted-foreground">In cart</p>
-                    <p className="text-lg font-bold text-[#7e3866]">
-                      â‚¹{(product.price * 83 * (cartItem?.quantity || 0)).toFixed(0)}
+                    <p className="text-lg font-bold text-[#2A9C64]">
+                      ₹{(product.price * 83 * (cartItem?.quantity || 0)).toFixed(0)}
                     </p>
                   </div>
                 </div>
@@ -416,10 +416,10 @@ export default function ProductDetail() {
                   >
                     <Button
                       onClick={handleAddToCart}
-                      className="bg-[#7e3866] hover:opacity-90 text-white"
+                      className="bg-[#2A9C64] hover:opacity-90 text-white"
                     >
                       <ShoppingBag className="h-5 w-5 mr-2" />
-                      Add to Cart - â‚¹{(product.price * 83 * quantity).toFixed(0)}
+                      Add to Cart - ₹{(product.price * 83 * quantity).toFixed(0)}
                     </Button>
                   </div>
                 </div>
@@ -438,7 +438,7 @@ export default function ProductDetail() {
                     </h3>
                     <p className="text-sm md:text-base text-muted-foreground">{restaurant.cuisine}</p>
                   </div>
-                  <Badge className="bg-[#7e3866] text-white text-sm md:text-base">{restaurant.priceRange}</Badge>
+                  <Badge className="bg-[#2A9C64] text-white text-sm md:text-base">{restaurant.priceRange}</Badge>
                 </div>
                 <div className="flex items-center gap-4 md:gap-6 flex-wrap text-sm md:text-base">
                   <div className="flex items-center gap-1.5">
@@ -507,7 +507,7 @@ export default function ProductDetail() {
                         <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
                           <Calendar className="h-3 w-3" />
                           <span>{new Date(order.createdAt).toLocaleDateString()}</span>
-                          <span>ï¿½</span>
+                          <span>•</span>
                           <span>{order.status}</span>
                         </div>
                       </div>
@@ -525,13 +525,13 @@ export default function ProductDetail() {
                 <div>
                   <h2 className="text-xl font-bold">Reviews</h2>
                   <p className="text-sm text-muted-foreground mt-1">
-                    {reviews.length} {reviews.length === 1 ? 'review' : 'reviews'} ï¿½ Average rating: {averageRating}
+                    {reviews.length} {reviews.length === 1 ? 'review' : 'reviews'} • Average rating: {averageRating}
                   </p>
                 </div>
                 {!showReviewForm && (
                   <Button
                     onClick={() => setShowReviewForm(true)}
-                    className="bg-[#7e3866] hover:opacity-90 text-white"
+                    className="bg-[#2A9C64] hover:opacity-90 text-white"
                   >
                     <MessageCircle className="h-4 w-4 mr-2" />
                     Write a Review
@@ -586,7 +586,7 @@ export default function ProductDetail() {
                       </Button>
                       <Button
                         type="submit"
-                        className="flex-1 bg-gradient-to-r bg-[#7e3866] hover:from-yellow-600 hover:to-#55254b"
+                        className="flex-1 bg-gradient-to-r bg-[#2A9C64] hover:from-yellow-600 hover:to-#1E7A4A"
                       >
                         <Send className="h-4 w-4 mr-2" />
                         Submit Review
@@ -625,12 +625,12 @@ export default function ProductDetail() {
                                     {renderStars(review.rating, "h-3 w-3")}
                                     <span className="ml-1 font-medium">{review.rating}</span>
                                   </div>
-                                  <span>ï¿½</span>
+                                  <span>•</span>
                                   <div className="flex items-center gap-1">
                                     <Calendar className="h-3 w-3" />
                                     {review.date}
                                   </div>
-                                  <span>ï¿½</span>
+                                  <span>•</span>
                                   <span>{review.orderType}</span>
                                 </div>
                               </div>
@@ -640,17 +640,17 @@ export default function ProductDetail() {
                               <button
                                 onClick={() => handleHelpful(review.id)}
                                 className={`flex items-center gap-2 text-sm transition-colors ${helpfulVotes.has(review.id)
-                                    ? "text-[#7e3866] font-semibold"
+                                    ? "text-[#2A9C64] font-semibold"
                                     : "text-muted-foreground hover:text-foreground"
                                   }`}
                               >
-                                <ThumbsUp className={`h-4 w-4 ${helpfulVotes.has(review.id) ? "fill-[#7e3866]" : ""}`} />
+                                <ThumbsUp className={`h-4 w-4 ${helpfulVotes.has(review.id) ? "fill-[#2A9C64]" : ""}`} />
                                 <span>Helpful ({review.helpful})</span>
                               </button>
                               <button
                                 onClick={() => handleReplyClick(review.id)}
                                 className={`flex items-center gap-2 text-sm transition-colors ${replyStates[review.id]
-                                    ? "text-[#7e3866] font-semibold"
+                                    ? "text-[#2A9C64] font-semibold"
                                     : "text-muted-foreground hover:text-foreground"
                                   }`}
                               >
@@ -685,7 +685,7 @@ export default function ProductDetail() {
                                       <Button
                                         type="button"
                                         size="sm"
-                                        className="bg-[#7e3866] hover:opacity-90 text-white"
+                                        className="bg-[#2A9C64] hover:opacity-90 text-white"
                                         onClick={() => {
                                           const textarea = document.getElementById(`reply-${review.id}`)
                                           if (textarea) {
@@ -722,7 +722,7 @@ export default function ProductDetail() {
                                             Verified
                                           </Badge>
                                         )}
-                                        <span className="text-xs text-muted-foreground">ï¿½</span>
+                                        <span className="text-xs text-muted-foreground">•</span>
                                         <span className="text-xs text-muted-foreground">{reply.date}</span>
                                       </div>
                                       <p className="text-sm text-muted-foreground leading-relaxed">{reply.comment}</p>

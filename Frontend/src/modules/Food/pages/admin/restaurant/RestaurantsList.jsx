@@ -209,11 +209,33 @@ export default function RestaurantsList() {
         setLoading(true)
         setError(null)
 
-        const response = await adminAPI.getApprovedRestaurants({})
+        // Fetch restaurants and zones in parallel so we can resolve zone names
+        const [response, zonesRes] = await Promise.allSettled([
+          adminAPI.getApprovedRestaurants({}),
+          adminAPI.getZones({ limit: 1000 }),
+        ])
 
         if (cancelled) return
 
-        const body = response?.data
+        // Build a zoneId → name lookup map
+        const zoneList =
+          zonesRes.status === 'fulfilled'
+            ? (zonesRes.value?.data?.data?.zones ||
+               zonesRes.value?.data?.data?.data?.zones ||
+               zonesRes.value?.data?.data ||
+               [])
+            : []
+        const zoneMap = {}
+        if (Array.isArray(zoneList)) {
+          setZones(zoneList)
+          for (const z of zoneList) {
+            const zid = String(z?._id || z?.id || "")
+            if (zid) zoneMap[zid] = z?.name || z?.zoneName || ""
+          }
+        }
+
+        const body = response.status === 'fulfilled' ? response.value?.data : null
+        if (!body) throw new Error('Failed to fetch restaurants')
         const data = body?.data
         const rawList = Array.isArray(data?.restaurants)
           ? data.restaurants
@@ -225,28 +247,28 @@ export default function RestaurantsList() {
 
         const zoneLabelFromRestaurant = (restaurant) => {
           const zid = restaurant?.zoneId
-          const zoneName =
-            (typeof zid === "object" ? (zid?.name || zid?.zoneName) : "") ||
-            ""
-          if (zoneName) return zoneName
 
-          const zoneIdString =
-            typeof zid === "string"
-              ? zid
-              : (zid?._id || zid?.id || "")
-          if (zoneIdString && Array.isArray(zones) && zones.length > 0) {
-            const match = zones.find((z) => (z?._id || z?.id) === zoneIdString)
-            const label = match?.name || match?.zoneName
-            if (label) return label
+          // Case 1: zoneId is a populated object with a name
+          if (typeof zid === 'object' && zid !== null) {
+            const name = zid?.name || zid?.zoneName
+            if (name) return name
+            // Try resolving its _id from the map
+            const oid = String(zid?._id || zid?.id || '')
+            if (oid && zoneMap[oid]) return zoneMap[oid]
           }
 
+          // Case 2: zoneId is a plain ObjectId string — resolve from map
+          if (typeof zid === 'string' && zid.length > 0) {
+            if (zoneMap[zid]) return zoneMap[zid]
+          }
+
+          // Fallback: city/area (but NOT restaurant.zone which is unreliable raw data)
           return (
-            restaurant?.zone ||
             restaurant?.location?.area ||
             restaurant?.location?.city ||
             restaurant?.area ||
             restaurant?.city ||
-            "N/A"
+            'N/A'
           )
         }
 
@@ -254,9 +276,9 @@ export default function RestaurantsList() {
           const mappedRestaurants = rawList.map((restaurant, index) => ({
             id: restaurant._id || restaurant.id || index + 1,
             _id: restaurant._id,
-            name: restaurant.name || restaurant.restaurantName || "N/A",
-            ownerName: restaurant.ownerName || "N/A",
-            ownerPhone: restaurant.ownerPhone || restaurant.phone || "N/A",
+            name: restaurant.name || restaurant.restaurantName || 'N/A',
+            ownerName: restaurant.ownerName || 'N/A',
+            ownerPhone: restaurant.ownerPhone || restaurant.phone || 'N/A',
             zone: zoneLabelFromRestaurant(restaurant),
             approvalStatus: normalizeApprovalStatus(restaurant),
             isActive: restaurant.isActive !== false,
@@ -270,19 +292,17 @@ export default function RestaurantsList() {
         }
       } catch (err) {
         if (cancelled) return
-        debugError("Error fetching restaurants:", err)
+        debugError('Error fetching restaurants:', err)
         const status = err?.response?.status
         const serverMessage = err?.response?.data?.message || err?.response?.data?.error
         if (status === 401) {
-          setError(serverMessage || "Session expired or not logged in. Please log in as admin.")
+          setError(serverMessage || 'Session expired or not logged in. Please log in as admin.')
           setRestaurants([])
-          try {
-            clearModuleAuth("admin")
-          } catch (_) {}
-          navigate("/admin/login", { replace: true, state: { from: "/admin/food/restaurants" } })
+          try { clearModuleAuth('admin') } catch (_) {}
+          navigate('/admin/login', { replace: true, state: { from: '/admin/food/restaurants' } })
           return
         }
-        setError(serverMessage || err.message || "Failed to fetch restaurants")
+        setError(serverMessage || err.message || 'Failed to fetch restaurants')
         setRestaurants([])
       } finally {
         if (!cancelled) setLoading(false)
@@ -619,10 +639,6 @@ export default function RestaurantsList() {
     const latitude = Number(locationForm.latitude)
     const longitude = Number(locationForm.longitude)
 
-    if (!locationForm.zoneId) {
-      alert("Please select a zone")
-      return
-    }
     if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || !locationForm.formattedAddress) {
       alert("Please select a location from dropdown")
       return
@@ -631,7 +647,6 @@ export default function RestaurantsList() {
     try {
       setSavingLocation(true)
       const locationPayload = {
-        zoneId: locationForm.zoneId,
         latitude,
         longitude,
         coordinates: [longitude, latitude],
@@ -701,15 +716,6 @@ export default function RestaurantsList() {
     const initialForm = normalizeLocationFormFromRestaurant(sourceRestaurant)
     setLocationForm(initialForm)
     setLocationEditError("")
-
-    setZonesLoading(true)
-    adminAPI.getZones({ limit: 1000 })
-      .then((res) => {
-        const list = res?.data?.data?.zones || res?.data?.data?.data?.zones || res?.data?.data?.zones || res?.data?.data || []
-        setZones(Array.isArray(list) ? list : [])
-      })
-      .catch(() => setZones([]))
-      .finally(() => setZonesLoading(false))
 
     // Init dropdown autocomplete after mount.
     requestAnimationFrame(() => initPlacesAutocomplete())
@@ -1241,15 +1247,6 @@ export default function RestaurantsList() {
                     </th>
                     <th
                       className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider cursor-pointer hover:bg-slate-100 transition-colors"
-                      onClick={() => handleSort('zone')}
-                    >
-                      <div className="flex items-center gap-1">
-                        <span>Zone</span>
-                        <ArrowUpDown className={`w-3 h-3 ${sortConfig.key === 'zone' ? 'text-blue-600' : 'text-slate-400'}`} />
-                      </div>
-                    </th>
-                    <th
-                      className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider cursor-pointer hover:bg-slate-100 transition-colors"
                       onClick={() => handleSort('rating')}
                     >
                       <div className="flex items-center gap-1">
@@ -1324,9 +1321,6 @@ export default function RestaurantsList() {
                             <span className="text-sm font-medium text-slate-900">{restaurant.ownerName}</span>
                             <span className="text-xs text-slate-500">{formatPhone(restaurant.ownerPhone)}</span>
                           </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="text-sm text-slate-700">{restaurant.zone}</span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center gap-1.5">
@@ -1773,7 +1767,7 @@ export default function RestaurantsList() {
                             <div>
                               <p className="text-xs text-slate-500">Opening / Closing</p>
                               <p className="text-sm font-medium text-slate-900">
-                                {formatTime12Hour(openingTimeVal)} â€“ {formatTime12Hour(closingTimeVal)}
+                                {formatTime12Hour(openingTimeVal)} – {formatTime12Hour(closingTimeVal)}
                               </p>
                             </div>
                           </div>
@@ -1970,7 +1964,7 @@ export default function RestaurantsList() {
                     <div className="pt-6 border-t border-slate-200">
                       <h4 className="text-lg font-semibold text-slate-900 mb-4">Registration Documents</h4>
                       <div className="space-y-6">
-                        {/* PAN â€“ flat or onboarding.step3 */}
+                        {/* PAN – flat or onboarding.step3 */}
                         {hasPanSection && (
                           <div className="bg-slate-50 rounded-lg p-4">
                             <h5 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
@@ -2004,7 +1998,7 @@ export default function RestaurantsList() {
                           </div>
                         )}
 
-                        {/* GST â€“ flat or onboarding.step3 */}
+                        {/* GST – flat or onboarding.step3 */}
                         {hasGstSection && (
                           <div className="bg-slate-50 rounded-lg p-4">
                             <h5 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
@@ -2052,7 +2046,7 @@ export default function RestaurantsList() {
                           </div>
                         )}
 
-                        {/* FSSAI â€“ flat or onboarding.step3 */}
+                        {/* FSSAI – flat or onboarding.step3 */}
                         {hasFssaiSection && (
                           <div className="bg-slate-50 rounded-lg p-4">
                             <h5 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
@@ -2088,7 +2082,7 @@ export default function RestaurantsList() {
                           </div>
                         )}
 
-                        {/* Bank â€“ flat or onboarding.step3 */}
+                        {/* Bank – flat or onboarding.step3 */}
                         {hasBankSection && (
                           <div className="bg-slate-50 rounded-lg p-4">
                             <h5 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
@@ -2328,25 +2322,9 @@ export default function RestaurantsList() {
                       <h4 className="text-lg font-semibold text-slate-900 mb-4">Location Editor</h4>
                       <div className="space-y-3 border border-indigo-100 bg-indigo-50/40 rounded-xl p-4">
                         <p className="text-xs text-indigo-700 font-semibold">
-                          Update restaurant location using dropdown (accurate) + select service zone.
+                          Update restaurant location using dropdown for accurate address and coordinates.
                         </p>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          <div className="md:col-span-2">
-                            <label className="block text-xs text-slate-600 mb-1 font-semibold">Service Zone*</label>
-                            <select
-                              value={locationForm.zoneId || ""}
-                              onChange={(e) => setLocationForm((prev) => ({ ...prev, zoneId: e.target.value }))}
-                              className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm"
-                            >
-                              <option value="">{zonesLoading ? "Loading zones..." : "Select a zone"}</option>
-                              {zones.map((z) => (
-                                <option key={z._id || z.id} value={z._id || z.id}>
-                                  {z.name || z.zoneName || z.serviceLocation || "Zone"}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-
                           <div className="md:col-span-2">
                             <label className="block text-xs text-slate-600 mb-1 font-semibold">Search location*</label>
                             <input

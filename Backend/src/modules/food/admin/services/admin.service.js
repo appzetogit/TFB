@@ -45,6 +45,7 @@ import {
     normalizeFoodVariantsInput,
     serializeFoodVariants
 } from './foodVariant.service.js';
+import { resolveZoneFromAddressLike } from '../../shared/zoneResolver.js';
 
 const parseBooleanLike = (value, fieldName) => {
     if (typeof value === 'boolean') return value;
@@ -235,7 +236,7 @@ export async function globalSearch(query = '') {
         id: i._id,
         type: 'Product',
         title: i.name,
-        description: `Price: â‚¹${i.price}`,
+        description: `Price: ₹${i.price}`,
         path: `/admin/food/foods?productId=${i._id}`
     }));
 
@@ -251,7 +252,7 @@ export async function globalSearch(query = '') {
         id: a._id,
         type: 'Addon',
         title: a.name,
-        description: `Price: â‚¹${a.price}`,
+        description: `Price: ₹${a.price}`,
         path: `/admin/food/addons`
     }));
 
@@ -283,19 +284,42 @@ export async function getRestaurants(query) {
     const status = query.status;
     const filter = {};
     if (status && ['pending', 'approved', 'rejected'].includes(status)) {
-        filter.status = status;
+        if (status === 'approved') {
+            filter.$or = [
+                { status: 'approved' },
+                { isAdminApproved: true }
+            ];
+        } else if (status === 'pending') {
+            filter.status = 'pending';
+            filter.isAdminApproved = { $ne: true };
+        } else {
+            filter.status = 'rejected';
+            filter.isAdminApproved = { $ne: true };
+        }
     }
     const [restaurants, total] = await Promise.all([
         FoodRestaurant.find(filter)
             .sort({ createdAt: -1 })
             .skip(skip)
             .limit(limit)
-            .select('restaurantName location area city profileImage coverImages menuImages menuPdf status ownerName ownerPhone zoneId')
+            .select('restaurantName location area city profileImage coverImages menuImages menuPdf status isAdminApproved approvedAt rejectedAt rejectionReason ownerName ownerPhone zoneId')
             .populate('zoneId', 'name zoneName')
             .lean(),
         FoodRestaurant.countDocuments(filter)
     ]);
-    return { restaurants, total, page, limit };
+    const normalizedRestaurants = restaurants.map((restaurant) => {
+        if (restaurant?.isAdminApproved === true) {
+            return {
+                ...restaurant,
+                status: 'approved',
+                approvedAt: restaurant.approvedAt || new Date(),
+                rejectedAt: undefined,
+                rejectionReason: undefined
+            };
+        }
+        return restaurant;
+    });
+    return { restaurants: normalizedRestaurants, total, page, limit };
 }
 
 export async function getRestaurantMenuPdfDownloadUrl(restaurantId) {
@@ -549,7 +573,7 @@ export async function getDashboardStats(query = {}) {
             { $sort: { '_id.year': 1, '_id.month': 1 } }
         ]),
         FoodRestaurant.countDocuments({ ...restaurantMatch, status: 'approved' }),
-        FoodRestaurant.countDocuments({ ...restaurantMatch, status: 'pending' }),
+        FoodRestaurant.countDocuments({ ...restaurantMatch, status: 'pending', isAdminApproved: { $ne: true } }),
         FoodDeliveryPartner.countDocuments({ status: 'approved' }),
         FoodDeliveryPartner.countDocuments({ status: 'pending' }),
         FoodItem.countDocuments({ approvalStatus: 'approved', ...zoneScopedRestaurantMatch }),
@@ -557,7 +581,7 @@ export async function getDashboardStats(query = {}) {
         zoneId
             ? FoodOrder.distinct('userId', { ...orderMatch, userId: { $ne: null } }).then((ids) => ids.length)
             : FoodUser.countDocuments({}),
-        FoodRestaurant.find({ ...restaurantMatch, status: 'pending' }).sort({ createdAt: -1 }).limit(5).select('restaurantName createdAt').lean(),
+        FoodRestaurant.find({ ...restaurantMatch, status: 'pending', isAdminApproved: { $ne: true } }).sort({ createdAt: -1 }).limit(5).select('restaurantName createdAt').lean(),
         FoodDeliveryPartner.find({ status: 'pending' }).sort({ createdAt: -1 }).limit(5).select('name createdAt').lean(),
         FoodOrder.find({ 
             ...orderMatch,
@@ -2301,7 +2325,10 @@ export async function updateRestaurantMenuById(id, menu) {
 }
 
 export async function getPendingRestaurants() {
-    const restaurants = await FoodRestaurant.find({ status: { $in: ['pending', 'rejected'] } })
+    const restaurants = await FoodRestaurant.find({
+        status: { $in: ['pending', 'rejected'] },
+        isAdminApproved: { $ne: true }
+    })
         .populate('zoneId', 'name zoneName')
         .sort({ createdAt: -1 })
         .lean();
@@ -2310,6 +2337,30 @@ export async function getPendingRestaurants() {
         sl: i + 1,
         zone: r.zoneId?.zoneName || r.zoneId?.name || null,
     }));
+}
+
+function preserveRestaurantReviewState(doc, context = 'restaurant-update') {
+    if (!doc) return;
+    const currentStatus = String(doc.status || 'pending').trim().toLowerCase();
+    const wasAdminApproved = doc.isAdminApproved === true;
+
+    if (currentStatus === 'approved' || wasAdminApproved) {
+        doc.status = 'approved';
+        doc.isAdminApproved = true;
+        doc.approvedAt = doc.approvedAt || new Date();
+        doc.rejectedAt = undefined;
+        doc.rejectionReason = undefined;
+        console.info(`[AdminRestaurant] Preserved approved status during ${context} for restaurant ${doc._id}`);
+        return;
+    }
+
+    if (currentStatus === 'rejected') {
+        doc.status = 'rejected';
+        doc.isAdminApproved = false;
+        doc.rejectedAt = doc.rejectedAt || new Date();
+        doc.approvedAt = undefined;
+        console.info(`[AdminRestaurant] Preserved rejected status during ${context} for restaurant ${doc._id}`);
+    }
 }
 
 export async function updateRestaurantById(id, body = {}) {
@@ -2416,6 +2467,7 @@ export async function updateRestaurantById(id, body = {}) {
         }
     }
 
+    preserveRestaurantReviewState(doc, 'admin-details-update');
     await doc.save();
     return FoodRestaurant.findById(id).select('-__v').populate('zoneId', 'name zoneName serviceLocation isActive').lean();
 }
@@ -2431,6 +2483,7 @@ export async function updateRestaurantStatus(id, body = {}) {
         {
             $set: {
                 status,
+                isAdminApproved: isActive,
                 approvedAt: isActive ? new Date() : undefined,
                 rejectedAt: isActive ? undefined : new Date(),
                 rejectionReason: isActive ? undefined : 'Disabled by admin'
@@ -2491,17 +2544,22 @@ export async function updateRestaurantLocation(id, body = {}) {
     doc.pincode = pincode;
     doc.landmark = landmark;
 
-    if (body.zoneId !== undefined) {
-        const zoneId = String(body.zoneId || '').trim();
-        if (!zoneId) {
-            doc.zoneId = undefined;
-        } else if (!mongoose.Types.ObjectId.isValid(zoneId)) {
-            throw new ValidationError('Invalid zoneId');
-        } else {
-            doc.zoneId = new mongoose.Types.ObjectId(zoneId);
-        }
+    const resolvedZone = await resolveZoneFromAddressLike(doc.location);
+    const requestedZoneId = String(source.zoneId || body.zoneId || '').trim();
+    if (
+        requestedZoneId &&
+        mongoose.Types.ObjectId.isValid(requestedZoneId) &&
+        resolvedZone?._id &&
+        String(resolvedZone._id) !== requestedZoneId
+    ) {
+        throw new ValidationError('Selected zone does not match location coordinates. Please pick the correct location again.');
     }
+    if (!resolvedZone?._id) {
+        throw new ValidationError('Location is outside all active zones. Please select a valid location inside a service zone.');
+    }
+    doc.zoneId = new mongoose.Types.ObjectId(String(resolvedZone._id));
 
+    preserveRestaurantReviewState(doc, 'admin-location-update');
     await doc.save();
     return FoodRestaurant.findById(id).select('-__v').populate('zoneId', 'name zoneName serviceLocation isActive').lean();
 }
@@ -2892,7 +2950,7 @@ export async function approveRestaurantAddon(addonId) {
             await notifyOwnersSafely(
                 [{ ownerType: 'RESTAURANT', ownerId: updated.restaurantId }],
                 {
-                    title: 'Addon Approved! Ã¢Å“â€¦',
+                    title: 'Addon Approved! Ã¢Å“...',
                     body: `Your addon "${updated.published?.name || 'New Addon'}" has been approved and is now live.`,
                     image: 'https://i.ibb.co/3m2Yh7r/Appzeto-Brand-Image.png',
                     data: {
@@ -3322,6 +3380,7 @@ export async function approveRestaurant(id) {
         {
             $set: {
                 status: 'approved',
+                isAdminApproved: true,
                 approvedAt: new Date(),
                 rejectedAt: undefined,
                 rejectionReason: undefined
@@ -3336,7 +3395,7 @@ export async function approveRestaurant(id) {
             await notifyOwnersSafely(
                 [{ ownerType: 'RESTAURANT', ownerId: updated._id }],
                 {
-                    title: 'Congratulations! Ã°Å¸Å½â€°',
+                    title: 'Congratulations! Ã°Å¸Å½"°',
                     body: `Your restaurant "${updated.restaurantName}" has been approved. You can now start receiving orders!`,
                     image: updated.profileImage || 'https://i.ibb.co/3m2Yh7r/Appzeto-Brand-Image.png',
                     data: {
@@ -3359,6 +3418,7 @@ export async function rejectRestaurant(id, reason) {
         {
             $set: {
                 status: 'rejected',
+                isAdminApproved: false,
                 rejectedAt: new Date(),
                 rejectionReason: typeof reason === 'string' ? reason.trim() : undefined,
                 approvedAt: null
@@ -3373,7 +3433,7 @@ export async function rejectRestaurant(id, reason) {
             await notifyOwnersSafely(
                 [{ ownerType: 'RESTAURANT', ownerId: updated._id }],
                 {
-                    title: 'Update on Registration Ã°Å¸â€œâ€¹',
+                    title: 'Update on Registration Ã°Å¸""¹',
                     body: `Your restaurant registration for "${updated.restaurantName}" has been rejected. Reason: ${reason || 'Incomplete documents'}.`,
                     image: 'https://i.ibb.co/3m2Yh7r/Appzeto-Brand-Image.png',
                     data: {
@@ -3468,7 +3528,7 @@ export async function createAdminOffer(body) {
             await notifyOwnersSafely(
                 [{ ownerType: 'RESTAURANT', ownerId: doc.restaurantId }],
                 {
-                    title: 'New Campaign Invitation! Ã°Å¸â€œÂ¢',
+                    title: 'New Campaign Invitation! Ã°Å¸"Â¢',
                     body: `You have been invited to join a new campaign: "${doc.couponCode}". Check it out now!`,
                     image: 'https://i.ibb.co/3m2Yh7r/Appzeto-Brand-Image.png',
                     data: {
@@ -4209,7 +4269,7 @@ export async function cancelEarningAddonHistory(historyId, reason) {
         await notifyOwnerSafely(
             { ownerType: 'DELIVERY_PARTNER', ownerId: doc.deliveryPartnerId },
             {
-                title: 'Incentive Update Ã°Å¸â€œâ€¹',
+                title: 'Incentive Update Ã°Å¸""¹',
                 body: `Your incentive request for "${doc.offerId?.title || 'Earning Addon'}" was not approved. Reason: ${doc.cancelReason || 'Ineligible'}`,
                 image: 'https://i.ibb.co/3m2Yh7r/Appzeto-Brand-Image.png',
                 data: {
@@ -4496,7 +4556,7 @@ export async function rejectDeliveryPartner(id, reason) {
             await notifyOwnerSafely(
                 { ownerType: 'DELIVERY_PARTNER', ownerId: updated._id },
                 {
-                    title: 'Onboarding Update Ã°Å¸â€œâ€¹',
+                    title: 'Onboarding Update Ã°Å¸""¹',
                     body: `Your application to join as a delivery partner was rejected. Reason: ${reason || 'Incomplete documents'}.`,
                     image: 'https://i.ibb.co/3m2Yh7r/Appzeto-Brand-Image.png',
                     data: {

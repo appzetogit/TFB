@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
 
-import { CheckCircle, MapPin, CreditCard, ArrowLeft } from "lucide-react"
+import { CheckCircle, MapPin, CreditCard, ArrowLeft, MessageSquare } from "lucide-react"
 import { Link } from "react-router-dom"
 import AnimatedPage from "@food/components/user/AnimatedPage"
 import ScrollReveal from "@food/components/user/ScrollReveal"
@@ -10,6 +10,7 @@ import { Button } from "@food/components/ui/button"
 import { Input } from "@food/components/ui/input"
 import { Label } from "@food/components/ui/label"
 import { Badge } from "@food/components/ui/badge"
+import { Textarea } from "@food/components/ui/textarea"
 import { useCart } from "@food/context/CartContext"
 import { useProfile } from "@food/context/ProfileContext"
 import { useOrders } from "@food/context/OrdersContext"
@@ -128,7 +129,7 @@ export default function Checkout() {
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <MapPin className="h-5 w-5 text-[#7e3866]" />
+                    <MapPin className="h-5 w-5 text-[#2A9C64]" />
                     Delivery Address
                   </CardTitle>
                 </CardHeader>
@@ -144,7 +145,7 @@ export default function Checkout() {
                           <div
                             key={addressId || `${address.label}-${address.street}-${address.city}`}
                             className={`border-2 rounded-lg p-4 cursor-pointer transition-colors ${isSelected
-                                ? "border-[#7e3866] bg-orange-50"
+                                ? "border-[#2A9C64] bg-orange-50"
                                 : "border-gray-200 hover:border-orange-300"
                               }`}
                             onClick={() => {
@@ -155,12 +156,12 @@ export default function Checkout() {
                             <div className="flex items-start justify-between">
                               <div className="flex-1">
                                 {address.isDefault && (
-                                  <Badge className="mb-2 bg-[#7e3866] text-white">Default</Badge>
+                                  <Badge className="mb-2 bg-[#2A9C64] text-white">Default</Badge>
                                 )}
                                 <p className="text-sm font-medium">{addressString}</p>
                               </div>
                               {isSelected && (
-                                <CheckCircle className="h-5 w-5 text-[#7e3866]" />
+                                <CheckCircle className="h-5 w-5 text-[#2A9C64]" />
                               )}
                             </div>
                           </div>
@@ -188,7 +189,7 @@ export default function Checkout() {
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <CreditCard className="h-5 w-5 text-[#7e3866]" />
+                    <CreditCard className="h-5 w-5 text-[#2A9C64]" />
                     Payment Method
                   </CardTitle>
                 </CardHeader>
@@ -203,7 +204,7 @@ export default function Checkout() {
                           <div
                             key={payment.id}
                             className={`border-2 rounded-lg p-4 cursor-pointer transition-colors ${isSelected
-                                ? "border-[#7e3866] bg-orange-50"
+                                ? "border-[#2A9C64] bg-orange-50"
                                 : "border-gray-200 hover:border-orange-300"
                               }`}
                             onClick={() => setSelectedPayment(payment.id)}
@@ -212,7 +213,7 @@ export default function Checkout() {
                               <div className="flex-1">
                                 <div className="flex items-center gap-2 mb-2">
                                   {payment.isDefault && (
-                                    <Badge className="bg-[#7e3866] text-white">Default</Badge>
+                                    <Badge className="bg-[#2A9C64] text-white">Default</Badge>
                                   )}
                                   <Badge variant="outline" className="capitalize">
                                     {payment.type}
@@ -224,7 +225,7 @@ export default function Checkout() {
                                 </p>
                               </div>
                               {isSelected && (
-                                <CheckCircle className="h-5 w-5 text-[#7e3866]" />
+                                <CheckCircle className="h-5 w-5 text-[#2A9C64]" />
                               )}
                             </div>
                           </div>
@@ -253,7 +254,7 @@ export default function Checkout() {
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <MessageSquare className="h-5 w-5 text-[#7e3866]" />
+                    <MessageSquare className="h-5 w-5 text-[#2A9C64]" />
                     Add note for restaurant
                   </CardTitle>
                 </CardHeader>
@@ -294,11 +295,11 @@ export default function Checkout() {
                             <p className="text-xs md:text-sm text-muted-foreground">{item.variantName}</p>
                           ) : null}
                           <p className="text-xs md:text-sm text-muted-foreground">
-                            â‚¹{(item.price * 83).toFixed(0)} Ã— {item.quantity}
+                            ₹{(item.price * 83).toFixed(0)} × {item.quantity}
                           </p>
                         </div>
                         <p className="font-semibold text-sm md:text-base dark:text-gray-200">
-                          â‚¹{(item.price * 83 * item.quantity).toFixed(0)}
+                          ₹{(item.price * 83 * item.quantity).toFixed(0)}
                         </p>
                       </div>
                     ))}
@@ -307,24 +308,24 @@ export default function Checkout() {
                   <div className="space-y-2 md:space-y-3 pt-4 md:pt-6 border-t dark:border-gray-700">
                     <div className="flex justify-between text-sm md:text-base">
                       <span className="text-muted-foreground">Subtotal</span>
-                      <span className="dark:text-gray-200">â‚¹{subtotal.toFixed(0)}</span>
+                      <span className="dark:text-gray-200">₹{subtotal.toFixed(0)}</span>
                     </div>
                     <div className="flex justify-between text-sm md:text-base">
                       <span className="text-muted-foreground">Delivery Fee</span>
-                      <span className="dark:text-gray-200">â‚¹{deliveryFee.toFixed(0)}</span>
+                      <span className="dark:text-gray-200">₹{deliveryFee.toFixed(0)}</span>
                     </div>
                     <div className="flex justify-between text-sm md:text-base">
                       <span className="text-muted-foreground">Tax</span>
-                      <span className="dark:text-gray-200">â‚¹{tax.toFixed(0)}</span>
+                      <span className="dark:text-gray-200">₹{tax.toFixed(0)}</span>
                     </div>
                     <div className="flex justify-between font-bold text-lg md:text-xl lg:text-2xl pt-2 md:pt-3 border-t dark:border-gray-700">
                       <span className="dark:text-white">Total</span>
-                      <span className="text-[#7e3866] dark:text-orange-400">â‚¹{total.toFixed(0)}</span>
+                      <span className="text-[#2A9C64] dark:text-orange-400">₹{total.toFixed(0)}</span>
                     </div>
                   </div>
 
                   <Button
-                    className="w-full bg-[#7e3866] hover:bg-[#55254b] text-white mt-4 md:mt-6 h-11 md:h-12 text-sm md:text-base border-none"
+                    className="w-full bg-[#2A9C64] hover:bg-[#1E7A4A] text-white mt-4 md:mt-6 h-11 md:h-12 text-sm md:text-base border-none"
                     onClick={handlePlaceOrder}
                     disabled={isPlacingOrder || !selectedAddress || !selectedPayment}
                   >
