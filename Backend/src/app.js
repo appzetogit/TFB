@@ -20,7 +20,8 @@ const allowedOrigins = [
     "https://tifunbox.com",
     "https://www.tifunbox.com",
     "http://localhost:5173",
-    "http://localhost:3000"
+    "http://localhost:3000",
+    "https://appleid.apple.com"
 ];
 
 const corsOptions = {
