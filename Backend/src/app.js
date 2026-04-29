@@ -13,23 +13,35 @@ import { healthCheck } from './config/health.js';
 import { config } from './config/env.js';
 
 const app = express();
+
+/* ✅ FIXED CORS CONFIG */
+const allowedOrigins = [
+    "https://app.tifunbox.com",
+    "https://tifunbox.com",
+    "https://www.tifunbox.com",
+    "http://localhost:5173",
+    "http://localhost:3000"
+];
+
 const corsOptions = {
     origin: (origin, callback) => {
-        if (!origin || config.corsOrigins.includes(origin)) {
+        if (!origin || allowedOrigins.includes(origin)) {
             return callback(null, true);
         }
-
-        return callback(new Error('Not allowed by CORS'));
-    }
+        return callback(new Error(`Not allowed by CORS: ${origin}`));
+    },
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"]
 };
 
-// Trust first proxy (essential for express-rate-limit if behind a proxy)
+// Trust proxy (important for rate limiter)
 app.set('trust proxy', 1);
 
-// Request ID tracing (before other middlewares so all logs can use it)
+// Request ID
 app.use(requestIdMiddleware);
 
-// Health endpoints (no rate limit, minimal JSON, no secrets)
+// Health routes
 app.get('/health', async (_req, res) => {
     try {
         const data = await healthCheck();
@@ -38,23 +50,31 @@ app.get('/health', async (_req, res) => {
         res.status(503).json({ status: 'DOWN', error: 'Health check failed' });
     }
 });
+
 app.get('/ready', (_req, res) => {
     res.status(200).json({ status: 'ready' });
 });
 
-// Security & parsing middlewares
+/* ✅ SECURITY */
 app.use(helmet({
     contentSecurityPolicy: { directives: { defaultSrc: ["'self'"] } },
-    hsts: config.nodeEnv === 'production' ? { maxAge: 31536000, includeSubDomains: true, preload: true } : false,
+    hsts: config.nodeEnv === 'production'
+        ? { maxAge: 31536000, includeSubDomains: true, preload: true }
+        : false,
     xssFilter: true,
     noSniff: true,
     referrerPolicy: { policy: 'strict-origin-when-cross-origin' }
 }));
+
+/* ✅ CORS APPLY */
 app.use(cors(corsOptions));
+app.options("*", cors(corsOptions)); // 🔥 IMPORTANT FIX FOR PREFLIGHT
+
 app.use(morgan('dev'));
+
+/* ✅ BODY PARSER */
 app.use(express.json({
     verify: (req, res, buf) => {
-        // ✅ Store rawBody for signature verification (Razorpay Webhooks)
         if (req.originalUrl && req.originalUrl.includes('/webhook/razorpay')) {
             req.rawBody = buf;
         }
@@ -62,7 +82,7 @@ app.use(express.json({
 }));
 app.use(express.urlencoded({ extended: true }));
 
-// Protect against NoSQL injection and XSS
+/* ✅ SECURITY SANITIZATION */
 app.use((req, _res, next) => {
     req.body = mongoSanitize(req.body);
     req.query = mongoSanitize(req.query);
@@ -71,16 +91,16 @@ app.use((req, _res, next) => {
 });
 app.use(xssClean());
 
-// Global rate limiting for API routes
+/* ✅ RATE LIMIT */
 app.use('/api', apiRateLimiter);
 
-// Optional: log API response time (method, path, status, duration) - no sensitive data
+/* ✅ RESPONSE TIME LOG */
 app.use('/api', responseTimeLogger);
 
-// API Routes
+/* ✅ ROUTES */
 app.use('/api', routes);
 
-// Error Handling
+/* ✅ ERROR HANDLER */
 app.use(errorHandler);
 
 export default app;
